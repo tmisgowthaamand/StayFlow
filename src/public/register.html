@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>StayFlow Resident Registration</title>
+    <style>
+        :root {
+            --primary: #6366f1;
+            --bg: #0f172a;
+            --card: #1e293b;
+            --text: #f8fafc;
+            --border: #334155;
+        }
+        body {
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            padding: 20px;
+        }
+        .container {
+            background-color: var(--card);
+            padding: 2rem;
+            border-radius: 16px;
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5);
+            width: 100%;
+            max-width: 400px;
+            border: 1px solid var(--border);
+        }
+        h2 { text-align: center; margin-bottom: 1.5rem; color: var(--primary); }
+        label { display: block; margin-bottom: 0.5rem; font-weight: 500; color: #cbd5e1; }
+        input, select {
+            width: 100%;
+            padding: 0.75rem;
+            margin-bottom: 1.25rem;
+            border-radius: 8px;
+            border: 1px solid var(--border);
+            background-color: #0f172a;
+            color: white;
+            box-sizing: border-box;
+            transition: all 0.2s;
+        }
+        input:focus, select:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.2);
+        }
+        input[type="file"] {
+            padding: 0.5rem;
+        }
+        button {
+            width: 100%;
+            padding: 0.75rem;
+            background-color: var(--primary);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: opacity 0.2s;
+        }
+        button:hover { opacity: 0.9; }
+        .footer { text-align: center; margin-top: 1rem; font-size: 0.8rem; color: #64748b; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>🏠 StayFlow Registration</h2>
+    <form action="/api/web-register" method="post" enctype="multipart/form-data">
+        
+        <label>Full Name</label>
+        <input type="text" name="name" placeholder="John Doe" required>
+
+        <label>Phone Number</label>
+        <input type="tel" name="phone" placeholder="9876543210" pattern="[0-9]{10}" title="Ten digits code" required>
+
+        <label>Room Number</label>
+        <input type="text" name="room" placeholder="e.g. 101" required>
+
+        <label>Sharing Type</label>
+        <select name="sharing" required>
+            <option value="">Select Sharing</option>
+            <option value="Single">Single</option>
+            <option value="Double">Double</option>
+            <option value="Triple">Triple</option>
+        </select>
+
+        <label>Advance Amount (₹)</label>
+        <input type="number" name="advance" placeholder="5000" required>
+
+        <label>Aadhaar Card (Image)</label>
+        <input type="file" name="aadhaar" accept="image/*" required>
+
+        <button type="submit">Complete Registration</button>
+    </form>
+    <div class="footer">Secure Registration System</div>
+</div>
+
+</body>
+</html>
