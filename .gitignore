@@ -1,6 +1,10 @@
 node_modules/
+dashboard/node_modules/
 .env
 .wwebjs_auth/
-uploads/
 *.log
+uploads/
 service-account.json
+.DS_Store
+dist/
+build/
