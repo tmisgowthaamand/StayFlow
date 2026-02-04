@@ -1,0 +1,630 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>StayFlow PG - House Rules</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #6366f1;
+            --primary-dark: #4f46e5;
+            --success: #10b981;
+            --warning: #f59e0b;
+            --danger: #ef4444;
+            --bg-dark: #0f172a;
+            --bg-card: #1e293b;
+            --bg-card-hover: #334155;
+            --text-primary: #f8fafc;
+            --text-secondary: #94a3b8;
+            --border: #334155;
+            --gradient: linear-gradient(135deg, #6366f1 0%, #8b5cf6 50%, #d946ef 100%);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: var(--bg-dark);
+            color: var(--text-primary);
+            min-height: 100vh;
+            line-height: 1.6;
+        }
+
+        .hero {
+            background: var(--gradient);
+            padding: 60px 20px 80px;
+            text-align: center;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .hero::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.05'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+        }
+
+        .hero-content {
+            position: relative;
+            z-index: 1;
+        }
+
+        .success-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            background: rgba(255, 255, 255, 0.2);
+            backdrop-filter: blur(10px);
+            padding: 10px 20px;
+            border-radius: 50px;
+            font-weight: 600;
+            margin-bottom: 20px;
+            animation: fadeInDown 0.6s ease;
+        }
+
+        .success-badge svg {
+            width: 24px;
+            height: 24px;
+            fill: currentColor;
+        }
+
+        .hero h1 {
+            font-size: 2.5rem;
+            font-weight: 700;
+            margin-bottom: 10px;
+            animation: fadeInUp 0.6s ease 0.2s both;
+        }
+
+        .hero p {
+            font-size: 1.1rem;
+            opacity: 0.9;
+            animation: fadeInUp 0.6s ease 0.4s both;
+        }
+
+        @keyframes fadeInDown {
+            from {
+                opacity: 0;
+                transform: translateY(-20px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .container {
+            max-width: 800px;
+            margin: -40px auto 40px;
+            padding: 0 20px;
+            position: relative;
+            z-index: 2;
+        }
+
+        .card {
+            background: var(--bg-card);
+            border-radius: 16px;
+            border: 1px solid var(--border);
+            overflow: hidden;
+            margin-bottom: 20px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+            animation: fadeInUp 0.6s ease;
+        }
+
+        .card-header {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 20px 24px;
+            background: rgba(99, 102, 241, 0.1);
+            border-bottom: 1px solid var(--border);
+        }
+
+        .card-header-icon {
+            width: 48px;
+            height: 48px;
+            background: var(--gradient);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+        }
+
+        .card-header h2 {
+            font-size: 1.3rem;
+            font-weight: 600;
+        }
+
+        .card-header span {
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+        }
+
+        .card-body {
+            padding: 24px;
+        }
+
+        .rule-item {
+            display: flex;
+            gap: 16px;
+            padding: 16px;
+            margin-bottom: 12px;
+            background: var(--bg-dark);
+            border-radius: 12px;
+            border-left: 4px solid var(--primary);
+            transition: all 0.3s ease;
+        }
+
+        .rule-item:hover {
+            background: var(--bg-card-hover);
+            transform: translateX(4px);
+        }
+
+        .rule-item:last-child {
+            margin-bottom: 0;
+        }
+
+        .rule-number {
+            width: 32px;
+            height: 32px;
+            background: var(--gradient);
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: 0.9rem;
+            flex-shrink: 0;
+        }
+
+        .rule-content h3 {
+            font-size: 1rem;
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+
+        .rule-content p {
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+        }
+
+        .important-notice {
+            background: linear-gradient(135deg, rgba(239, 68, 68, 0.1) 0%, rgba(245, 158, 11, 0.1) 100%);
+            border: 1px solid rgba(239, 68, 68, 0.3);
+            border-radius: 12px;
+            padding: 20px;
+            margin-top: 20px;
+        }
+
+        .important-notice h3 {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: var(--warning);
+            margin-bottom: 10px;
+        }
+
+        .important-notice ul {
+            list-style: none;
+            padding-left: 0;
+        }
+
+        .important-notice li {
+            padding: 8px 0;
+            padding-left: 24px;
+            position: relative;
+            color: var(--text-secondary);
+        }
+
+        .important-notice li::before {
+            content: '⚠️';
+            position: absolute;
+            left: 0;
+        }
+
+        .quick-links {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 16px;
+            margin-top: 24px;
+        }
+
+        .quick-link {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 16px;
+            background: var(--bg-dark);
+            border-radius: 12px;
+            text-decoration: none;
+            color: var(--text-primary);
+            border: 1px solid var(--border);
+            transition: all 0.3s ease;
+        }
+
+        .quick-link:hover {
+            background: var(--bg-card-hover);
+            border-color: var(--primary);
+            transform: translateY(-2px);
+        }
+
+        .quick-link-icon {
+            width: 40px;
+            height: 40px;
+            background: rgba(99, 102, 241, 0.2);
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+        }
+
+        .quick-link-text h4 {
+            font-weight: 600;
+            font-size: 0.95rem;
+        }
+
+        .quick-link-text span {
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+        }
+
+        .contact-section {
+            text-align: center;
+            padding: 40px 20px;
+            background: var(--bg-card);
+            border-radius: 16px;
+            border: 1px solid var(--border);
+        }
+
+        .contact-section h3 {
+            font-size: 1.3rem;
+            margin-bottom: 8px;
+        }
+
+        .contact-section p {
+            color: var(--text-secondary);
+            margin-bottom: 20px;
+        }
+
+        .whatsapp-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            background: #25d366;
+            color: white;
+            padding: 14px 28px;
+            border-radius: 50px;
+            text-decoration: none;
+            font-weight: 600;
+            transition: all 0.3s ease;
+        }
+
+        .whatsapp-btn:hover {
+            background: #20bd5a;
+            transform: scale(1.05);
+        }
+
+        .footer {
+            text-align: center;
+            padding: 30px 20px;
+            color: var(--text-secondary);
+            font-size: 0.85rem;
+        }
+
+        .footer a {
+            color: var(--primary);
+            text-decoration: none;
+        }
+
+        /* Animations for staggered entrance */
+        .card:nth-child(1) {
+            animation-delay: 0.1s;
+        }
+
+        .card:nth-child(2) {
+            animation-delay: 0.2s;
+        }
+
+        .card:nth-child(3) {
+            animation-delay: 0.3s;
+        }
+
+        .card:nth-child(4) {
+            animation-delay: 0.4s;
+        }
+
+        @media (max-width: 600px) {
+            .hero h1 {
+                font-size: 1.8rem;
+            }
+
+            .hero {
+                padding: 40px 20px 60px;
+            }
+
+            .container {
+                margin-top: -30px;
+            }
+
+            .quick-links {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="hero">
+        <div class="hero-content">
+            <div class="success-badge">
+                <svg viewBox="0 0 24 24">
+                    <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" />
+                </svg>
+                Registration Successful
+            </div>
+            <h1>Welcome to StayFlow PG</h1>
+            <p>Your home away from home. Please read the house rules carefully.</p>
+        </div>
+    </div>
+
+    <div class="container">
+        <!-- Gate Timings -->
+        <div class="card">
+            <div class="card-header">
+                <div class="card-header-icon">🚪</div>
+                <div>
+                    <h2>Gate & Entry Timings</h2>
+                    <span>Please follow strictly</span>
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="rule-item">
+                    <div class="rule-number">1</div>
+                    <div class="rule-content">
+                        <h3>Main Gate Closes at 10:30 PM</h3>
+                        <p>All residents must be inside the premises by 10:30 PM. Late entry requires prior permission
+                            from the warden.</p>
+                    </div>
+                </div>
+                <div class="rule-item">
+                    <div class="rule-number">2</div>
+                    <div class="rule-content">
+                        <h3>Late Entry Procedure</h3>
+                        <p>For late entries, call the warden at least 2 hours in advance. This ensures someone is
+                            available to open the gate.</p>
+                    </div>
+                </div>
+                <div class="rule-item">
+                    <div class="rule-number">3</div>
+                    <div class="rule-content">
+                        <h3>Visitor Hours</h3>
+                        <p>Visitors allowed strictly between 10:00 AM - 6:00 PM. No overnight guests without prior
+                            approval.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Payment Rules -->
+        <div class="card">
+            <div class="card-header">
+                <div class="card-header-icon">💰</div>
+                <div>
+                    <h2>Payment & Billing</h2>
+                    <span>Due dates and methods</span>
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="rule-item">
+                    <div class="rule-number">1</div>
+                    <div class="rule-content">
+                        <h3>Rent Due by 5th of Every Month</h3>
+                        <p>Monthly rent must be paid before the 5th. Late payments may incur additional fees.</p>
+                    </div>
+                </div>
+                <div class="rule-item">
+                    <div class="rule-number">2</div>
+                    <div class="rule-content">
+                        <h3>Electricity Bill (EB) - Shared</h3>
+                        <p>EB is calculated monthly based on meter reading and split equally among room occupants.
+                            Expect bill notification around 10th.</p>
+                    </div>
+                </div>
+                <div class="rule-item">
+                    <div class="rule-number">3</div>
+                    <div class="rule-content">
+                        <h3>Payment Methods</h3>
+                        <p>Pay via UPI (link sent on WhatsApp) or Cash to Warden. Always save your transaction
+                            ID/receipt.</p>
+                    </div>
+                </div>
+                <div class="rule-item">
+                    <div class="rule-number">4</div>
+                    <div class="rule-content">
+                        <h3>Advance & Security Deposit</h3>
+                        <p>Advance is adjusted against final month's rent. Security deposit refunded after room
+                            inspection upon vacating.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Discipline & Conduct -->
+        <div class="card">
+            <div class="card-header">
+                <div class="card-header-icon">📋</div>
+                <div>
+                    <h2>Discipline & Conduct</h2>
+                    <span>Maintaining a peaceful environment</span>
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="rule-item">
+                    <div class="rule-number">1</div>
+                    <div class="rule-content">
+                        <h3>Cleanliness</h3>
+                        <p>Keep your room and common areas clean. Weekly cleaning of personal space is mandatory.</p>
+                    </div>
+                </div>
+                <div class="rule-item">
+                    <div class="rule-number">2</div>
+                    <div class="rule-content">
+                        <h3>No Damage to Property</h3>
+                        <p>Any damage to furniture, walls, or fixtures will be charged to the responsible resident.</p>
+                    </div>
+                </div>
+                <div class="rule-item">
+                    <div class="rule-number">3</div>
+                    <div class="rule-content">
+                        <h3>Quiet Hours</h3>
+                        <p>Maintain silence between 10:00 PM - 7:00 AM. Use headphones for music/videos.</p>
+                    </div>
+                </div>
+                <div class="rule-item">
+                    <div class="rule-number">4</div>
+                    <div class="rule-content">
+                        <h3>No Smoking or Alcohol</h3>
+                        <p>Strictly prohibited inside the premises. Violation may lead to immediate eviction.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Documentation -->
+        <div class="card">
+            <div class="card-header">
+                <div class="card-header-icon">📄</div>
+                <div>
+                    <h2>Documentation Required</h2>
+                    <span>Keep these ready</span>
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="rule-item">
+                    <div class="rule-number">1</div>
+                    <div class="rule-content">
+                        <h3>Aadhaar Card (Mandatory)</h3>
+                        <p>Original Aadhaar must be shown for verification. Photo copy will be kept for records.</p>
+                    </div>
+                </div>
+                <div class="rule-item">
+                    <div class="rule-number">2</div>
+                    <div class="rule-content">
+                        <h3>Passport Size Photos</h3>
+                        <p>Submit 2 recent passport size photographs for hostel records.</p>
+                    </div>
+                </div>
+                <div class="rule-item">
+                    <div class="rule-number">3</div>
+                    <div class="rule-content">
+                        <h3>Parent/Guardian Contact</h3>
+                        <p>Emergency contact number of parent or local guardian is mandatory.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Important Notice -->
+        <div class="important-notice">
+            <h3>⚠️ Important Notices</h3>
+            <ul>
+                <li>Management reserves the right to ask any resident to vacate for rule violations</li>
+                <li>One month notice period required before vacating</li>
+                <li>Room changes require prior approval from management</li>
+                <li>All complaints to be registered via WhatsApp bot using <strong>HELP</strong> command</li>
+            </ul>
+        </div>
+
+        <!-- Quick Actions -->
+        <h3 style="margin-top: 30px; margin-bottom: 16px;">🚀 Quick Actions via WhatsApp</h3>
+        <div class="quick-links">
+            <div class="quick-link">
+                <div class="quick-link-icon">📊</div>
+                <div class="quick-link-text">
+                    <h4>Type "HI"</h4>
+                    <span>View your dashboard</span>
+                </div>
+            </div>
+            <div class="quick-link">
+                <div class="quick-link-icon">💵</div>
+                <div class="quick-link-text">
+                    <h4>Type "RENT"</h4>
+                    <span>Check current dues</span>
+                </div>
+            </div>
+            <div class="quick-link">
+                <div class="quick-link-icon">⚡</div>
+                <div class="quick-link-text">
+                    <h4>Type "EB"</h4>
+                    <span>View EB bill split</span>
+                </div>
+            </div>
+            <div class="quick-link">
+                <div class="quick-link-icon">📜</div>
+                <div class="quick-link-text">
+                    <h4>Type "HISTORY"</h4>
+                    <span>Past 3 months payments</span>
+                </div>
+            </div>
+            <div class="quick-link">
+                <div class="quick-link-icon">🚪</div>
+                <div class="quick-link-text">
+                    <h4>Type "VACATE"</h4>
+                    <span>Request to leave</span>
+                </div>
+            </div>
+            <div class="quick-link">
+                <div class="quick-link-icon">🆘</div>
+                <div class="quick-link-text">
+                    <h4>Type "HELP"</h4>
+                    <span>Raise a complaint</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Contact Section -->
+        <div class="contact-section" style="margin-top: 30px;">
+            <h3>Need Help?</h3>
+            <p>Contact us anytime via WhatsApp for any queries or issues</p>
+            <a href="https://wa.me/919876543210" class="whatsapp-btn">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+                    <path
+                        d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z" />
+                </svg>
+                Chat with Us
+            </a>
+        </div>
+    </div>
+
+    <div class="footer">
+        <p>© 2026 StayFlow PG Management System | <a href="/register.html">Register New Tenant</a></p>
+    </div>
+
+</body>
+
+</html>
