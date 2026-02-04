@@ -9,7 +9,11 @@ const fs = require('fs');
 const path = require('path');
 
 const app = express();
-app.use(cors());
+app.use(cors({
+    origin: config.allowedOrigins.length > 0 ? config.allowedOrigins : '*',
+    methods: ['GET', 'POST', 'PUT', 'DELETE'],
+    credentials: true
+}));
 app.use(bodyParser.json());
 
 // Ensure uploads directory exists
