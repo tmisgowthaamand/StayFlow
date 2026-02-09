@@ -32,9 +32,13 @@ if (!fs.existsSync(uploadsDir)) {
     fs.mkdirSync(uploadsDir);
 }
 
-// Serve uploads and public files statically
+// Serve uploads, public, and dashboard files statically
+const dashboardDist = path.join(__dirname, '../dashboard/dist');
 app.use('/api/uploads', express.static(uploadsDir));
 app.use(express.static(path.join(__dirname, '../public')));
+if (fs.existsSync(dashboardDist)) {
+    app.use(express.static(dashboardDist));
+}
 
 const port = process.env.PORT || 3000;
 
@@ -165,6 +169,15 @@ app.post('/api/upload-aadhaar', upload.single('aadhaar'), async (req, res) => {
 // New /register route to serve the registration page
 app.get('/register', (req, res) => {
     res.sendFile(path.join(__dirname, '../public/register.html'));
+});
+
+// Serve modern dashboard at /admin and /
+app.get('/admin', (req, res) => {
+    if (fs.existsSync(path.join(dashboardDist, 'index.html'))) {
+        res.sendFile(path.join(dashboardDist, 'index.html'));
+    } else {
+        res.sendFile(path.join(__dirname, '../public/index.html'));
+    }
 });
 
 app.post('/api/web-register', upload.single('aadhaar'), async (req, res) => {
@@ -565,12 +578,12 @@ app.get('/api/dashboard-stats', async (req, res) => {
     catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.get('/admin', (req, res) => {
-    res.sendFile(path.join(__dirname, '../public/index.html'));
-});
-
 app.get('/', (req, res) => {
-    res.send('StayFlow Cloud Bot is running!');
+    if (fs.existsSync(path.join(dashboardDist, 'index.html'))) {
+        res.sendFile(path.join(dashboardDist, 'index.html'));
+    } else {
+        res.send('StayFlow Cloud Bot is running! Full Dashboard at: /admin');
+    }
 });
 
 app.listen(port, () => {
