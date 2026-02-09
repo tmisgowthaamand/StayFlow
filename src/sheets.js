@@ -22,12 +22,29 @@ class SheetsService {
     async init() {
         if (this.doc) return;
 
-        // In ESM, we can't 'require' JSON. We must read it manually or use import assertions (not widely supported yet)
-        const creds = JSON.parse(fs.readFileSync(join(__dirname, '../service-account.json'), 'utf8'));
+        let authConfig;
+        const serviceAccountPath = join(__dirname, '../service-account.json');
+
+        if (fs.existsSync(serviceAccountPath)) {
+            console.log('Using service-account.json for authentication');
+            const creds = JSON.parse(fs.readFileSync(serviceAccountPath, 'utf8'));
+            authConfig = {
+                email: creds.client_email,
+                key: creds.private_key,
+            };
+        } else if (config.sheets.email && config.sheets.key) {
+            console.log('Using environment variables for Google Sheets authentication');
+            authConfig = {
+                email: config.sheets.email,
+                key: config.sheets.key,
+            };
+        } else {
+            throw new Error('Google Sheets credentials not found. Provide service-account.json or set GOOGLE_SERVICE_ACCOUNT_EMAIL and GOOGLE_PRIVATE_KEY environment variables.');
+        }
 
         const serviceAccountAuth = new JWT({
-            email: creds.client_email,
-            key: creds.private_key,
+            email: authConfig.email,
+            key: authConfig.key,
             scopes: ['https://www.googleapis.com/auth/spreadsheets'],
         });
 
