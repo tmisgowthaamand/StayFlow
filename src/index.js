@@ -32,13 +32,16 @@ if (!fs.existsSync(uploadsDir)) {
     fs.mkdirSync(uploadsDir);
 }
 
-// Serve uploads, public, and dashboard files statically
+// Serve dashboard, uploads, and public files statically
 const dashboardDist = path.join(__dirname, '../dashboard/dist');
-app.use('/api/uploads', express.static(uploadsDir));
-app.use(express.static(path.join(__dirname, '../public')));
+// 1. Prioritize modern dashboard
 if (fs.existsSync(dashboardDist)) {
     app.use(express.static(dashboardDist));
 }
+// 2. Serve uploads
+app.use('/api/uploads', express.static(uploadsDir));
+// 3. Serve public folder (registration, rules, etc)
+app.use(express.static(path.join(__dirname, '../public')));
 
 const port = process.env.PORT || 3000;
 
@@ -176,7 +179,7 @@ app.get('/admin', (req, res) => {
     if (fs.existsSync(path.join(dashboardDist, 'index.html'))) {
         res.sendFile(path.join(dashboardDist, 'index.html'));
     } else {
-        res.sendFile(path.join(__dirname, '../public/index.html'));
+        res.sendFile(path.join(__dirname, '../public/legacy.html'));
     }
 });
 
@@ -246,9 +249,15 @@ app.post('/webhook/google-form', async (req, res) => {
 
 app.get('/api/tenants', async (req, res) => {
     try {
+        console.log('--- Fetching Tenants for Dashboard ---');
         const tenants = await sheetsService.getTenantsJSON();
+        console.log(`Response sent: ${tenants.length} tenants found.`);
+        if (tenants.length === 0) {
+            console.log('WARNING: Sheet returned 0 tenants. Check sheet title and headers.');
+        }
         res.json(tenants);
     } catch (err) {
+        console.error('API Tenants Error:', err.message);
         res.status(500).json({ error: err.message });
     }
 });
@@ -582,7 +591,7 @@ app.get('/', (req, res) => {
     if (fs.existsSync(path.join(dashboardDist, 'index.html'))) {
         res.sendFile(path.join(dashboardDist, 'index.html'));
     } else {
-        res.send('StayFlow Cloud Bot is running! Full Dashboard at: /admin');
+        res.send('StayFlow Cloud Bot is running! Full Dashboard at: /admin or https://stay-flow-kohl.vercel.app');
     }
 });
 
