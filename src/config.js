@@ -9,7 +9,7 @@ const config = {
     ebDueDate: parseInt(process.env.EB_DUE_DATE || '10'),
     ebUnitRate: parseInt(process.env.EB_UNIT_RATE || '15'),
     allowedOrigins: (process.env.ALLOWED_ORIGINS || '').split(','),
-    googleFormUrl: process.env.GOOGLE_FORM_URL || 'https://blackheartedly-irenic-adeline.ngrok-free.dev/register.html',
+    googleFormUrl: process.env.GOOGLE_FORM_URL || 'https://stayflow-hnm3.onrender.com/register',
     whatsapp: {
         token: process.env.WHATSAPP_TOKEN,
         phoneNumberId: process.env.WHATSAPP_PHONE_NUMBER_ID,
