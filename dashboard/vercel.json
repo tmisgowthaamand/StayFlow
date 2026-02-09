@@ -1,11 +1,11 @@
 {
-    "github": {
-        "silent": true
-    },
+    "version": 2,
+    "cleanUrls": true,
+    "trailingSlash": false,
     "rewrites": [
         {
             "source": "/api/(.*)",
-            "destination": "/api/$1"
+            "destination": "https://stayflow-backend.onrender.com/api/$1"
         },
         {
             "source": "/(.*)",
