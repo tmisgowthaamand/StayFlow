@@ -19,12 +19,22 @@ const config = {
     sheets: {
         id: process.env.GOOGLE_SHEET_ID,
         email: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL,
-        key: process.env.GOOGLE_PRIVATE_KEY
-            ? process.env.GOOGLE_PRIVATE_KEY
-                .replace(/\\n/g, '\n')       // Convert literal \n to real newlines
-                .replace(/^['"]|['"]$/g, '') // Remove wrapping single or double quotes
-                .trim()
-            : null,
+        key: (() => {
+            let key = process.env.GOOGLE_PRIVATE_KEY;
+            if (!key) return null;
+
+            // Remove outer quotes if present
+            key = key.replace(/^["']|["']$/g, '');
+
+            // Convert literal \n to actual newlines
+            key = key.replace(/\\n/g, '\n');
+
+            // Trim whitespace
+            key = key.trim();
+
+            console.log('Private key loaded, starts with:', key.substring(0, 30));
+            return key;
+        })(),
     },
     mongoUri: process.env.MONGODB_URI || 'mongodb://localhost:27017/stayflow',
     groqApiKey: process.env.GROQ_API_KEY,
