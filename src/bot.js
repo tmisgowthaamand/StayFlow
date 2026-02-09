@@ -243,18 +243,47 @@ async function uploadMedia(filePath) {
         }
 
         const extension = path.extname(filePath).toLowerCase();
-        let mimeType = 'application/octet-stream';
+        const filename = path.basename(filePath);
 
-        if (extension === '.pdf') mimeType = 'application/pdf';
-        else if (['.jpg', '.jpeg'].includes(extension)) mimeType = 'image/jpeg';
-        else if (extension === '.png') mimeType = 'image/png';
-        else if (extension === '.mp4') mimeType = 'video/mp4';
-        else if (extension === '.mp3') mimeType = 'audio/mpeg';
+        // Map extensions to MIME types (WhatsApp supported types)
+        const mimeTypes = {
+            '.pdf': 'application/pdf',
+            '.doc': 'application/msword',
+            '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            '.xls': 'application/vnd.ms-excel',
+            '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            '.ppt': 'application/vnd.ms-powerpoint',
+            '.pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+            '.txt': 'text/plain',
+            '.jpg': 'image/jpeg',
+            '.jpeg': 'image/jpeg',
+            '.png': 'image/png',
+            '.webp': 'image/webp',
+            '.mp4': 'video/mp4',
+            '.3gp': 'video/3gpp',
+            '.mp3': 'audio/mpeg',
+            '.aac': 'audio/aac',
+            '.ogg': 'audio/ogg',
+            '.opus': 'audio/opus',
+            '.amr': 'audio/amr'
+        };
+
+        const mimeType = mimeTypes[extension] || 'application/octet-stream';
+
+        if (mimeType === 'application/octet-stream') {
+            console.warn(`Unsupported file type: ${extension}. WhatsApp may reject this file.`);
+        }
 
         const data = new FormData();
         data.append('messaging_product', 'whatsapp');
-        data.append('file', fs.createReadStream(filePath));
+        // Pass the file with correct options including contentType and filename
+        data.append('file', fs.createReadStream(filePath), {
+            filename: filename,
+            contentType: mimeType
+        });
         data.append('type', mimeType);
+
+        console.log(`Uploading media: ${filename} (${mimeType})`);
 
         const response = await axios.post(
             `https://graph.facebook.com/v17.0/${config.whatsapp.phoneNumberId}/media`,
@@ -267,12 +296,14 @@ async function uploadMedia(filePath) {
             }
         );
 
+        console.log(`Media uploaded successfully, ID: ${response.data.id}`);
         return response.data.id;
     } catch (err) {
         console.error('Error uploading media:', err.response ? err.response.data : err.message);
         return null;
     }
 }
+
 
 const logFile = path.join(__dirname, '../bot.log');
 function logToFile(msg) {
