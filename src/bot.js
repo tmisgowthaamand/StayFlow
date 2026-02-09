@@ -92,6 +92,8 @@ function normalizePhone(phone) {
     if (!phone) return '';
     let clean = phone.toString().replace(/\D/g, '');
     if (clean.length === 10) clean = '91' + clean;
+    // If it's already 12 digits starting with 91, return as is
+    // If it's somehow more (with 0 or +), the replace(/\D/g) and length check should handle most cases
     return clean;
 }
 

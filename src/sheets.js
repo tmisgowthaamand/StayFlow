@@ -480,9 +480,13 @@ class SheetsService {
             parseInt(h.get('Year')) === now.getFullYear()
         );
 
-        const totalRevenue = thisMonthPayments.reduce((sum, h) =>
-            sum + parseFloat(h.get('Amount') || '0'), 0
+        const totalRevenueFromTenants = paidTenants.reduce((sum, t) =>
+            sum + parseFloat((t.get('Total Amount') || '0').toString().replace(/[^\d.]/g, '')), 0
         );
+
+        const totalRevenue = thisMonthPayments.length > 0
+            ? thisMonthPayments.reduce((sum, h) => sum + parseFloat(h.get('Amount') || '0'), 0)
+            : totalRevenueFromTenants; // Fallback to Tenants sheet if History is empty for the month
 
         // Expected revenue
         const expectedRevenue = activeTenants.reduce((sum, t) =>
