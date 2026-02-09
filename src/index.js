@@ -13,6 +13,7 @@ import setupCron from './cron.js';
 import sheetsService from './sheets.js';
 import wweb from './wweb.js';
 import pdfService from './pdfService.js';
+import { Log, Media, Tenant } from './db.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -426,9 +427,76 @@ app.post('/api/mark-paid', async (req, res) => {
 app.post('/api/delete-tenant', async (req, res) => {
     try {
         const { phone, name } = req.body;
+
+        // Archive to MongoDB before deleting
+        const tenant = await sheetsService.getTenantByPhone(phone, name);
+        if (tenant) {
+            await Tenant.create({
+                name: tenant.get('Name'),
+                phone: tenant.get('Phone'),
+                room: tenant.get('Room'),
+                bed: tenant.get('Bed'),
+                floor: tenant.get('Floor'),
+                location: tenant.get('Location'),
+                sharingType: tenant.get('Sharing Type'),
+                advance: tenant.get('Advance'),
+                monthlyRent: tenant.get('Monthly Rent'),
+                ebAmount: tenant.get('EB Amount'),
+                totalAmount: tenant.get('Total Amount'),
+                status: 'DELETED_FROM_SHEET',
+                joinDate: tenant.get('Join Date'),
+                paidDate: tenant.get('Paid Date'),
+                aadhaarImage: tenant.get('Aadhaar Image')
+            });
+        }
+
         const success = await sheetsService.deleteTenant(phone, name);
         if (success) res.json({ success: true });
         else res.status(404).json({ error: 'Tenant not found' });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.post('/api/sync-to-mongo', async (req, res) => {
+    try {
+        const tenants = await sheetsService.getTenantsJSON();
+        let syncedCount = 0;
+
+        for (const t of tenants) {
+            // Upsert based on Name and Phone to avoid duplicates
+            await Tenant.findOneAndUpdate(
+                { phone: t.Phone, name: t.Name },
+                {
+                    room: t.Room,
+                    bed: t.Bed,
+                    floor: t.Floor,
+                    location: t.Location,
+                    sharingType: t['Sharing Type'],
+                    advance: t.Advance,
+                    monthlyRent: t['Monthly Rent'],
+                    ebAmount: t['EB Amount'],
+                    totalAmount: t['Total Amount'],
+                    status: t.Status,
+                    joinDate: t['Join Date'],
+                    paidDate: t['Paid Date'],
+                    aadhaarImage: t['Aadhaar Image']
+                },
+                { upsert: true, new: true }
+            );
+            syncedCount++;
+        }
+
+        res.json({ success: true, count: syncedCount });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.get('/api/archived-tenants', async (req, res) => {
+    try {
+        const tenants = await Tenant.find().sort({ archivedAt: -1 });
+        res.json(tenants);
     } catch (err) {
         res.status(500).json({ error: err.message });
     }

@@ -20,7 +20,27 @@ const mediaSchema = new mongoose.Schema({
     timestamp: { type: Date, default: Date.now }
 });
 
+const tenantSchema = new mongoose.Schema({
+    name: String,
+    phone: String,
+    room: String,
+    bed: String,
+    floor: String,
+    location: String,
+    sharingType: String,
+    advance: String,
+    monthlyRent: String,
+    ebAmount: String,
+    totalAmount: String,
+    status: String,
+    joinDate: String,
+    paidDate: String,
+    aadhaarImage: String,
+    archivedAt: { type: Date, default: Date.now }
+});
+
 const Log = mongoose.model('Log', logSchema);
 const Media = mongoose.model('Media', mediaSchema);
+const Tenant = mongoose.model('Tenant', tenantSchema);
 
-export { Log, Media };
+export { Log, Media, Tenant };

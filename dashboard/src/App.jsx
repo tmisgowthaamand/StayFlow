@@ -33,6 +33,8 @@ const App = () => {
   const [loadingPdf, setLoadingPdf] = useState(false);
   const [toast, setToast] = useState(null); // { message, type: 'success'|'error' }
   const [actionPanel, setActionPanel] = useState(null); // { type, title, message, data, input, input2 }
+  const [archivedTenants, setArchivedTenants] = useState([]);
+  const [syncing, setSyncing] = useState(false);
 
   const showToast = (message, type = 'success') => {
     setToast({ message, type });
@@ -42,6 +44,7 @@ const App = () => {
 
   useEffect(() => {
     fetchData();
+    fetchArchivedData();
   }, []);
 
   const handleEditChange = (key, val) => {
@@ -175,6 +178,28 @@ const App = () => {
     } catch (err) {
       console.error('Error fetching tenants:', err);
       setLoading(false);
+    }
+  };
+
+  const fetchArchivedData = async () => {
+    try {
+      const res = await axios.get('/api/archived-tenants');
+      setArchivedTenants(res.data);
+    } catch (err) {
+      console.error('Error fetching archived tenants:', err);
+    }
+  };
+
+  const handleSyncToMongo = async () => {
+    try {
+      setSyncing(true);
+      const res = await axios.post('/api/sync-to-mongo');
+      showToast(`Successfully synced ${res.data.count} tenants to MongoDB!`);
+      fetchArchivedData();
+      setSyncing(false);
+    } catch (err) {
+      setSyncing(false);
+      showToast('Sync failed: ' + err.message, 'error');
     }
   };
 
@@ -697,6 +722,54 @@ const App = () => {
     );
   };
 
+  const renderArchive = () => (
+    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="panel">
+      <div className="panel-header">
+        <h3 className="panel-title">MongoDB Archive (Historical Data)</h3>
+        <button
+          className="btn btn-glass"
+          onClick={handleSyncToMongo}
+          disabled={syncing}
+        >
+          {syncing ? 'Syncing...' : <><Zap size={16} /> Sync Current to Mongo</>}
+        </button>
+      </div>
+      <p style={{ color: 'var(--text-dim)', fontSize: '0.9rem', marginBottom: 20, padding: '0 24px' }}>
+        This data is stored permanently in MongoDB. It includes all past and current residents.
+      </p>
+      <div className="table-scroll">
+        <table className="custom-table">
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Phone</th>
+              <th>Room</th>
+              <th>Sharing</th>
+              <th>Status</th>
+              <th>Archived At</th>
+            </tr>
+          </thead>
+          <tbody>
+            {archivedTenants.map((t, i) => (
+              <tr key={i} className="table-row">
+                <td><span style={{ fontWeight: 600 }}>{t.name}</span></td>
+                <td>{t.phone}</td>
+                <td>{t.room}</td>
+                <td>{t.sharingType}</td>
+                <td>
+                  <span className={`status-badge ${t.status?.toLowerCase() || ''}`}>
+                    {t.status}
+                  </span>
+                </td>
+                <td>{new Date(t.archivedAt).toLocaleDateString()}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </motion.div>
+  );
+
   const renderActionPanel = () => (
     <AnimatePresence>
       {actionPanel && (
@@ -797,6 +870,7 @@ const App = () => {
           <div className={`nav-link ${activeTab === 'tenants' ? 'active' : ''}`} onClick={() => setActiveTab('tenants')}><Users size={20} /> Members</div>
           <div className={`nav-link ${activeTab === 'map' ? 'active' : ''}`} onClick={() => setActiveTab('map')}><MapPin size={20} /> Room Map</div>
           <div className={`nav-link ${activeTab === 'locations' ? 'active' : ''}`} onClick={() => setActiveTab('locations')}><MapPin size={20} /> Locations</div>
+          <div className={`nav-link ${activeTab === 'archive' ? 'active' : ''}`} onClick={() => setActiveTab('archive')}><Settings size={20} /> Archive</div>
           <div className={`nav-link ${activeTab === 'tools' ? 'active' : ''}`} onClick={() => setActiveTab('tools')}><Zap size={20} /> Auto-Tools</div>
           <div className={`nav-link ${activeTab === 'settings' ? 'active' : ''}`} onClick={() => setActiveTab('settings')}><Settings size={20} /> App Settings</div>
         </nav>
@@ -858,6 +932,7 @@ const App = () => {
             {activeTab === 'tenants' && renderTenants()}
             {activeTab === 'map' && renderMap()}
             {activeTab === 'locations' && renderLocations()}
+            {activeTab === 'archive' && renderArchive()}
             {activeTab === 'tools' && renderTools()}
           </>
         )}
