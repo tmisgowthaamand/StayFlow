@@ -20,7 +20,9 @@ const config = {
         id: process.env.GOOGLE_SHEET_ID,
         email: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL,
         key: process.env.GOOGLE_PRIVATE_KEY
-            ? process.env.GOOGLE_PRIVATE_KEY.trim().replace(/^"(.*)"$/, '$1').replace(/\\n/g, '\n')
+            ? process.env.GOOGLE_PRIVATE_KEY.trim()
+                .replace(/\\n/g, '\n')      // Convert literal \n to real newlines
+                .replace(/^['"]|['"]$/g, '') // Remove wrapping single or double quotes
             : null,
     },
     mongoUri: process.env.MONGODB_URI || 'mongodb://localhost:27017/stayflow',
