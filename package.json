@@ -5,7 +5,7 @@
   "main": "src/index.js",
   "scripts": {
     "start": "node --openssl-legacy-provider src/index.js",
-    "start:prod": "node src/index.js",
+    "start:prod": "node --openssl-legacy-provider src/index.js",
     "build": "cd dashboard && npm install && npm run build",
     "dev": "concurrently \"npm start\" \"npm run frontend\"",
     "frontend": "cd dashboard && npm run dev"
