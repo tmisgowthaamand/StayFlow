@@ -223,14 +223,30 @@
                     <option value="Luxury Suites">Luxury Suites</option>
                 </select>
             </div>
-            <div class="form-group">
-                <label>Sharing Type</label>
-                <select id="sharingType" required>
-                    <option value="1 Sharing">1 Sharing</option>
-                    <option value="2 Sharing">2 Sharing</option>
-                    <option value="3 Sharing">3 Sharing</option>
-                    <option value="4 Sharing">4 Sharing</option>
-                </select>
+            <div class="form-group" style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                <div>
+                    <label>Sharing Type</label>
+                    <select id="sharingType" required>
+                        <option value="1 Sharing">1 Sharing</option>
+                        <option value="2 Sharing">2 Sharing</option>
+                        <option value="3 Sharing">3 Sharing</option>
+                        <option value="4 Sharing">4 Sharing</option>
+                    </select>
+                </div>
+                <div>
+                    <label>Room Number</label>
+                    <input type="text" id="room" placeholder="G1, F2..." required>
+                </div>
+            </div>
+            <div class="form-group" style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                <div>
+                    <label>Monthly Rent</label>
+                    <input type="number" id="rent" value="6000" placeholder="6000" required>
+                </div>
+                <div>
+                    <label>Advance Paid</label>
+                    <input type="number" id="advance" value="3500" placeholder="3500" required>
+                </div>
             </div>
             <div class="form-group">
                 <label>Aadhaar Card (Image)</label>
@@ -274,6 +290,9 @@
             const phone = document.getElementById('phone').value;
             const location = document.getElementById('location').value;
             const sharingType = document.getElementById('sharingType').value;
+            const room = document.getElementById('room').value;
+            const rent = document.getElementById('rent').value;
+            const advance = document.getElementById('advance').value;
             const aadhaarFile = fileInput.files[0];
 
             try {
@@ -281,7 +300,15 @@
                 const regRes = await fetch(`${API_BASE}/api/add-tenant`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ name, phone, location, sharingType, room: 'Pending assignment', rent: '0' })
+                    body: JSON.stringify({
+                        name,
+                        phone,
+                        location,
+                        sharingType,
+                        room,
+                        rent,
+                        advance
+                    })
                 });
 
                 if (!regRes.ok) throw new Error('Registration failed');
