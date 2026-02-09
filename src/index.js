@@ -442,12 +442,14 @@ app.post('/api/mark-paid', async (req, res) => {
         };
         const { filePath } = await pdfService.generateInvoice(tenantData);
 
-        const receiptMsg = `✅ *Payment Received*\n\nHi ${name},\nReceived ₹${amount} via ${mode}. Thank you!`;
+        const eb = tenant.get('EB Amount') || '0';
+        const rent = tenant.get('Monthly Rent') || '0';
+        const receiptMsg = `✅ *Payment Confirmed!*\n\nHi ${name},\n\n📋 *Breakdown:*\n🏠 Rent: ₹${rent}\n⚡ EB: ₹${eb}\n💰 *Total Paid: ₹${amount}*\n\n📅 Date: ${new Date().toLocaleDateString()}\n💳 Mode: ${mode.toUpperCase()}\n\nThank you for your payment! 🙏`;
         await sendMessage(phone, receiptMsg);
-        await sendMedia(phone, filePath, "Here is your invoice");
+        await sendMedia(phone, filePath, "📄 Here is your payment receipt");
 
         if (config.ownerPhone) {
-            await sendMessage(config.ownerPhone, `💰 *Money In*\nTenant: ${name}\nAmount: ₹${amount}\nMode: ${mode}`);
+            await sendMessage(config.ownerPhone, `💰 *Money In*\nTenant: ${name}\nRoom: ${tenant.get('Room')}\nRent: ₹${rent} | EB: ₹${eb}\nTotal: ₹${amount}\nMode: ${mode}`);
         }
         res.json({ success: true });
     } catch (err) {
