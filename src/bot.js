@@ -99,13 +99,21 @@ function normalizePhone(phone) {
 
 async function sendMessage(to, text) {
     const { default: wweb } = await import('./wweb.js');
+
+    // 1. Try WWeb first (bypasses 24-hour window)
     if (wweb.ready) {
-        await wweb.sendMessage(to, text);
-        return;
+        try {
+            await wweb.sendMessage(to, text);
+            console.log(`[WWeb] Message sent to ${to}`);
+            return;
+        } catch (wwebErr) {
+            console.error('[WWeb] Failed, trying Cloud API:', wwebErr.message);
+        }
     }
 
     const cleanTo = normalizePhone(to);
     try {
+        // 2. Try regular Cloud API message
         const response = await axios.post(
             `https://graph.facebook.com/v17.0/${config.whatsapp.phoneNumberId}/messages`,
             {
@@ -120,7 +128,32 @@ async function sendMessage(to, text) {
         );
         logToFile(`Message sent successfully to ${cleanTo}. Response ID: ${response.data.messages[0].id}`);
     } catch (err) {
-        logToFile(`Error sending message to ${cleanTo}: ${err.response ? JSON.stringify(err.response.data) : err.message}`);
+        const errorCode = err.response?.data?.error?.code;
+
+        // 3. If 24-hour window error, try template message
+        if (errorCode === 131047) {
+            console.log(`[Cloud API] 24h window expired for ${cleanTo}. Sending template...`);
+            try {
+                await axios.post(
+                    `https://graph.facebook.com/v17.0/${config.whatsapp.phoneNumberId}/messages`,
+                    {
+                        messaging_product: "whatsapp",
+                        to: cleanTo,
+                        type: "template",
+                        template: {
+                            name: "hello_world",  // Default Meta template
+                            language: { code: "en_US" }
+                        }
+                    },
+                    { headers: { Authorization: `Bearer ${config.whatsapp.token}` } }
+                );
+                console.log(`[Template] Fallback sent to ${cleanTo}`);
+            } catch (templateErr) {
+                console.error(`[Template] Also failed:`, templateErr.response?.data || templateErr.message);
+            }
+        } else {
+            logToFile(`Error sending message to ${cleanTo}: ${err.response ? JSON.stringify(err.response.data) : err.message}`);
+        }
     }
 }
 
