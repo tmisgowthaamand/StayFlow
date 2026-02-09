@@ -32,8 +32,9 @@ if (!fs.existsSync(uploadsDir)) {
     fs.mkdirSync(uploadsDir);
 }
 
-// Serve uploads statically
+// Serve uploads and public files statically
 app.use('/api/uploads', express.static(uploadsDir));
+app.use(express.static(path.join(__dirname, '../public')));
 
 const port = process.env.PORT || 3000;
 
@@ -163,7 +164,7 @@ app.post('/api/upload-aadhaar', upload.single('aadhaar'), async (req, res) => {
 
 // New /register route to serve the registration page
 app.get('/register', (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'register.html'));
+    res.sendFile(path.join(__dirname, '../public/register.html'));
 });
 
 app.post('/api/web-register', upload.single('aadhaar'), async (req, res) => {
@@ -566,10 +567,6 @@ app.get('/api/dashboard-stats', async (req, res) => {
 
 app.get('/admin', (req, res) => {
     res.sendFile(path.join(__dirname, '../public/index.html'));
-});
-
-app.get('/register', (req, res) => {
-    res.sendFile(path.join(__dirname, '../public/register.html'));
 });
 
 app.get('/', (req, res) => {
