@@ -191,9 +191,29 @@ async function sendMedia(to, filePath, caption = "") {
         const extension = path.extname(filePath).toLowerCase();
 
         let type = 'document';
-        if (['.jpg', '.jpeg', '.png'].includes(extension)) type = 'image';
-        else if (['.mp4', '.avi', '.mov'].includes(extension)) type = 'video';
-        else if (['.mp3', '.ogg', '.wav'].includes(extension)) type = 'audio';
+        if (['.jpg', '.jpeg', '.png', '.webp'].includes(extension)) type = 'image';
+        else if (['.mp4', '.avi', '.mov', '.3gp'].includes(extension)) type = 'video';
+        else if (['.mp3', '.ogg', '.wav', '.aac', '.opus', '.amr'].includes(extension)) type = 'audio';
+        else if (['.pdf'].includes(extension)) type = 'document';
+        else if (!extension || extension === '') {
+            // No extension - try to detect from file content
+            try {
+                const fileBuffer = fs.readFileSync(filePath);
+                const detectedMime = detectMimeTypeFromBuffer(fileBuffer);
+                if (detectedMime) {
+                    if (detectedMime.startsWith('image/')) type = 'image';
+                    else if (detectedMime.startsWith('video/')) type = 'video';
+                    else if (detectedMime.startsWith('audio/')) type = 'audio';
+                    else type = 'document';
+                    console.log(`Detected media type from content: ${type} (${detectedMime})`);
+                } else {
+                    type = 'image'; // Default to image for unknown uploads
+                }
+            } catch (e) {
+                console.log('Could not detect file type, defaulting to image');
+                type = 'image';
+            }
+        }
 
         // 1. Try WWeb first (Free, reliable for all media)
         if (wweb.ready) {
@@ -235,6 +255,54 @@ async function sendMedia(to, filePath, caption = "") {
     }
 }
 
+// Alias for sendMedia specifically for images
+async function sendImage(to, filePath, caption = "") {
+    return sendMedia(to, filePath, caption);
+}
+
+// Helper function to detect MIME type from file magic bytes
+function detectMimeTypeFromBuffer(buffer) {
+    // Check magic bytes for common file types
+    if (buffer[0] === 0xFF && buffer[1] === 0xD8 && buffer[2] === 0xFF) {
+        return 'image/jpeg';
+    }
+    if (buffer[0] === 0x89 && buffer[1] === 0x50 && buffer[2] === 0x4E && buffer[3] === 0x47) {
+        return 'image/png';
+    }
+    if (buffer[0] === 0x52 && buffer[1] === 0x49 && buffer[2] === 0x46 && buffer[3] === 0x46 &&
+        buffer[8] === 0x57 && buffer[9] === 0x45 && buffer[10] === 0x42 && buffer[11] === 0x50) {
+        return 'image/webp';
+    }
+    if (buffer[0] === 0x25 && buffer[1] === 0x50 && buffer[2] === 0x44 && buffer[3] === 0x46) {
+        return 'application/pdf';
+    }
+    // MP4 (ftyp box)
+    if (buffer[4] === 0x66 && buffer[5] === 0x74 && buffer[6] === 0x79 && buffer[7] === 0x70) {
+        return 'video/mp4';
+    }
+    // MP3 with ID3 header
+    if (buffer[0] === 0x49 && buffer[1] === 0x44 && buffer[2] === 0x33) {
+        return 'audio/mpeg';
+    }
+    // MP3 with sync word
+    if (buffer[0] === 0xFF && (buffer[1] & 0xE0) === 0xE0) {
+        return 'audio/mpeg';
+    }
+    // OGG
+    if (buffer[0] === 0x4F && buffer[1] === 0x67 && buffer[2] === 0x67 && buffer[3] === 0x53) {
+        return 'audio/ogg';
+    }
+    // AAC (ADTS header)
+    if (buffer[0] === 0xFF && (buffer[1] & 0xF6) === 0xF0) {
+        return 'audio/aac';
+    }
+    // GIF
+    if (buffer[0] === 0x47 && buffer[1] === 0x49 && buffer[2] === 0x46) {
+        return 'image/gif'; // Note: WhatsApp doesn't support GIF directly, but we detect it
+    }
+    return null;
+}
+
 async function uploadMedia(filePath) {
     try {
         if (!fs.existsSync(filePath)) {
@@ -268,22 +336,53 @@ async function uploadMedia(filePath) {
             '.amr': 'audio/amr'
         };
 
-        const mimeType = mimeTypes[extension] || 'application/octet-stream';
+        let mimeType = mimeTypes[extension];
 
-        if (mimeType === 'application/octet-stream') {
-            console.warn(`Unsupported file type: ${extension}. WhatsApp may reject this file.`);
+        // If no extension or unknown extension, detect from file magic bytes
+        if (!mimeType || mimeType === 'application/octet-stream') {
+            try {
+                const fileBuffer = fs.readFileSync(filePath);
+                const detectedMime = detectMimeTypeFromBuffer(fileBuffer);
+                if (detectedMime) {
+                    mimeType = detectedMime;
+                    console.log(`Detected MIME type from file content: ${mimeType}`);
+                } else {
+                    // Default to image/jpeg for unknown image-like files (common case for uploads)
+                    mimeType = 'image/jpeg';
+                    console.warn(`Could not detect file type, defaulting to: ${mimeType}`);
+                }
+            } catch (readErr) {
+                console.error('Error reading file for MIME detection:', readErr.message);
+                mimeType = 'image/jpeg'; // Safe default
+            }
+        }
+
+        // Generate a proper filename with extension if missing
+        let uploadFilename = filename;
+        if (!extension || extension === '') {
+            const extMap = {
+                'image/jpeg': '.jpg',
+                'image/png': '.png',
+                'image/webp': '.webp',
+                'application/pdf': '.pdf',
+                'video/mp4': '.mp4',
+                'audio/mpeg': '.mp3',
+                'audio/ogg': '.ogg',
+                'audio/aac': '.aac'
+            };
+            uploadFilename = filename + (extMap[mimeType] || '.jpg');
         }
 
         const data = new FormData();
         data.append('messaging_product', 'whatsapp');
         // Pass the file with correct options including contentType and filename
         data.append('file', fs.createReadStream(filePath), {
-            filename: filename,
+            filename: uploadFilename,
             contentType: mimeType
         });
         data.append('type', mimeType);
 
-        console.log(`Uploading media: ${filename} (${mimeType})`);
+        console.log(`Uploading media: ${uploadFilename} (${mimeType})`);
 
         const response = await axios.post(
             `https://graph.facebook.com/v17.0/${config.whatsapp.phoneNumberId}/media`,
@@ -777,6 +876,7 @@ export {
     handleIncomingMessage,
     sendMessage,
     sendMedia,
+    sendImage,
     createRazorpayLink,
     setTenantContext,
     handleUpdateEB

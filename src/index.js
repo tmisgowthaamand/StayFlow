@@ -8,7 +8,7 @@ import { fileURLToPath } from 'url';
 import multer from 'multer';
 
 import config from './config.js';
-import { handleIncomingMessage, sendMessage, sendMedia, setTenantContext, handleUpdateEB, createRazorpayLink } from './bot.js';
+import { handleIncomingMessage, sendMessage, sendMedia, sendImage, setTenantContext, handleUpdateEB, createRazorpayLink } from './bot.js';
 import setupCron from './cron.js';
 import sheetsService from './sheets.js';
 import wweb from './wweb.js';
