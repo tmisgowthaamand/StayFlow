@@ -3,8 +3,9 @@
 set -o errexit
 
 npm install
+# Build the dashboard
+cd dashboard && npm install && npm run build
+cd ..
+
 # Install Chrome dependencies for whatsapp-web.js (Puppeteer)
-# Note: Render's native environment might already have some, but we ensure others here if possible.
-# Most of the time on Render, you just need these env vars:
-# PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
-# PUPPETEER_EXECUTABLE_PATH=/usr/bin/google-chrome-stable
+# Note: Render handles this if you use the right environment, but we ensure build completion here.

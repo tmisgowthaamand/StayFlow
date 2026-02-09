@@ -3,7 +3,7 @@ services:
     name: stayflow-backend
     env: node
     plan: free
-    buildCommand: npm install
+    buildCommand: ./render-build.sh
     startCommand: npm run start:prod
     envVars:
       - key: NODE_VERSION
