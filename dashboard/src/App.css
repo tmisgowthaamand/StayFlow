@@ -306,6 +306,16 @@ header {
   color: #f59e0b;
 }
 
+.status-badge.active {
+  background: rgba(99, 102, 241, 0.1);
+  color: var(--primary);
+}
+
+.status-badge.vacated {
+  background: rgba(244, 63, 94, 0.1);
+  color: var(--accent);
+}
+
 /* Buttons */
 .btn {
   padding: 10px 20px;
