@@ -151,48 +151,54 @@ async function sendButtons(to, text, buttons) {
     }
 }
 
-async function sendImage(to, imagePath, caption = "") {
+async function sendMedia(to, filePath, caption = "") {
     try {
         const { default: wweb } = await import('./wweb.js');
         const cleanTo = normalizePhone(to);
-        const extension = path.extname(imagePath).toLowerCase();
-        const isPdf = extension === '.pdf';
+        const extension = path.extname(filePath).toLowerCase();
 
-        // 1. Try WWeb first (Free, no 24h window limit)
+        let type = 'document';
+        if (['.jpg', '.jpeg', '.png'].includes(extension)) type = 'image';
+        else if (['.mp4', '.avi', '.mov'].includes(extension)) type = 'video';
+        else if (['.mp3', '.ogg', '.wav'].includes(extension)) type = 'audio';
+
+        // 1. Try WWeb first (Free, reliable for all media)
         if (wweb.ready) {
             try {
-                await wweb.sendImage(to, imagePath, caption);
+                await wweb.sendImage(to, filePath, caption); // Note: wweb.sendImage handles all media
                 return;
             } catch (wwebErr) {
-                console.error('WWeb sendImage failed, falling back to Cloud API:', wwebErr.message);
+                console.error('WWeb sendMedia failed, falling back to Cloud API:', wwebErr.message);
             }
         }
 
         // 2. Try Cloud API Fallback
-        const mediaId = await uploadMedia(imagePath);
+        const mediaId = await uploadMedia(filePath);
         if (!mediaId) {
             console.error('Failed to upload media for Cloud API');
             return;
         }
 
+        const payload = {
+            messaging_product: "whatsapp",
+            to: cleanTo,
+            type: type,
+            [type]: {
+                id: mediaId,
+                caption: type !== 'audio' ? caption : undefined,
+                filename: type === 'document' ? path.basename(filePath) : undefined
+            },
+        };
+
         await axios.post(
             `https://graph.facebook.com/v17.0/${config.whatsapp.phoneNumberId}/messages`,
-            {
-                messaging_product: "whatsapp",
-                to: cleanTo,
-                type: isPdf ? "document" : "image",
-                [isPdf ? "document" : "image"]: {
-                    id: mediaId,
-                    caption: caption,
-                    filename: isPdf ? path.basename(imagePath) : undefined
-                },
-            },
+            payload,
             {
                 headers: { Authorization: `Bearer ${config.whatsapp.token}` },
             }
         );
     } catch (err) {
-        console.error('sendImage fully failed:', err.response ? JSON.stringify(err.response.data) : err.message);
+        console.error('sendMedia fully failed:', err.response ? JSON.stringify(err.response.data) : err.message);
     }
 }
 
@@ -204,7 +210,13 @@ async function uploadMedia(filePath) {
         }
 
         const extension = path.extname(filePath).toLowerCase();
-        const mimeType = extension === '.pdf' ? 'application/pdf' : 'image/jpeg';
+        let mimeType = 'application/octet-stream';
+
+        if (extension === '.pdf') mimeType = 'application/pdf';
+        else if (['.jpg', '.jpeg'].includes(extension)) mimeType = 'image/jpeg';
+        else if (extension === '.png') mimeType = 'image/png';
+        else if (extension === '.mp4') mimeType = 'video/mp4';
+        else if (extension === '.mp3') mimeType = 'audio/mpeg';
 
         const data = new FormData();
         data.append('messaging_product', 'whatsapp');
@@ -700,7 +712,7 @@ async function handleOnboarding(phone, input, image) {
 export {
     handleIncomingMessage,
     sendMessage,
-    sendImage,
+    sendMedia,
     createRazorpayLink,
     setTenantContext,
     handleUpdateEB

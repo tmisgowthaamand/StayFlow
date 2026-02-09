@@ -35,6 +35,7 @@ const App = () => {
   const [selectedTenant, setSelectedTenant] = useState(null);
   const [ebForm, setEbForm] = useState({ room: '', amount: '' });
   const [announceForm, setAnnounceForm] = useState('');
+  const [announceFile, setAnnounceFile] = useState(null);
   const [editData, setEditData] = useState({});
   const [searchQuery, setSearchQuery] = useState('');
   const [currentLocation, setCurrentLocation] = useState('All');
@@ -283,11 +284,21 @@ const App = () => {
   };
 
   const handleAnnounce = async () => {
-    if (!announceForm) return;
+    if (!announceForm && !announceFile) return;
     try {
-      await axios.post('/api/broadcast', { message: announceForm });
+      const formData = new FormData();
+      formData.append('message', announceForm);
+      if (announceFile) {
+        formData.append('file', announceFile);
+      }
+
+      await axios.post('/api/broadcast', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+
       showToast('Announcement broadcasted to WhatsApp!');
       setAnnounceForm('');
+      setAnnounceFile(null);
     } catch (err) {
       const errorMsg = err.response?.data?.error || err.message;
       showToast(`Broadcast failed: ${errorMsg}`, 'error');
@@ -651,7 +662,26 @@ const App = () => {
           <label>Message</label>
           <textarea rows="5" placeholder="Type your announcement here..." value={announceForm} onChange={e => setAnnounceForm(e.target.value)} style={{ width: '100%', borderRadius: 12, border: '1px solid var(--glass-border)', background: 'rgba(255,255,255,0.03)', color: 'white', padding: 12 }} />
         </div>
-        <button className="btn btn-success" style={{ width: '100%', background: 'var(--secondary)' }} onClick={handleAnnounce}>Send WhatsApp Broadcast</button>
+
+        <div className="input-group">
+          <label>Attach Media (Photo, Video, or Document)</label>
+          <div style={{ position: 'relative', height: 50, background: 'rgba(255,255,255,0.03)', border: '1px dashed var(--glass-border)', borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
+            <input
+              type="file"
+              onChange={(e) => setAnnounceFile(e.target.files[0])}
+              style={{ position: 'absolute', inset: 0, opacity: 0, cursor: 'pointer' }}
+            />
+            <div style={{ pointerEvents: 'none', color: announceFile ? 'var(--secondary)' : 'var(--text-dim)', fontSize: '0.85rem' }}>
+              <Camera size={16} style={{ marginRight: 8, verticalAlign: 'middle' }} />
+              {announceFile ? announceFile.name : 'Click to attach file'}
+            </div>
+          </div>
+        </div>
+
+        <button className="btn btn-success" style={{ width: '100%', background: 'var(--secondary)', marginTop: 10 }} onClick={handleAnnounce}>
+          <CheckCircle size={14} style={{ marginRight: 6 }} />
+          Send WhatsApp Broadcast
+        </button>
       </motion.div>
     </div>
   );

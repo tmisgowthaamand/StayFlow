@@ -8,7 +8,7 @@ import { fileURLToPath } from 'url';
 import multer from 'multer';
 
 import config from './config.js';
-import { handleIncomingMessage, sendMessage, sendImage, setTenantContext, handleUpdateEB, createRazorpayLink } from './bot.js';
+import { handleIncomingMessage, sendMessage, sendMedia, setTenantContext, handleUpdateEB, createRazorpayLink } from './bot.js';
 import setupCron from './cron.js';
 import sheetsService from './sheets.js';
 import wweb from './wweb.js';
@@ -312,7 +312,7 @@ app.post('/api/trigger-notifications', async (req, res) => {
                     if (razorpayLink) caption += `\n\n💳 *Pay Online:* ${razorpayLink}`;
                     caption += `\n\n👇 *Pay via UPI:*\n${upiLink}`;
 
-                    await sendImage(phone, filePath, caption);
+                    await sendMedia(phone, filePath, caption);
                     sentCount++;
                     await new Promise(r => setTimeout(r, 1000));
                 } catch (e) { console.error(`Failed to notify ${name}:`, e.message); }
@@ -444,7 +444,7 @@ app.post('/api/mark-paid', async (req, res) => {
 
         const receiptMsg = `✅ *Payment Received*\n\nHi ${name},\nReceived ₹${amount} via ${mode}. Thank you!`;
         await sendMessage(phone, receiptMsg);
-        await sendImage(phone, filePath, "Here is your invoice");
+        await sendMedia(phone, filePath, "Here is your invoice");
 
         if (config.ownerPhone) {
             await sendMessage(config.ownerPhone, `💰 *Money In*\nTenant: ${name}\nAmount: ₹${amount}\nMode: ${mode}`);
@@ -533,15 +533,26 @@ app.get('/api/archived-tenants', async (req, res) => {
     }
 });
 
-app.post('/api/broadcast', async (req, res) => {
+app.post('/api/broadcast', upload.single('file'), async (req, res) => {
     try {
         const { message } = req.body;
-        if (!message) return res.status(400).json({ error: 'Message required' });
+        const file = req.file;
+        if (!message && !file) return res.status(400).json({ error: 'Message or file required' });
+
         const tenants = await sheetsService.getTenantsJSON();
         const active = tenants.filter(t => t.Status !== 'VACATED');
+
         for (const t of active) {
             if (!t.Phone) continue;
-            await sendMessage(t.Phone, `📢 *Announcement*\n\n${message}`);
+            try {
+                if (file) {
+                    await sendMedia(t.Phone, file.path, message || '');
+                } else {
+                    await sendMessage(t.Phone, `📢 *Announcement*\n\n${message}`);
+                }
+            } catch (err) {
+                console.error(`Broadcast error for ${t.Phone}:`, err.message);
+            }
         }
         res.json({ success: true, count: active.length });
     } catch (err) {
