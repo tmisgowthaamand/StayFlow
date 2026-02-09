@@ -1,6 +1,12 @@
-const { GoogleSpreadsheet } = require('google-spreadsheet');
-const { JWT } = require('google-auth-library');
-const config = require('./config');
+import { GoogleSpreadsheet } from 'google-spreadsheet';
+import { JWT } from 'google-auth-library';
+import fs from 'fs';
+import { fileURLToPath } from 'url';
+import { dirname, join } from 'path';
+import config from './config.js';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
 class SheetsService {
     constructor() {
@@ -16,7 +22,9 @@ class SheetsService {
     async init() {
         if (this.doc) return;
 
-        const creds = require('../service-account.json');
+        // In ESM, we can't 'require' JSON. We must read it manually or use import assertions (not widely supported yet)
+        const creds = JSON.parse(fs.readFileSync(join(__dirname, '../service-account.json'), 'utf8'));
+
         const serviceAccountAuth = new JWT({
             email: creds.client_email,
             key: creds.private_key,
@@ -525,4 +533,4 @@ class SheetsService {
     }
 }
 
-module.exports = new SheetsService();
+export default new SheetsService();

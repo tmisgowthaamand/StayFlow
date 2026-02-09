@@ -1,4 +1,4 @@
-const sheetsService = require('./src/sheets');
+import sheetsService from './src/sheets.js';
 
 async function seedInBatch() {
     try {

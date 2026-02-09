@@ -1,7 +1,12 @@
-const { Client, LocalAuth, MessageMedia } = require('whatsapp-web.js');
-const qrcode = require('qrcode-terminal');
-const fs = require('fs');
-const path = require('path');
+import pkg from 'whatsapp-web.js';
+const { Client, LocalAuth, MessageMedia } = pkg;
+import qrcode from 'qrcode-terminal';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 class WWebEngine {
     constructor() {
@@ -16,7 +21,7 @@ class WWebEngine {
                     '--disable-accelerated-2d-canvas',
                     '--no-first-run',
                     '--no-zygote',
-                    '--single-process', // <- This one helps on some shared hosting
+                    '--single-process',
                     '--disable-gpu'
                 ],
             }
@@ -37,19 +42,25 @@ class WWebEngine {
         });
 
         this.client.on('message', async (msg) => {
-            const { handleIncomingMessage } = require('./bot');
+            // Dynamic import to avoid circular dependency at top level
+            const { handleIncomingMessage } = await import('./bot.js');
             const phone = msg.from.replace('@c.us', '');
             const body = msg.body;
             const hasMedia = msg.hasMedia;
 
-            // Simple media handling for Aadhaar/Payments
             let media = null;
             if (hasMedia) {
-                const download = await msg.downloadMedia();
-                const fileName = `wweb_${Date.now()}.${download.mimetype.split('/')[1]}`;
-                const filePath = path.join(__dirname, '../uploads', fileName);
-                fs.writeFileSync(filePath, download.data, { encoding: 'base64' });
-                media = { id: fileName, mimetype: download.mimetype };
+                try {
+                    const download = await msg.downloadMedia();
+                    if (download) {
+                        const fileName = `wweb_${Date.now()}.${download.mimetype.split('/')[1] || 'jpg'}`;
+                        const filePath = path.join(__dirname, '../uploads', fileName);
+                        fs.writeFileSync(filePath, download.data, { encoding: 'base64' });
+                        media = { id: fileName, mimetype: download.mimetype };
+                    }
+                } catch (err) {
+                    console.error('Error downloading wweb media:', err.message);
+                }
             }
 
             await handleIncomingMessage(phone, body, msg.id.id, media);
@@ -90,7 +101,7 @@ class WWebEngine {
                     console.log('Image sent successfully');
                 } catch (e) {
                     console.error('WWeb Send Image Error:', e);
-                    throw e; // Bubble up to fallback
+                    throw e;
                 }
             } else {
                 console.error('File path does not exist:', filePath);
@@ -103,4 +114,4 @@ class WWebEngine {
     }
 }
 
-module.exports = new WWebEngine();
+export default new WWebEngine();

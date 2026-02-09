@@ -1,5 +1,5 @@
-const mongoose = require('mongoose');
-const config = require('./config');
+import mongoose from 'mongoose';
+import config from './config.js';
 
 mongoose.connect(config.mongoUri)
     .then(() => console.log('Connected to MongoDB'))
@@ -23,4 +23,4 @@ const mediaSchema = new mongoose.Schema({
 const Log = mongoose.model('Log', logSchema);
 const Media = mongoose.model('Media', mediaSchema);
 
-module.exports = { Log, Media };
+export { Log, Media };

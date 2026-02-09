@@ -1,8 +1,17 @@
-const { jsPDF } = require('jspdf');
-const autoTable = require('jspdf-autotable').default;
-const fs = require('fs');
-const path = require('path');
-const config = require('./config');
+import { jsPDF } from 'jspdf';
+import 'jspdf-autotable';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import config from './config.js';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// jspdf-autotable usually monkey-patches jsPDF or adds it as a plugin
+// In ESM, we might need a specific way to call it depending on the version
+// If it's the standard import, we can try:
+import autoTable from 'jspdf-autotable';
 
 class PDFService {
     async generateInvoice(tenantData) {
@@ -31,7 +40,6 @@ class PDFService {
         doc.text(`Phone: ${Phone}`, 20, 68);
         doc.text(`Room: ${Room}`, 20, 74);
 
-        // Table
         // Table
         autoTable(doc, {
             startY: 85,
@@ -69,4 +77,4 @@ class PDFService {
     }
 }
 
-module.exports = new PDFService();
+export default new PDFService();

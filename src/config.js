@@ -1,7 +1,7 @@
-require('dotenv').config();
-const Groq = require('groq-sdk');
+import 'dotenv/config';
+import Groq from 'groq-sdk';
 
-module.exports = {
+const config = {
     businessName: process.env.BUSINESS_NAME || 'StayFlow',
     upiId: process.env.OWNER_UPI_ID || 'ownername@upi',
     ownerPhone: process.env.OWNER_PHONE,
@@ -42,3 +42,5 @@ module.exports = {
         HELP: 'HELP'
     }
 };
+
+export default config;

@@ -1,7 +1,7 @@
-const cron = require('node-cron');
-const sheetsService = require('./sheets');
-const bot = require('./bot');
-const config = require('./config');
+import cron from 'node-cron';
+import sheetsService from './sheets.js';
+import * as bot from './bot.js';
+import config from './config.js';
 
 function setupCron() {
     // 1. Send Bill on the 1st of every month at 9:00 AM
@@ -92,4 +92,4 @@ function setupCron() {
     console.log('🕒 Automation System Active: Notifications scheduled for 1st, 3rd, and 5th.');
 }
 
-module.exports = setupCron;
+export default setupCron;
