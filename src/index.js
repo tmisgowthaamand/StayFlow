@@ -161,8 +161,10 @@ app.post('/api/upload-aadhaar', upload.single('aadhaar'), async (req, res) => {
     }
 });
 
-app.use('/api/uploads', express.static(uploadsDir));
-app.use(express.static(path.join(__dirname, 'public')));
+// New /register route to serve the registration page
+app.get('/register', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'register.html'));
+});
 
 app.post('/api/web-register', upload.single('aadhaar'), async (req, res) => {
     try {
@@ -564,6 +566,10 @@ app.get('/api/dashboard-stats', async (req, res) => {
 
 app.get('/admin', (req, res) => {
     res.sendFile(path.join(__dirname, '../public/index.html'));
+});
+
+app.get('/register', (req, res) => {
+    res.sendFile(path.join(__dirname, '../public/register.html'));
 });
 
 app.get('/', (req, res) => {
