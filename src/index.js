@@ -34,9 +34,15 @@ if (!fs.existsSync(uploadsDir)) {
 
 // Serve dashboard, uploads, and public files statically
 const dashboardDist = path.join(__dirname, '../dashboard/dist');
+console.log(`Checking for dashboard build at: ${dashboardDist}`);
+
 // 1. Prioritize modern dashboard
 if (fs.existsSync(dashboardDist)) {
+    console.log('✅ Dashboard found! Serving modern UI.');
     app.use(express.static(dashboardDist));
+} else {
+    console.warn('⚠️ Dashboard not found! Falling back to legacy UI.');
+    console.log(`Contents of ../dashboard: ${fs.existsSync(path.join(__dirname, '../dashboard')) ? fs.readdirSync(path.join(__dirname, '../dashboard')).join(', ') : 'Not Found'}`);
 }
 // 2. Serve uploads
 app.use('/api/uploads', express.static(uploadsDir));

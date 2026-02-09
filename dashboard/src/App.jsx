@@ -14,10 +14,18 @@ import { motion, AnimatePresence } from 'framer-motion';
 import './App.css';
 
 // Configure Axios Base URL for Production
-const API_BASE_URL = import.meta.env.VITE_API_URL || '';
+const API_BASE_URL = import.meta.env.VITE_API_URL ||
+  (window.location.hostname.includes('vercel.app')
+    ? 'https://stayflow-hnm3.onrender.com'
+    : '');
+
 axios.defaults.baseURL = API_BASE_URL;
 
-const getFullUrl = (path) => path.startsWith('http') ? path : `${API_BASE_URL}${path}`;
+const getFullUrl = (path) => {
+  if (!path) return '';
+  if (path.startsWith('http')) return path;
+  return `${API_BASE_URL.replace(/\/$/, '')}${path.startsWith('/') ? '' : '/'}${path}`;
+};
 
 const App = () => {
   const [tenants, setTenants] = useState([]);
@@ -172,12 +180,19 @@ const App = () => {
 
   const fetchData = async () => {
     try {
+      console.log('Fetching data from:', axios.defaults.baseURL || 'relative');
       const res = await axios.get('/api/tenants');
-      setTenants(res.data);
+      if (Array.isArray(res.data)) {
+        setTenants(res.data);
+      } else {
+        console.error('Expected array but got:', res.data);
+        setTenants([]);
+      }
       setLoading(false);
     } catch (err) {
       console.error('Error fetching tenants:', err);
       setLoading(false);
+      showToast('Connection failed: ' + (err.response?.statusText || err.message), 'error');
     }
   };
 

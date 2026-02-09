@@ -54,7 +54,11 @@ class SheetsService {
         console.log('Google Sheets Loaded Successfully.');
 
         // ========== TENANTS SHEET ==========
-        let sheet = this.doc.sheetsByTitle['Tenants'] || Object.values(this.doc.sheetsByTitle).find(s => s.title.toLowerCase() === 'tenants');
+        let sheet = this.doc.sheetsByTitle['Tenants'] ||
+            Object.values(this.doc.sheetsByTitle).find(s => s.title.trim().toLowerCase() === 'tenants');
+
+        console.log(`Available sheets: ${Object.keys(this.doc.sheetsByTitle).join(', ')}`);
+
         const requiredHeaders = [
             'Name', 'Phone', 'Room', 'Bed', 'Floor', 'Location', 'Sharing Type', 'Advance',
             'Aadhaar Image', 'Monthly Rent', 'EB Amount', 'Total Amount',
