@@ -54,7 +54,7 @@ class SheetsService {
         console.log('Google Sheets Loaded Successfully.');
 
         // ========== TENANTS SHEET ==========
-        let sheet = this.doc.sheetsByTitle['Tenants'];
+        let sheet = this.doc.sheetsByTitle['Tenants'] || Object.values(this.doc.sheetsByTitle).find(s => s.title.toLowerCase() === 'tenants');
         const requiredHeaders = [
             'Name', 'Phone', 'Room', 'Bed', 'Floor', 'Location', 'Sharing Type', 'Advance',
             'Aadhaar Image', 'Monthly Rent', 'EB Amount', 'Total Amount',
@@ -63,12 +63,21 @@ class SheetsService {
         ];
 
         if (!sheet) {
+            console.log('No Tenants sheet found. Creating new one...');
             sheet = await this.doc.addSheet({
                 title: 'Tenants',
                 headerValues: requiredHeaders
             });
         } else {
+            console.log(`Found sheet: ${sheet.title}`);
             await sheet.loadHeaderRow();
+            console.log(`Current Headers: ${sheet.headerValues.join(', ')}`);
+
+            // Check if Row 1 is data instead of headers
+            if (sheet.headerValues.some(h => /\d{10}/.test(h) || h.toLowerCase() === 'ram')) {
+                console.warn('CRITICAL: Header row seems to contain resident data (Ram/Phone)! Please insert a header row at the top.');
+            }
+
             const missing = requiredHeaders.filter(h => !sheet.headerValues.includes(h));
             if (missing.length > 0) {
                 console.log(`Adding missing headers: ${missing.join(', ')}`);
