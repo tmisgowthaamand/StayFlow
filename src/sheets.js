@@ -20,48 +20,65 @@ class SheetsService {
     }
 
     async init() {
-        if (this.doc) return;
+        if (this.doc && this.sheet) return;
+
+        if (!config.sheets.id) {
+            throw new Error('GOOGLE_SHEET_ID is missing in the configuration.');
+        }
 
         let authConfig;
         const serviceAccountPath = join(__dirname, '../service-account.json');
 
         if (fs.existsSync(serviceAccountPath)) {
             console.log('Using service-account.json for authentication');
-            console.log('Service account path:', serviceAccountPath);
-            const creds = JSON.parse(fs.readFileSync(serviceAccountPath, 'utf8'));
-            authConfig = {
-                email: creds.client_email,
-                key: creds.private_key,
-            };
-            console.log('Service account email:', authConfig.email);
-            console.log('Private key starts with:', authConfig.key?.substring(0, 30));
-            console.log('Private key ID:', creds.private_key_id);
+            try {
+                const creds = JSON.parse(fs.readFileSync(serviceAccountPath, 'utf8'));
+                authConfig = {
+                    email: creds.client_email,
+                    key: creds.private_key,
+                };
+            } catch (jsonErr) {
+                console.error('Failed to parse service-account.json:', jsonErr.message);
+                throw new Error(`Corrupted service-account.json: ${jsonErr.message}`);
+            }
         } else if (config.sheets.email && config.sheets.key) {
             console.log('Using environment variables for Google Sheets authentication');
             authConfig = {
                 email: config.sheets.email,
                 key: config.sheets.key,
             };
-            console.log('Env email:', authConfig.email);
-            console.log('Env key starts with:', authConfig.key?.substring(0, 30));
         } else {
             throw new Error('Google Sheets credentials not found. Provide service-account.json or set GOOGLE_SERVICE_ACCOUNT_EMAIL and GOOGLE_PRIVATE_KEY environment variables.');
+        }
+
+        // Clean the key (handle escaped newlines, quotes, etc. from any source)
+        if (authConfig.key) {
+            authConfig.key = authConfig.key
+                .replace(/^["']|["']$/g, '')
+                .replace(/\\n/g, '\n')
+                .trim();
         }
 
         const serviceAccountAuth = new JWT({
             email: authConfig.email,
             key: authConfig.key,
-            scopes: ['https://www.googleapis.com/auth/spreadsheets'],
+            scopes: [
+                'https://www.googleapis.com/auth/spreadsheets',
+                'https://www.googleapis.com/auth/drive.file'
+            ],
         });
 
         console.log('Initializing Google Sheets Service...');
         try {
             this.doc = new GoogleSpreadsheet(config.sheets.id, serviceAccountAuth);
             await this.doc.loadInfo();
-            console.log('Google Sheets Loaded Successfully.');
+            console.log(`Google Sheets Loaded Successfully: ${this.doc.title}`);
         } catch (err) {
-            this.doc = null; // Reset so next call retries
-            console.error('Google Sheets Init FAILED:', err.message);
+            this.doc = null;
+            console.error('Google Sheets Init FAILED (loadInfo):', err.message);
+            if (err.message.includes('Signature')) {
+                throw new Error('Invalid JWT Signature: The private key is incorrect or formatted improperly.');
+            }
             throw err;
         }
 
@@ -100,6 +117,9 @@ class SheetsService {
                 console.log(`Adding missing headers: ${missing.join(', ')}`);
                 await sheet.setHeaderRow([...sheet.headerValues, ...missing]);
             }
+        }
+        if (!sheet) {
+            throw new Error('Tenants sheet not found and could not be created.');
         }
         this.sheet = sheet;
 
