@@ -169,9 +169,11 @@ class PDFService {
         const eb = parseFloat(EB_Amount) || 0;
         const total = parseFloat(Total_Amount) || (rent + eb);
 
+        const fmtCurrency = (val) => `Rs. ${val.toFixed(2)}`;
+
         const tableBody = [
-            ['Monthly Room Rent', '1', `${rent.toFixed(2)}`, `${rent.toFixed(2)}`],
-            ['Electricity Bill (EB)', '1', `${eb.toFixed(2)}`, `${eb.toFixed(2)}`],
+            ['Monthly Room Rent', '1', fmtCurrency(rent), fmtCurrency(rent)],
+            ['Electricity Bill (EB)', '1', fmtCurrency(eb), fmtCurrency(eb)],
         ];
 
         // Add empty rows to match the reference image style
@@ -196,25 +198,16 @@ class PDFService {
                 textColor: [255, 255, 255],
                 fontStyle: 'bold',
                 fontSize: 7.5,
-                halign: 'left',
+                halign: 'center',
             },
             columnStyles: {
-                0: { cellWidth: 90 },
+                0: { cellWidth: 90, halign: 'left' },
                 1: { cellWidth: 20, halign: 'center' },
                 2: { cellWidth: 35, halign: 'right' },
                 3: { cellWidth: 35, halign: 'right' },
             },
             alternateRowStyles: {
                 fillColor: [250, 249, 245],
-            },
-            didParseCell: (data) => {
-                // Add ₹ symbol to price columns for non-empty rows
-                if ((data.column.index === 2 || data.column.index === 3) && data.section === 'body') {
-                    const val = data.cell.raw?.toString().trim();
-                    if (val && val !== '' && val !== '0.00') {
-                        data.cell.text = [`₹  ${val}`];
-                    }
-                }
             },
         });
 
@@ -231,8 +224,7 @@ class PDFService {
         doc.setFontSize(8.5);
         doc.setTextColor(...textDark);
         doc.text('SUBTOTAL', subX + 2, tableEndY + 8);
-        doc.text(`₹`, pageW - margin - 38, tableEndY + 8);
-        doc.text(`${total.toFixed(2)}`, pageW - margin - 2, tableEndY + 8, { align: 'right' });
+        doc.text(`Rs. ${total.toFixed(2)}`, pageW - margin - 2, tableEndY + 8, { align: 'right' });
 
         // Total row with olive background
         doc.setFillColor(...olive);
@@ -241,8 +233,7 @@ class PDFService {
         doc.setFontSize(9);
         doc.setTextColor(255, 255, 255);
         doc.text('TOTAL', subX + 2, tableEndY + 18);
-        doc.text(`₹`, pageW - margin - 38, tableEndY + 18);
-        doc.text(`${total.toFixed(2)}`, pageW - margin - 2, tableEndY + 18, { align: 'right' });
+        doc.text(`Rs. ${total.toFixed(2)}`, pageW - margin - 2, tableEndY + 18, { align: 'right' });
 
         // ==================== PAYMENT STATUS BOX ====================
         const statusY = tableEndY + 28;
