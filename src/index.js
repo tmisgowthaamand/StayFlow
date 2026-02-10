@@ -315,7 +315,7 @@ app.post('/api/trigger-notifications', async (req, res) => {
                     if (razorpayLink) caption += `\n\n💳 *Pay Online:* ${razorpayLink}`;
                     caption += `\n\n👇 *Pay via UPI:*\n${upiLink}`;
 
-                    await sendMedia(phone, filePath, caption);
+                    await sendMedia(phone, filePath, caption, ["💳 Paid by UPI", "💵 Paid by Cash"]);
                     sentCount++;
                     await new Promise(r => setTimeout(r, 1000));
                 } catch (e) { console.error(`Failed to notify ${name}:`, e.message); }
@@ -377,7 +377,7 @@ app.post('/api/notify-tenant', async (req, res) => {
         if (razorpayLink) caption += `\n\n💳 *Pay Online:*\n${razorpayLink}`;
         caption += `\n\n👇 *Quick UPI Pay:*\n${upiLink}`;
 
-        if (filePath) await sendMedia(phone, filePath, caption);
+        if (filePath) await sendMedia(phone, filePath, caption, ["💳 Paid by UPI", "💵 Paid by Cash"]);
         else await sendMessage(phone, caption);
 
         res.json({ success: true });

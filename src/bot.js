@@ -192,7 +192,7 @@ async function sendButtons(to, text, buttons) {
     }
 }
 
-async function sendMedia(to, filePath, caption = "") {
+async function sendMedia(to, filePath, caption = "", buttons = null) {
     try {
         const { default: wweb } = await import('./wweb.js');
         const cleanTo = normalizePhone(to);
@@ -203,30 +203,15 @@ async function sendMedia(to, filePath, caption = "") {
         else if (['.mp4', '.avi', '.mov', '.3gp'].includes(extension)) type = 'video';
         else if (['.mp3', '.ogg', '.wav', '.aac', '.opus', '.amr'].includes(extension)) type = 'audio';
         else if (['.pdf'].includes(extension)) type = 'document';
-        else if (!extension || extension === '') {
-            // No extension - try to detect from file content
-            try {
-                const fileBuffer = fs.readFileSync(filePath);
-                const detectedMime = detectMimeTypeFromBuffer(fileBuffer);
-                if (detectedMime) {
-                    if (detectedMime.startsWith('image/')) type = 'image';
-                    else if (detectedMime.startsWith('video/')) type = 'video';
-                    else if (detectedMime.startsWith('audio/')) type = 'audio';
-                    else type = 'document';
-                    console.log(`Detected media type from content: ${type} (${detectedMime})`);
-                } else {
-                    type = 'image'; // Default to image for unknown uploads
-                }
-            } catch (e) {
-                console.log('Could not detect file type, defaulting to image');
-                type = 'image';
-            }
-        }
 
-        // 1. Try WWeb first (Free, reliable for all media)
+        // 1. Try WWeb first
         if (wweb.ready) {
             try {
-                await wweb.sendImage(to, filePath, caption); // Note: wweb.sendImage handles all media
+                await wweb.sendImage(to, filePath, caption);
+                if (buttons && buttons.length > 0) {
+                    // WWeb doesn't support buttons on media easily, send as next message
+                    await sendButtons(to, "Please choose payment method:", buttons);
+                }
                 return;
             } catch (wwebErr) {
                 console.error('WWeb sendMedia failed, falling back to Cloud API:', wwebErr.message);
@@ -235,28 +220,48 @@ async function sendMedia(to, filePath, caption = "") {
 
         // 2. Try Cloud API Fallback
         const mediaId = await uploadMedia(filePath);
-        if (!mediaId) {
-            console.error('Failed to upload media for Cloud API');
-            return;
-        }
+        if (!mediaId) return;
 
-        const payload = {
-            messaging_product: "whatsapp",
-            to: cleanTo,
-            type: type,
-            [type]: {
-                id: mediaId,
-                caption: type !== 'audio' ? caption : undefined,
-                filename: type === 'document' ? path.basename(filePath) : undefined
-            },
-        };
+        let payload;
+        if (buttons && buttons.length > 0 && (type === 'image' || type === 'video' || type === 'document')) {
+            // Interactive Media Message (One bubble)
+            payload = {
+                messaging_product: "whatsapp",
+                to: cleanTo,
+                type: "interactive",
+                interactive: {
+                    type: "button",
+                    header: {
+                        type: type,
+                        [type]: { id: mediaId, filename: type === 'document' ? path.basename(filePath) : undefined }
+                    },
+                    body: { text: caption || "Please see the attached file." },
+                    action: {
+                        buttons: buttons.map((btn, i) => ({
+                            type: "reply",
+                            reply: { id: `btn_${i}`, title: btn }
+                        }))
+                    }
+                }
+            };
+        } else {
+            // Standard Media Message
+            payload = {
+                messaging_product: "whatsapp",
+                to: cleanTo,
+                type: type,
+                [type]: {
+                    id: mediaId,
+                    caption: type !== 'audio' ? caption : undefined,
+                    filename: type === 'document' ? path.basename(filePath) : undefined
+                },
+            };
+        }
 
         await axios.post(
             `https://graph.facebook.com/v17.0/${config.whatsapp.phoneNumberId}/messages`,
             payload,
-            {
-                headers: { Authorization: `Bearer ${config.whatsapp.token}` },
-            }
+            { headers: { Authorization: `Bearer ${config.whatsapp.token}` } }
         );
     } catch (err) {
         console.error('sendMedia fully failed:', err.response ? JSON.stringify(err.response.data) : err.message);
@@ -909,9 +914,9 @@ async function handleRent(phone) {
         return;
     }
     const name = tenant.get('Name');
-    const rent = parseFloat(tenant.get('Monthly Rent') || 0);
-    const eb = parseFloat(tenant.get('EB Amount') || 0);
-    const total = rent + eb;
+    const rent = (tenant.get('Monthly Rent') || '0').toString().replace(/[^\d.]/g, '');
+    const eb = (tenant.get('EB Amount') || '0').toString().replace(/[^\d.]/g, '');
+    const total = parseFloat(rent) + parseFloat(eb);
     const status = tenant.get('Status') || 'PENDING';
 
     const now = new Date();
@@ -919,19 +924,26 @@ async function handleRent(phone) {
     const currentMonth = monthNames[now.getMonth()];
     const dueDate = `${config.rentDueDate}th ${currentMonth}`;
 
-    let msg = `🧾 *Invoice & Payment*\n\nHi ${name},\n💰 *Total Due: ₹${total}*\n📅 *Due Date: ${dueDate}*\n\n📋 *Breakdown:*\n🏠 Rent: ₹${rent}\n⚡ EB: ₹${eb}\n━━━━━━━━━━━━━━━━━━━━\n💵 *Total: ₹${total}*`;
+    let caption = `🧾 *Invoice & Payment*\n\nHi ${name},\n💰 *Total Due: ₹${total}*\n📅 *Due Date: ${dueDate}*\n\n📋 *Breakdown:*\n🏠 Rent: ₹${rent}\n⚡ EB: ₹${eb}\n━━━━━━━━━━━━━━━━━━━━\n💵 *Total: ₹${total}*`;
 
     const razorpayLink = await createRazorpayLink(phone, name, total, tenant.get('Room'));
-    if (razorpayLink) msg += `\n\n💳 *Pay Online:*\n${razorpayLink}`;
+    if (razorpayLink) caption += `\n\n💳 *Pay Online:*\n${razorpayLink}`;
 
     const upiLink = `upi://pay?pa=${config.upiId}&pn=${encodeURIComponent(config.businessName)}&am=${total}&cu=INR`;
-    msg += `\n\n👇 *Quick UPI Pay:*\n${upiLink}`;
+    caption += `\n\n👇 *Quick UPI Pay:*\n${upiLink}`;
+
+    // Generate PDF
+    const { filePath } = await pdfService.generateInvoice({
+        Name: name, Phone: phone, Room: tenant.get('Room') || 'N/A',
+        EB_Amount: eb, Monthly_Rent: rent, Total_Amount: total.toString(),
+        Paid_Date: 'PENDING', Transaction_ID: 'PENDING', Payment_Mode: 'PENDING'
+    });
 
     if (status === 'PAID') {
-        await sendMessage(phone, msg + `\n\n✅ *Payment Status: PAID*`);
+        await sendMedia(phone, filePath, caption + `\n\n✅ *Payment Status: PAID*`);
     } else {
         userState[phone] = { step: 'PAYMENT_METHOD', contextName: name };
-        await sendButtons(phone, msg + `\n\n━━━━━━━━━━━━━━━━━━━━\n*How did you pay?* Tap below 👇`, ["💳 Paid by UPI", "💵 Paid by Cash"]);
+        await sendMedia(phone, filePath, caption + `\n\n━━━━━━━━━━━━━━━━━━━━\n*How did you pay?* Tap below 👇`, ["💳 Paid by UPI", "💵 Paid by Cash"]);
     }
 }
 
