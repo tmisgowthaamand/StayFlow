@@ -551,7 +551,7 @@ app.post('/api/broadcast', upload.single('file'), async (req, res) => {
             if (!t.Phone) continue;
             try {
                 if (file) {
-                    await sendMedia(t.Phone, file.path, message || '');
+                    await sendMedia(t.Phone, file.path, message || '', null, file.originalname);
                 } else {
                     await sendMessage(t.Phone, `📢 *Announcement*\n\n${message}`);
                 }
@@ -607,6 +607,18 @@ app.post('/api/eb-bills', async (req, res) => {
 app.get('/api/dashboard-stats', async (req, res) => {
     try { res.json(await sheetsService.getDashboardStats()); }
     catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.get('/api/config', (req, res) => {
+    res.json({
+        businessName: config.businessName,
+        upiId: config.upiId,
+        ownerPhone: config.ownerPhone,
+        rentDueDate: config.rentDueDate,
+        ebDueDate: config.ebDueDate,
+        ebUnitRate: config.ebUnitRate,
+        googleFormUrl: config.googleFormUrl
+    });
 });
 
 app.get('/api/health', (req, res) => {

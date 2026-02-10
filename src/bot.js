@@ -192,7 +192,7 @@ async function sendButtons(to, text, buttons) {
     }
 }
 
-async function sendMedia(to, filePath, caption = "", buttons = null) {
+async function sendMedia(to, filePath, caption = "", buttons = null, displayFilename = null) {
     try {
         const { default: wweb } = await import('./wweb.js');
         const cleanTo = normalizePhone(to);
@@ -233,7 +233,7 @@ async function sendMedia(to, filePath, caption = "", buttons = null) {
                     type: "button",
                     header: {
                         type: type,
-                        [type]: { id: mediaId, filename: type === 'document' ? path.basename(filePath) : undefined }
+                        [type]: { id: mediaId, filename: displayFilename || (type === 'document' ? path.basename(filePath) : undefined) }
                     },
                     body: { text: caption || "Please see the attached file." },
                     action: {
@@ -253,7 +253,7 @@ async function sendMedia(to, filePath, caption = "", buttons = null) {
                 [type]: {
                     id: mediaId,
                     caption: type !== 'audio' ? caption : undefined,
-                    filename: type === 'document' ? path.basename(filePath) : undefined
+                    filename: displayFilename || (type === 'document' ? path.basename(filePath) : undefined)
                 },
             };
         }
@@ -940,10 +940,10 @@ async function handleRent(phone) {
     });
 
     if (status === 'PAID') {
-        await sendMedia(phone, filePath, caption + `\n\n✅ *Payment Status: PAID*`);
+        await sendMedia(phone, filePath, caption + `\n\n✅ *Payment Status: PAID*`, null, 'StayFlow_Invoice.pdf');
     } else {
         userState[phone] = { step: 'PAYMENT_METHOD', contextName: name };
-        await sendMedia(phone, filePath, caption + `\n\n━━━━━━━━━━━━━━━━━━━━\n*How did you pay?* Tap below 👇`, ["💳 Paid by UPI", "💵 Paid by Cash"]);
+        await sendMedia(phone, filePath, caption + `\n\n━━━━━━━━━━━━━━━━━━━━\n*How did you pay?* Tap below 👇`, ["💳 Paid by UPI", "💵 Paid by Cash"], 'StayFlow_Invoice.pdf');
     }
 }
 

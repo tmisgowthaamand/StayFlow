@@ -44,6 +44,7 @@ const App = () => {
   const [actionPanel, setActionPanel] = useState(null); // { type, title, message, data, input, input2 }
   const [archivedTenants, setArchivedTenants] = useState([]);
   const [syncing, setSyncing] = useState(false);
+  const [configData, setConfigData] = useState(null);
 
   const showToast = (message, type = 'success') => {
     setToast({ message, type });
@@ -54,7 +55,17 @@ const App = () => {
   useEffect(() => {
     fetchData();
     fetchArchivedData();
+    fetchConfig();
   }, []);
+
+  const fetchConfig = async () => {
+    try {
+      const res = await axios.get('/api/config');
+      setConfigData(res.data);
+    } catch (err) {
+      console.error('Error fetching config:', err);
+    }
+  };
 
   const handleEditChange = (key, val) => {
     setEditData({ ...editData, [key]: val });
@@ -767,6 +778,66 @@ const App = () => {
     );
   };
 
+  const renderSettings = () => (
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="panel">
+      <div className="panel-header">
+        <h3 className="panel-title"><Settings size={18} /> Application Configuration</h3>
+      </div>
+      <div style={{ padding: '0 24px 24px' }}>
+        <p style={{ color: 'var(--text-dim)', fontSize: '0.9rem', marginBottom: 30 }}>
+          View current environment settings. To update these, please modify your server environment variables.
+        </p>
+
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 30 }}>
+          <div className="settings-section">
+            <h4 style={{ color: 'var(--secondary)', fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 20 }}>Business Identity</h4>
+            <div className="input-group">
+              <label>Business Name</label>
+              <input type="text" value={configData?.businessName || ''} readOnly style={{ background: 'rgba(255,255,255,0.02)', color: 'var(--text-dim)' }} />
+            </div>
+            <div className="input-group">
+              <label>Owner Phone</label>
+              <input type="text" value={configData?.ownerPhone || ''} readOnly style={{ background: 'rgba(255,255,255,0.02)', color: 'var(--text-dim)' }} />
+            </div>
+            <div className="input-group">
+              <label>Owner UPI ID</label>
+              <input type="text" value={configData?.upiId || ''} readOnly style={{ background: 'rgba(255,255,255,0.02)', color: 'var(--text-dim)' }} />
+            </div>
+          </div>
+
+          <div className="settings-section">
+            <h4 style={{ color: 'var(--secondary)', fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 20 }}>Billing & Policy</h4>
+            <div className="input-group">
+              <label>Rent Due Date (Monthly)</label>
+              <input type="text" value={`${configData?.rentDueDate || 5}th of every month`} readOnly style={{ background: 'rgba(255,255,255,0.02)', color: 'var(--text-dim)' }} />
+            </div>
+            <div className="input-group">
+              <label>Electricity Rate (₹ / Unit)</label>
+              <input type="text" value={`₹${configData?.ebUnitRate || 15}`} readOnly style={{ background: 'rgba(255,255,255,0.02)', color: 'var(--text-dim)' }} />
+            </div>
+            <div className="input-group">
+              <label>Registration Link</label>
+              <div style={{ display: 'flex', gap: 10 }}>
+                <input type="text" value={configData?.googleFormUrl || ''} readOnly style={{ background: 'rgba(255,255,255,0.02)', color: 'var(--text-dim)', flex: 1 }} />
+                <button className="btn btn-glass" onClick={() => window.open(configData?.googleFormUrl, '_blank')}>Open</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div style={{ marginTop: 40, padding: 20, background: 'rgba(245, 158, 11, 0.05)', borderRadius: 12, border: '1px solid rgba(245, 158, 11, 0.2)' }}>
+          <div style={{ display: 'flex', gap: 12, alignItems: 'center', color: '#f59e0b', marginBottom: 8 }}>
+            <AlertCircle size={18} />
+            <span style={{ fontWeight: 700, fontSize: '0.9rem' }}>Read-Only Mode</span>
+          </div>
+          <p style={{ fontSize: '0.85rem', color: 'rgba(255,255,255,0.6)', lineHeight: 1.5 }}>
+            Settings are currently pulled from server environment variables for security. To change these values, please update your Render/Deployment dashboard environment variables and restart the service.
+          </p>
+        </div>
+      </div>
+    </motion.div>
+  );
+
   const renderArchive = () => (
     <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="panel">
       <div className="panel-header">
@@ -979,6 +1050,7 @@ const App = () => {
             {activeTab === 'locations' && renderLocations()}
             {activeTab === 'archive' && renderArchive()}
             {activeTab === 'tools' && renderTools()}
+            {activeTab === 'settings' && renderSettings()}
           </>
         )}
         {renderActionPanel()}
