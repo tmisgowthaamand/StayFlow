@@ -1266,7 +1266,10 @@ async function handleOnboarding(phone, input, image) {
                 advance: state.advance, sharingType: state.sharingType, monthlyRent: state.monthlyRent,
                 aadhaarImage: image.id
             });
-            await sendMessage(phone, `✅ Registered!`);
+
+            const rulesMsg = `✅ *Registration Successful!* 🎉\n\nWelcome to *${config.businessName}*. You are now part of our community! 🏠\n\n🏢 *PG House Rules & Regulations*\n━━━━━━━━━━━━━━━━━━━━\n⚖️ *DO's:*\n1. Keep your room and shared areas clean and hygienic.\n2. Maintain silence after 10:00 PM for everyone's comfort.\n3. Pay rent by the 5th and EB bills by the 10th of each month.\n4. Inform the admin 30 days before vacating.\n5. Cooperate with police verification and security checks.\n\n🚫 *DON'Ts:*\n1. Strictly NO smoking, alcohol, or illegal substances.\n2. No overnight visitors allowed without prior permission.\n3. Do not use heavy appliances (Heaters/AC/Iron) without approval.\n4. No loud music, parties, or disturbances in rooms.\n5. Do not damage PG property or furniture.\n\n📜 *Note:* Rules are for the safety and comfort of all residents. Violations may lead to penalties or eviction.\n━━━━━━━━━━━━━━━━━━━━\n\n🤖 *How to Use This Bot:*\nJust type *HI* anytime to see your dashboard, bills, and options. You can also chat with me naturally for any questions!\n\nWelcome home! 😊`;
+
+            await sendMessage(phone, rulesMsg);
             delete userState[phone];
             break;
 
