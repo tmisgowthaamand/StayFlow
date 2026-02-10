@@ -51,12 +51,27 @@ class SheetsService {
             throw new Error('Google Sheets credentials not found. Provide service-account.json or set GOOGLE_SERVICE_ACCOUNT_EMAIL and GOOGLE_PRIVATE_KEY environment variables.');
         }
 
-        // Clean the key (handle escaped newlines, quotes, etc. from any source)
+        // Extremely thorough key cleaning
         if (authConfig.key) {
-            authConfig.key = authConfig.key
-                .replace(/^["']|["']$/g, '')
-                .replace(/\\n/g, '\n')
-                .trim();
+            // Remove any potential surrounding quotes (sometimes happens in env vars)
+            authConfig.key = authConfig.key.replace(/^["']|["']$/g, '');
+
+            // Handle escaped newlines - sometimes they get double escaped as \\n
+            authConfig.key = authConfig.key.replace(/\\n/g, '\n');
+
+            // If the key is still a single line without newlines, it's definitely wrong
+            if (!authConfig.key.includes('\n')) {
+                console.warn('WARNING: Private key has no newlines. This will likely fail.');
+            }
+
+            authConfig.key = authConfig.key.trim();
+        }
+
+        console.log('Auth Email:', authConfig.email);
+        console.log('Key length:', authConfig.key?.length);
+        if (authConfig.key) {
+            console.log('Key start:', authConfig.key.substring(0, 30));
+            console.log('Key end:', authConfig.key.substring(authConfig.key.length - 30));
         }
 
         const serviceAccountAuth = new JWT({
@@ -76,8 +91,9 @@ class SheetsService {
         } catch (err) {
             this.doc = null;
             console.error('Google Sheets Init FAILED (loadInfo):', err.message);
-            if (err.message.includes('Signature')) {
-                throw new Error('Invalid JWT Signature: The private key is incorrect or formatted improperly.');
+            if (err.message.includes('Signature') || err.message.includes('grant')) {
+                console.error('JWT Error Details:', err.response?.data);
+                throw new Error(`Invalid JWT Connection: ${err.message}. Please verify the Private Key and Service Account Email.`);
             }
             throw err;
         }
