@@ -107,7 +107,7 @@ class SheetsService {
 
         const requiredHeaders = [
             'Name', 'Phone', 'Room', 'Bed', 'Floor', 'Location', 'Sharing Type', 'Advance',
-            'Aadhaar Image', 'Monthly Rent', 'EB Amount', 'Total Amount',
+            'Aadhaar Image', 'Registration Form', 'Monthly Rent', 'EB Amount', 'Total Amount',
             'Payment Mode', 'Transaction ID', 'Payment Proof',
             'Status', 'Join Date', 'Paid Date'
         ];
@@ -321,6 +321,7 @@ class SheetsService {
             'Location': tenantData.location || 'Main Branch',
             'Advance': tenantData.advance,
             'Aadhaar Image': tenantData.aadhaarImage || '',
+            'Registration Form': tenantData.registrationForm || '',
             'Monthly Rent': tenantData.monthlyRent,
             'EB Amount': '0',
             'Total Amount': tenantData.monthlyRent,

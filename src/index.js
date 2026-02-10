@@ -197,6 +197,12 @@ app.post('/api/web-register', upload.single('aadhaar'), async (req, res) => {
 
         console.log(`Web Registration: ${name} (${phone})`);
 
+        const detailedRules = `🏢 *PG House Rules & Regulations*\n━━━━━━━━━━━━━━━━━━━━\n⚖️ *DO's:*\n1. Keep your room and shared areas clean and hygienic.\n2. Maintain silence after 10:00 PM for everyone's comfort.\n3. Pay rent by the 5th and EB bills by the 10th of each month.\n4. Inform the admin 30 days before vacating.\n5. Cooperate with police verification and security checks.\n\n🚫 *DON'Ts:*\n1. Strictly NO smoking, alcohol, or illegal substances.\n2. No overnight visitors allowed without prior permission.\n3. Do not use heavy appliances (Heaters/AC/Iron) without approval.\n4. No loud music, parties, or disturbances in rooms.\n5. Do not damage PG property or furniture.\n\n📜 *Note:* Rules are for the safety and comfort of all residents.\n━━━━━━━━━━━━━━━━━━━━`;
+
+        const { fileName: regFile, filePath: regPath } = await pdfService.generateRegistrationForm({
+            name, phone, room, sharingType: sharing, advance, monthlyRent: '0'
+        });
+
         await sheetsService.init();
         await sheetsService.addTenant({
             name,
@@ -205,15 +211,16 @@ app.post('/api/web-register', upload.single('aadhaar'), async (req, res) => {
             sharingType: sharing,
             advance,
             monthlyRent: '0',
-            aadhaarImage: file ? file.filename : ''
+            aadhaarImage: file ? file.filename : '',
+            registrationForm: regFile
         });
 
-        const detailedRules = `🏢 *PG House Rules & Regulations*\n━━━━━━━━━━━━━━━━━━━━\n⚖️ *DO's:*\n1. Keep your room and shared areas clean and hygienic.\n2. Maintain silence after 10:00 PM for everyone's comfort.\n3. Pay rent by the 5th and EB bills by the 10th of each month.\n4. Inform the admin 30 days before vacating.\n5. Cooperate with police verification and security checks.\n\n🚫 *DON'Ts:*\n1. Strictly NO smoking, alcohol, or illegal substances.\n2. No overnight visitors allowed without prior permission.\n3. Do not use heavy appliances (Heaters/AC/Iron) without approval.\n4. No loud music, parties, or disturbances in rooms.\n5. Do not damage PG property or furniture.\n\n📜 *Note:* Rules are for the safety and comfort of all residents.\n━━━━━━━━━━━━━━━━━━━━`;
-
         await sendMessage(phone, `✅ *Registration Successful!* 🎉\n\nWelcome ${name} to Room ${room}. We are happy to have you! 🏠\n\n${detailedRules}\n\n🤖 *How to Use:* Type *HI* anytime to see your dashboard!`);
+        await sendMedia(phone, regPath, '📄 Your registration copy', null, 'StayFlow_Registration.pdf');
 
         if (config.ownerPhone) {
             await sendMessage(config.ownerPhone, `📝 *New Web Registration*\n${name} - ${room}\nPhone: ${phone}\nAdvance: ₹${advance}`);
+            await sendMedia(config.ownerPhone, regPath, `📝 Registration copy: ${name}`, null, 'StayFlow_Registration.pdf');
         }
 
         res.redirect('/rules.html');
@@ -238,16 +245,20 @@ app.post('/webhook/google-form', async (req, res) => {
             monthlyRent: data['Monthly Rent'] || '0'
         };
 
+        const detailedRules = `🏢 *PG House Rules & Regulations*\n━━━━━━━━━━━━━━━━━━━━\n⚖️ *DO's:*\n1. Keep your room and shared areas clean and hygienic.\n2. Maintain silence after 10:00 PM for everyone's comfort.\n3. Pay rent by the 5th and EB bills by the 10th of each month.\n4. Inform the admin 30 days before vacating.\n5. Cooperate with police verification and security checks.\n\n🚫 *DON'Ts:*\n1. Strictly NO smoking, alcohol, or illegal substances.\n2. No overnight visitors allowed without prior permission.\n3. Do not use heavy appliances (Heaters/AC/Iron) without approval.\n4. No loud music, parties, or disturbances in rooms.\n5. Do not damage PG property or furniture.\n\n📜 *Note:* Rules are for the safety and comfort of all residents.\n━━━━━━━━━━━━━━━━━━━━`;
+
         await sheetsService.init();
+        const { fileName: regFile, filePath: regPath } = await pdfService.generateRegistrationForm(tenantData);
+        tenantData.registrationForm = regFile;
         await sheetsService.addTenant(tenantData);
+
+        await sendMessage(tenantData.phone, `🎉 Hello ${tenantData.name}! Your registration is successful. ✅\n\nWelcome to *${config.businessName}*! 🏠\n\n${detailedRules}\n\n🤖 *Smart Bot:* Type *HI* to see your dashboard and bills!`);
+        await sendMedia(tenantData.phone, regPath, '📄 Your registration copy', null, 'StayFlow_Registration.pdf');
 
         if (config.ownerPhone) {
             await sendMessage(config.ownerPhone, `📝 *New Form Registration*\n\nName: ${tenantData.name}\nPhone: ${tenantData.phone}\nRoom: ${tenantData.room}\n\nPlease verify in the dashboard.`);
+            await sendMedia(config.ownerPhone, regPath, `📝 Registration copy: ${tenantData.name}`, null, 'StayFlow_Registration.pdf');
         }
-
-        const detailedRules = `🏢 *PG House Rules & Regulations*\n━━━━━━━━━━━━━━━━━━━━\n⚖️ *DO's:*\n1. Keep your room and shared areas clean and hygienic.\n2. Maintain silence after 10:00 PM for everyone's comfort.\n3. Pay rent by the 5th and EB bills by the 10th of each month.\n4. Inform the admin 30 days before vacating.\n5. Cooperate with police verification and security checks.\n\n🚫 *DON'Ts:*\n1. Strictly NO smoking, alcohol, or illegal substances.\n2. No overnight visitors allowed without prior permission.\n3. Do not use heavy appliances (Heaters/AC/Iron) without approval.\n4. No loud music, parties, or disturbances in rooms.\n5. Do not damage PG property or furniture.\n\n📜 *Note:* Rules are for the safety and comfort of all residents.\n━━━━━━━━━━━━━━━━━━━━`;
-
-        await sendMessage(tenantData.phone, `🎉 Hello ${tenantData.name}! Your registration is successful. ✅\n\nWelcome to *${config.businessName}*! 🏠\n\n${detailedRules}\n\n🤖 *Smart Bot:* Type *HI* to see your dashboard and bills!`);
 
         res.json({ success: true });
     } catch (err) {
@@ -274,9 +285,26 @@ app.get('/api/tenants', async (req, res) => {
 app.post('/api/add-tenant', async (req, res) => {
     try {
         const tenantData = req.body;
-        await sheetsService.addTenant(tenantData);
         const detailedRules = `🏢 *PG House Rules & Regulations*\n━━━━━━━━━━━━━━━━━━━━\n⚖️ *DO's:*\n1. Keep your room and shared areas clean and hygienic.\n2. Maintain silence after 10:00 PM for everyone's comfort.\n3. Pay rent by the 5th and EB bills by the 10th of each month.\n4. Inform the admin 30 days before vacating.\n5. Cooperate with police verification and security checks.\n\n🚫 *DON'Ts:*\n1. Strictly NO smoking, alcohol, or illegal substances.\n2. No overnight visitors allowed without prior permission.\n\n🤖 *Tip:* Type *HI* to see your dashboard!`;
+
+        const { fileName: regFile, filePath: regPath } = await pdfService.generateRegistrationForm({
+            name: tenantData.name, phone: tenantData.phone, room: tenantData.room,
+            sharingType: tenantData.sharingType, advance: tenantData.advance,
+            monthlyRent: tenantData.rent || '0'
+        });
+
+        tenantData.registrationForm = regFile;
+        await sheetsService.init();
+        await sheetsService.addTenant(tenantData);
+
         await sendMessage(tenantData.phone, `✅ *Registration Successful!*\n\nWelcome ${tenantData.name}! 🏠\n\n${detailedRules}`);
+        await sendMedia(tenantData.phone, regPath, '📄 Your registration copy', null, 'StayFlow_Registration.pdf');
+
+        if (config.ownerPhone) {
+            await sendMessage(config.ownerPhone, `📝 *Admin Added Resident*\nName: ${tenantData.name}\nPhone: ${tenantData.phone}`);
+            await sendMedia(config.ownerPhone, regPath, `📝 Registration copy: ${tenantData.name}`, null, 'StayFlow_Registration.pdf');
+        }
+
         res.json({ success: true });
     } catch (err) {
         res.status(500).json({ error: err.message });

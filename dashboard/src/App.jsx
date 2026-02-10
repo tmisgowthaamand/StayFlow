@@ -443,6 +443,7 @@ const App = () => {
                 <th>Join Date</th>
                 <th>Status</th>
                 <th>Aadhaar</th>
+                <th>Reg</th>
                 <th>Action</th>
               </tr>
             </thead>
@@ -472,6 +473,18 @@ const App = () => {
                         title="View Document"
                       >
                         <Camera size={14} /> View
+                      </button>
+                    ) : 'N/A'}
+                  </td>
+                  <td>
+                    {t['Registration Form'] ? (
+                      <button
+                        className="btn btn-glass btn-small"
+                        onClick={() => window.open(getFullUrl(`/api/media/${t['Registration Form']}`), '_blank')}
+                        title="View Registration Form"
+                        style={{ color: 'var(--primary)' }}
+                      >
+                        <FileText size={14} /> Reg
                       </button>
                     ) : 'N/A'}
                   </td>

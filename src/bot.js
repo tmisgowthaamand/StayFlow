@@ -1277,22 +1277,35 @@ async function handleOnboarding(phone, input, image) {
             break;
         case 'AADHAAR_UPLOAD':
             if (!image) { await sendMessage(phone, `Please upload an *image*.`); return; }
-            const tenantObj = {
-                name: state.name, phone: state.userPhone || phone, room: state.room,
-                advance: state.advance, sharingType: state.sharingType, monthlyRent: state.monthlyRent,
-                aadhaarImage: image.id
-            };
-            await sheetsService.addTenant(tenantObj);
 
             // Send to tenant (if registered by admin) or user (if self-registering)
             const targetPhone = state.userPhone || phone;
 
+            // Generate Registration PDF
+            const { fileName: regFile, filePath: regPath } = await pdfService.generateRegistrationForm({
+                name: state.name, phone: targetPhone, room: state.room,
+                sharingType: state.sharingType, advance: state.advance,
+                monthlyRent: state.monthlyRent
+            });
+
+            const tenantObj = {
+                name: state.name, phone: targetPhone, room: state.room,
+                advance: state.advance, sharingType: state.sharingType, monthlyRent: state.monthlyRent,
+                aadhaarImage: image.id,
+                registrationForm: regFile
+            };
+
+            await sheetsService.init();
+            await sheetsService.addTenant(tenantObj);
+
             const finalMsg = `✅ *Registration Successful!* 🎉\n\nWelcome to *${config.businessName}*. You are now part of our community! 🏠\n\n🏢 *PG House Rules & Regulations*\n━━━━━━━━━━━━━━━━━━━━\n⚖️ *DO's:*\n1. Keep your room and shared areas clean and hygienic.\n2. Maintain silence after 10:00 PM for everyone's comfort.\n3. Pay rent by the 5th and EB bills by the 10th of each month.\n4. Inform the admin 30 days before vacating.\n5. Cooperate with police verification and security checks.\n\n🚫 *DON'Ts:*\n1. Strictly NO smoking, alcohol, or illegal substances.\n2. No overnight visitors allowed without prior permission.\n3. Do not use heavy appliances (Heaters/AC/Iron) without approval.\n4. No loud music, parties, or disturbances in rooms.\n5. Do not damage PG property or furniture.\n\n📜 *Note:* Rules are for the safety and comfort of all residents. Violations may lead to penalties or eviction.\n━━━━━━━━━━━━━━━━━━━━\n\n🤖 *How to Use:* Type *HI* anytime to see your dashboard!`;
 
             await sendMessage(targetPhone, finalMsg);
+            await sendMedia(targetPhone, regPath, '📄 Your registration copy', null, 'StayFlow_Registration.pdf');
 
             if (config.ownerPhone && targetPhone !== config.ownerPhone) {
-                await sendMessage(config.ownerPhone, `📝 *New Registration*\nName: ${state.name}\nRoom: ${state.room}\nPhone: ${targetPhone}`);
+                await sendMessage(config.ownerPhone, `📝 *New Registration Received*\nName: ${state.name}\nRoom: ${state.room}\nPhone: ${targetPhone}`);
+                await sendMedia(config.ownerPhone, regPath, `📝 Registration copy: ${state.name}`, null, 'StayFlow_Registration.pdf');
             }
 
             delete userState[phone];

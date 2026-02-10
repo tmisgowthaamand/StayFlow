@@ -75,6 +75,80 @@ class PDFService {
 
         return { fileName, filePath };
     }
+
+    async generateRegistrationForm(tenantData) {
+        const doc = new jsPDF();
+        const { name, phone, room, sharingType, advance, monthlyRent } = tenantData;
+
+        // Header
+        doc.setFillColor(44, 62, 80);
+        doc.rect(0, 0, 210, 45, 'F');
+        doc.setTextColor(255, 255, 255);
+        doc.setFontSize(24);
+        doc.text(config.businessName, 20, 25);
+        doc.setFontSize(12);
+        doc.text('New Resident Registration Form', 20, 35);
+
+        // Registration Info
+        doc.setTextColor(40, 40, 40);
+        doc.setFontSize(14);
+        doc.text('Resident Details', 20, 60);
+
+        autoTable(doc, {
+            startY: 65,
+            body: [
+                ['Full Name', name],
+                ['Phone Number', phone],
+                ['Assigned Room', room || 'Unassigned'],
+                ['Sharing Type', sharingType || 'N/A'],
+                ['Monthly Rent', `INR ${monthlyRent || 'TBD'}`],
+                ['Advance Paid', `INR ${advance || '0'}`],
+                ['Registration Date', new Date().toLocaleDateString()],
+            ],
+            theme: 'grid',
+            styles: { fontSize: 11, cellPadding: 5 },
+            columnStyles: { 0: { fontStyle: 'bold', width: 60 } },
+        });
+
+        // PG Rules Section
+        const rulesY = doc.lastAutoTable.finalY + 15;
+        doc.setFontSize(14);
+        doc.text('PG House Rules & Regulations', 20, rulesY);
+
+        doc.setFontSize(10);
+        const rules = [
+            '1. Maintain cleanliness in rooms and common areas.',
+            '2. Silence must be observed after 10:00 PM.',
+            '3. Rent due by 5th, EB by 10th of every month.',
+            '4. 30-day notice period required before vacating.',
+            '5. No smoking, alcohol, or illegal substances on premises.',
+            '6. Visitors must leave by 9:00 PM unless permitted.',
+            '7. Heavy appliances (heaters/AC) require extra charges.',
+            '8. PG property damage will be deductible from advance.',
+        ];
+
+        doc.setTextColor(100, 100, 100);
+        let currentY = rulesY + 10;
+        rules.forEach(rule => {
+            doc.text(rule, 25, currentY);
+            currentY += 7;
+        });
+
+        // Footer Disclaimer
+        doc.setFontSize(9);
+        doc.setTextColor(150, 150, 150);
+        doc.text('I hereby agree to abide by the rules and regulations of the PG.', 105, 270, { align: 'center' });
+        doc.text('This is a digital copy for your records.', 105, 275, { align: 'center' });
+        doc.text(config.businessName, 105, 280, { align: 'center' });
+
+        const fileName = `registration_${phone}_${Date.now()}.pdf`;
+        const filePath = path.join(__dirname, '../uploads', fileName);
+
+        const buffer = Buffer.from(doc.output('arraybuffer'));
+        fs.writeFileSync(filePath, buffer);
+
+        return { fileName, filePath };
+    }
 }
 
 export default new PDFService();
