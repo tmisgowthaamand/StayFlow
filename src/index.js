@@ -8,7 +8,7 @@ import { fileURLToPath } from 'url';
 import multer from 'multer';
 
 import config from './config.js';
-import { handleIncomingMessage, sendMessage, sendMedia, sendImage, setTenantContext, handleUpdateEB, createRazorpayLink } from './bot.js';
+import { handleIncomingMessage, sendMessage, sendMedia, setTenantContext, handleUpdateEB, createRazorpayLink } from './bot.js';
 import setupCron from './cron.js';
 import sheetsService from './sheets.js';
 import wweb from './wweb.js';
@@ -374,7 +374,7 @@ app.post('/api/notify-tenant', async (req, res) => {
         if (razorpayLink) caption += `\n\n💳 *Pay Online:*\n${razorpayLink}`;
         caption += `\n\n👇 *Quick UPI Pay:*\n${upiLink}`;
 
-        if (filePath) await sendImage(phone, filePath, caption);
+        if (filePath) await sendMedia(phone, filePath, caption);
         else await sendMessage(phone, caption);
 
         res.json({ success: true });

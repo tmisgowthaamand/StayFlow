@@ -27,17 +27,23 @@ class SheetsService {
 
         if (fs.existsSync(serviceAccountPath)) {
             console.log('Using service-account.json for authentication');
+            console.log('Service account path:', serviceAccountPath);
             const creds = JSON.parse(fs.readFileSync(serviceAccountPath, 'utf8'));
             authConfig = {
                 email: creds.client_email,
                 key: creds.private_key,
             };
+            console.log('Service account email:', authConfig.email);
+            console.log('Private key starts with:', authConfig.key?.substring(0, 30));
+            console.log('Private key ID:', creds.private_key_id);
         } else if (config.sheets.email && config.sheets.key) {
             console.log('Using environment variables for Google Sheets authentication');
             authConfig = {
                 email: config.sheets.email,
                 key: config.sheets.key,
             };
+            console.log('Env email:', authConfig.email);
+            console.log('Env key starts with:', authConfig.key?.substring(0, 30));
         } else {
             throw new Error('Google Sheets credentials not found. Provide service-account.json or set GOOGLE_SERVICE_ACCOUNT_EMAIL and GOOGLE_PRIVATE_KEY environment variables.');
         }
@@ -49,9 +55,16 @@ class SheetsService {
         });
 
         console.log('Initializing Google Sheets Service...');
-        this.doc = new GoogleSpreadsheet(config.sheets.id, serviceAccountAuth);
-        await this.doc.loadInfo();
-        console.log('Google Sheets Loaded Successfully.');
+        try {
+            this.doc = new GoogleSpreadsheet(config.sheets.id, serviceAccountAuth);
+            await this.doc.loadInfo();
+            console.log('Google Sheets Loaded Successfully.');
+        } catch (err) {
+            this.doc = null; // Reset so next call retries
+            console.error('Google Sheets Init FAILED:', err.message);
+            throw err;
+        }
+
 
         // ========== TENANTS SHEET ==========
         let sheet = this.doc.sheetsByTitle['Tenants'] ||
