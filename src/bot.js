@@ -470,7 +470,9 @@ async function handleIncomingMessage(phone, body, messageId = null, image = null
             const paidEB = parseFloat(tenantForPaid.get('EB Amount') || 0);
             const paidTotal = paidRent + paidEB;
             userState[phone] = { step: 'PAYMENT_METHOD', contextName: tenantForPaid.get('Name') };
-            await sendMessage(phone, `💰 *Payment - ${tenantForPaid.get('Name')}*\n\n🏠 Rent: ₹${paidRent}\n⚡ EB: ₹${paidEB}\n━━━━━━━━━━━━━━━━━━━━\n💵 *Total Due: ₹${paidTotal}*\n\n*How did you pay?*\n\n1️⃣ *UPI* - Paid via UPI/Online/Razorpay\n2️⃣ *CASH* - Paid by cash\n\nReply with *1* or *2*`);
+
+            const msg = `💰 *Payment - ${tenantForPaid.get('Name')}*\n\n🏠 Rent: ₹${paidRent}\n⚡ EB: ₹${paidEB}\n━━━━━━━━━━━━━━━━━━━━\n💵 *Total Due: ₹${paidTotal}*\n\n*How did you pay?*`;
+            await sendButtons(phone, msg, ["💳 Paid by UPI", "💵 Paid by Cash"]);
             break;
         }
         case config.commands.CASH_PAID: {
@@ -925,13 +927,11 @@ async function handleRent(phone) {
     const upiLink = `upi://pay?pa=${config.upiId}&pn=${encodeURIComponent(config.businessName)}&am=${total}&cu=INR`;
     msg += `\n\n👇 *Quick UPI Pay:*\n${upiLink}`;
 
-    // Send the bill message first
-    await sendMessage(phone, msg);
-
-    // Then send buttons for payment confirmation
-    if (status !== 'PAID') {
+    if (status === 'PAID') {
+        await sendMessage(phone, msg + `\n\n✅ *Payment Status: PAID*`);
+    } else {
         userState[phone] = { step: 'PAYMENT_METHOD', contextName: name };
-        await sendButtons(phone, `How did you pay? Tap below 👇`, ["💳 Paid by UPI", "💵 Paid by Cash"]);
+        await sendButtons(phone, msg + `\n\n━━━━━━━━━━━━━━━━━━━━\n*How did you pay?* Tap below 👇`, ["💳 Paid by UPI", "💵 Paid by Cash"]);
     }
 }
 
