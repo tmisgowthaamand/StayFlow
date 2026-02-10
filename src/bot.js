@@ -39,7 +39,9 @@ async function createRazorpayLink(phone, name, amount, room = 'N/A') {
     if (!razorpay || amount <= 0) return null;
     try {
         // WhatsApp redirect URL - after payment, user returns to WhatsApp chat
-        const whatsappRedirect = `https://wa.me/${config.whatsapp.phoneNumberId ? phone : phone}?text=PAID%20BY%20UPI`;
+        // We use the same phone number they came from to send them back to the chat
+        const botNumber = config.ownerPhone || '919876543210'; // Fallback if bot number not set
+        const whatsappRedirect = `https://wa.me/${botNumber}?text=PAID%20BY%20UPI`;
 
         const paymentLink = await razorpay.paymentLink.create({
             amount: Math.round(amount * 100), // Amount in paise
@@ -483,8 +485,8 @@ async function handleIncomingMessage(phone, body, messageId = null, image = null
             const paidTotal = paidRent + paidEB;
             userState[phone] = { step: 'PAYMENT_METHOD', contextName: tenantForPaid.get('Name') };
 
-            const msg = `💳 *Select payment method:*\n\n🏠 Rent: ₹${paidRent}\n⚡ EB: ₹${paidEB}\n━━━━━━━━━━━━━━━━━━━━\n💵 *Total Due: ₹${paidTotal}*`;
-            await sendButtons(phone, msg, ["UPI/APP", "Cash", "Cancel"]);
+            const msg = `💳 *Select payment method:*\n\n1️⃣ *UPI/APP* (Get PDF Invoice)\n2️⃣ *Cash* (Type Rent & EB total)\n\n🏠 Rent: ₹${paidRent}\n⚡ EB: ₹${paidEB}\n━━━━━━━━━━━━━━━━━━━━\n💵 *Total Due: ₹${paidTotal}*`;
+            await sendButtons(phone, msg, ["1. UPI/APP", "2. Cash", "Cancel"]);
             break;
         }
         case config.commands.CASH_PAID: {
@@ -891,7 +893,7 @@ async function handleSmartPayment(phone, body) {
 
         // No amount — ask for amount
         userState[phone] = { step: 'CASH_AMOUNT', contextName: tenant.get('Name'), expectedTotal: total };
-        await sendMessage(phone, `💵 *Cash Payment*\n\n🏠 Rent: ₹${rent}\n⚡ EB: ₹${eb}\n━━━━━━━━━━━━━━━━━━━━\n💰 *Total Due: ₹${total}*\n\nPlease enter the *amount paid*.\nExample: *${total}*`);
+        await sendMessage(phone, `💵 *Cash Payment*\n\n🏠 Rent: ₹${rent}\n⚡ EB: ₹${eb}\n━━━━━━━━━━━━━━━━━━━━\n💰 *Total Due (Rent + EB): ₹${total}*\n\nPlease type your *total rent and eb amount paid*.\nExample: *${total}*`);
         return true;
     }
 
@@ -1140,9 +1142,10 @@ async function handleOnboarding(phone, input, image) {
                 const razorpayLink = await createRazorpayLink(phone, tenant.get('Name'), total, tenant.get('Room'));
                 const upiLink = `upi://pay?pa=${config.upiId}&pn=${encodeURIComponent(config.businessName)}&am=${total}&cu=INR`;
 
-                let msg = `💳 *Pay via UPI/APP*\n\n🏠 Rent: ₹${rent}\n⚡ EB: ₹${eb}\n━━━━━━━━━━━━━━━━━━━━\n💰 *Total: ₹${total}*\n\n👇 *Pay using UPI:*\n${upiLink}`;
+                // CHOICE 1 Flow
+                let msg = `💳 *Option 1: Pay via UPI/APP*\n\n🏠 Rent: ₹${rent}\n⚡ EB: ₹${eb}\n━━━━━━━━━━━━━━━━━━━━\n💰 *Total: ₹${total}*\n\n👇 *Pay using UPI:*\n${upiLink}`;
                 if (razorpayLink) msg += `\n\n🔗 *Pay Online (Razorpay):*\n${razorpayLink}\n_✅ After paying, you'll be redirected back here._`;
-                msg += `\n\n📩 After payment, send your *Transaction ID / UTR Number* here.`;
+                msg += `\n\n📩 After payment, send your *Transaction ID / UTR Number* here to get your receipt.`;
 
                 state.step = 'UPI_TXN_ID';
                 state.amount = total;
@@ -1155,9 +1158,11 @@ async function handleOnboarding(phone, input, image) {
                 const total = rent + eb;
                 state.step = 'CASH_AMOUNT';
                 state.expectedTotal = total;
-                await sendMessage(phone, `💵 *Cash Payment*\n\n🏠 Rent: ₹${rent}\n⚡ EB: ₹${eb}\n━━━━━━━━━━━━━━━━━━━━\n💰 *Total Due: ₹${total}*\n\nPlease enter the *amount paid*.\nExample: *${total}*`);
+
+                // CHOICE 2 Flow
+                await sendMessage(phone, `💵 *Option 2: Cash Payment*\n\n🏠 Rent: ₹${rent}\n⚡ EB: ₹${eb}\n━━━━━━━━━━━━━━━━━━━━\n💰 *Total Due (Rent + EB): ₹${total}*\n\nPlease type the *total rent and eb amount* you paid.\nExample: *${total}*`);
             } else {
-                await sendButtons(phone, '❌ Please select a payment method:', ["UPI/APP", "Cash", "Cancel"]);
+                await sendButtons(phone, '❌ Please select a payment method:', ["1. UPI/APP", "2. Cash", "Cancel"]);
             }
             break;
         }
