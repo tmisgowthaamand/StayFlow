@@ -494,8 +494,8 @@ async function handleIncomingMessage(phone, body, messageId = null, image = null
             break;
         }
         case config.commands.HELP:
-            await sendButtons(phone, "How can we help you today?", ["Food", "Payment", "Maintenance", "Other"]);
-            userState[phone] = { step: 'HELP_REASON' };
+            await sendButtons(phone, `🆘 *Need Help?*\n\nPlease select your issue category:`, ["🔧 Maintenance", "💰 Payment", "📋 Other"]);
+            userState[phone] = { step: 'HELP_CATEGORY' };
             break;
         case 'ADVANCE':
             await handleAdvance(phone);
@@ -1212,10 +1212,23 @@ async function handleOnboarding(phone, input, image) {
             break;
         }
 
+        case 'HELP_CATEGORY': {
+            const category = input.trim().replace(/[^\w\s]/g, '').trim() || 'General';
+            userState[phone] = { step: 'HELP_REASON', helpCategory: category };
+            await sendMessage(phone, `📝 *Category: ${category}*\n\nPlease describe your issue in detail.\n\n_Example: "Water leaking from bathroom ceiling in Room 5"_`);
+            break;
+        }
+
         case 'HELP_REASON': {
-            await sendMessage(phone, `📝 Your complaint has been recorded:\n\n"${input}"\n\nOur team will look into it. Thank you! 🙏`);
+            const helpCategory = state.helpCategory || 'General';
+            const tenant = await sheetsService.getTenantByPhone(phone);
+            const tenantName = tenant ? tenant.get('Name') : phone;
+            const tenantRoom = tenant ? tenant.get('Room') : 'N/A';
+
+            await sendMessage(phone, `✅ *Complaint Registered!*\n\n📌 Category: ${helpCategory}\n📝 Issue: "${input}"\n\nOur team will look into it and get back to you shortly. Thank you for your patience! 🙏`);
+
             if (config.ownerPhone) {
-                await sendMessage(config.ownerPhone, `🆘 *Help Request*\nFrom: ${phone}\nIssue: ${input}`);
+                await sendMessage(config.ownerPhone, `🆘 *Help Request Received*\n━━━━━━━━━━━━━━━━━━━━\n👤 From: ${tenantName}\n📞 Phone: ${phone}\n🚪 Room: ${tenantRoom}\n📌 Category: ${helpCategory}\n📝 Issue: ${input}\n━━━━━━━━━━━━━━━━━━━━\n_Reply to ${phone} directly to respond._`);
             }
             delete userState[phone];
             break;
