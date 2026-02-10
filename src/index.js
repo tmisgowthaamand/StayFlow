@@ -1,4 +1,5 @@
 import express from 'express';
+import mongoose from 'mongoose';
 import bodyParser from 'body-parser';
 import cors from 'cors';
 import axios from 'axios';
@@ -606,8 +607,18 @@ app.get('/api/dashboard-stats', async (req, res) => {
     catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+app.get('/api/health', (req, res) => {
+    res.json({
+        status: 'ok',
+        version: '1.0.1',
+        time: new Date().toISOString(),
+        mongodb: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected',
+        wwebReady: wweb.ready
+    });
+});
+
 app.get('/', (req, res) => {
-    if (fs.existsSync(path.join(dashboardDist, 'index.html'))) {
+    if (fs.existsSync(dashboardDist)) {
         res.sendFile(path.join(dashboardDist, 'index.html'));
     } else {
         res.send('StayFlow Cloud Bot is running! Full Dashboard at: /admin or https://stay-flow-kohl.vercel.app');
