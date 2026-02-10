@@ -208,8 +208,9 @@ app.post('/api/web-register', upload.single('aadhaar'), async (req, res) => {
             aadhaarImage: file ? file.filename : ''
         });
 
-        const rules = `🏠 *StayFlow Rules*\n\n1. Gate closes 10:30 PM.\n2. Rent due by 5th.\n3. Keep room clean.\n\n📋 Full Rules: ${req.protocol}://${req.get('host')}/rules.html`;
-        await sendMessage(phone, `✅ *Registration Successful!* \n\nWelcome ${name} to Room ${room}. \n\n${rules}`);
+        const detailedRules = `🏢 *PG House Rules & Regulations*\n━━━━━━━━━━━━━━━━━━━━\n⚖️ *DO's:*\n1. Keep your room and shared areas clean and hygienic.\n2. Maintain silence after 10:00 PM for everyone's comfort.\n3. Pay rent by the 5th and EB bills by the 10th of each month.\n4. Inform the admin 30 days before vacating.\n5. Cooperate with police verification and security checks.\n\n🚫 *DON'Ts:*\n1. Strictly NO smoking, alcohol, or illegal substances.\n2. No overnight visitors allowed without prior permission.\n3. Do not use heavy appliances (Heaters/AC/Iron) without approval.\n4. No loud music, parties, or disturbances in rooms.\n5. Do not damage PG property or furniture.\n\n📜 *Note:* Rules are for the safety and comfort of all residents.\n━━━━━━━━━━━━━━━━━━━━`;
+
+        await sendMessage(phone, `✅ *Registration Successful!* 🎉\n\nWelcome ${name} to Room ${room}. We are happy to have you! 🏠\n\n${detailedRules}\n\n🤖 *How to Use:* Type *HI* anytime to see your dashboard!`);
 
         if (config.ownerPhone) {
             await sendMessage(config.ownerPhone, `📝 *New Web Registration*\n${name} - ${room}\nPhone: ${phone}\nAdvance: ₹${advance}`);
@@ -244,8 +245,9 @@ app.post('/webhook/google-form', async (req, res) => {
             await sendMessage(config.ownerPhone, `📝 *New Form Registration*\n\nName: ${tenantData.name}\nPhone: ${tenantData.phone}\nRoom: ${tenantData.room}\n\nPlease verify in the dashboard.`);
         }
 
-        const rules = `🏠 *StayFlow PG House Rules*\n\n1. *Gate Timings:* 10:30 PM.\n2. *Payments:* Before 5th.\n3. *Discipline:* maintain cleanliness.\n\nType *HI* to see dashboard!`;
-        await sendMessage(tenantData.phone, `🎉 Hello ${tenantData.name}! Your registration is successful.\n\n${rules}`);
+        const detailedRules = `🏢 *PG House Rules & Regulations*\n━━━━━━━━━━━━━━━━━━━━\n⚖️ *DO's:*\n1. Keep your room and shared areas clean and hygienic.\n2. Maintain silence after 10:00 PM for everyone's comfort.\n3. Pay rent by the 5th and EB bills by the 10th of each month.\n4. Inform the admin 30 days before vacating.\n5. Cooperate with police verification and security checks.\n\n🚫 *DON'Ts:*\n1. Strictly NO smoking, alcohol, or illegal substances.\n2. No overnight visitors allowed without prior permission.\n3. Do not use heavy appliances (Heaters/AC/Iron) without approval.\n4. No loud music, parties, or disturbances in rooms.\n5. Do not damage PG property or furniture.\n\n📜 *Note:* Rules are for the safety and comfort of all residents.\n━━━━━━━━━━━━━━━━━━━━`;
+
+        await sendMessage(tenantData.phone, `🎉 Hello ${tenantData.name}! Your registration is successful. ✅\n\nWelcome to *${config.businessName}*! 🏠\n\n${detailedRules}\n\n🤖 *Smart Bot:* Type *HI* to see your dashboard and bills!`);
 
         res.json({ success: true });
     } catch (err) {
@@ -273,8 +275,8 @@ app.post('/api/add-tenant', async (req, res) => {
     try {
         const tenantData = req.body;
         await sheetsService.addTenant(tenantData);
-        const rules = `🏠 *StayFlow Rules*\n\nWelcome ${tenantData.name}! Type *HI* to see dashboard!`;
-        await sendMessage(tenantData.phone, rules);
+        const detailedRules = `🏢 *PG House Rules & Regulations*\n━━━━━━━━━━━━━━━━━━━━\n⚖️ *DO's:*\n1. Keep your room and shared areas clean and hygienic.\n2. Maintain silence after 10:00 PM for everyone's comfort.\n3. Pay rent by the 5th and EB bills by the 10th of each month.\n4. Inform the admin 30 days before vacating.\n5. Cooperate with police verification and security checks.\n\n🚫 *DON'Ts:*\n1. Strictly NO smoking, alcohol, or illegal substances.\n2. No overnight visitors allowed without prior permission.\n\n🤖 *Tip:* Type *HI* to see your dashboard!`;
+        await sendMessage(tenantData.phone, `✅ *Registration Successful!*\n\nWelcome ${tenantData.name}! 🏠\n\n${detailedRules}`);
         res.json({ success: true });
     } catch (err) {
         res.status(500).json({ error: err.message });

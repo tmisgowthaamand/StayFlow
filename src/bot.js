@@ -65,7 +65,7 @@ async function createRazorpayLink(phone, name, amount, room = 'N/A') {
 }
 
 async function validateInputWithAI(step, input) {
-    if (!config.groqApiKey) return { isValid: true };
+    if (!geminiModel) return { isValid: true };
 
     const prompts = {
         'NAME': `Check if "${input}" is a valid human full name. If it's gibberish like "asdf", "123", or just one letter, it's invalid. Reply only in JSON: {"isValid": boolean, "message": "friendly correction message if invalid or empty string"}`,
@@ -80,15 +80,14 @@ async function validateInputWithAI(step, input) {
     if (!prompts[step]) return { isValid: true };
 
     try {
-        const chatCompletion = await groq.chat.completions.create({
-            messages: [{ role: 'user', content: prompts[step] }],
-            model: 'llama3-8b-8192',
-            response_format: { type: 'json_object' }
+        const result = await geminiModel.generateContent({
+            contents: [{ role: 'user', parts: [{ text: prompts[step] }] }],
+            generationConfig: { responseMimeType: 'application/json' }
         });
-        return JSON.parse(chatCompletion.choices[0].message.content);
+        return JSON.parse(result.response.text());
     } catch (err) {
-        console.error('AI Validation Error:', err.message);
-        return { isValid: true }; // Fallback to avoid blocking user
+        console.error('Gemini Validation Error:', err.message);
+        return { isValid: true };
     }
 }
 
@@ -447,6 +446,11 @@ async function handleIncomingMessage(phone, body, messageId = null, image = null
             const formUrl = config.googleFormUrl || 'https://forms.gle/YOUR_FORM_ID';
             await sendMessage(phone, `Welcome 👋\nTo join StayFlow, please fill out this quick registration form:\n\n👉 ${formUrl}\n\nOnce submitted, you will receive a confirmation here!`);
             break;
+        case 'RULES': {
+            const rulesMsg = `🏢 *PG House Rules & Regulations*\n━━━━━━━━━━━━━━━━━━━━\n⚖️ *DO's:*\n1. Keep your room and shared areas clean and hygienic.\n2. Maintain silence after 10:00 PM for everyone's comfort.\n3. Pay rent by the 5th and EB bills by the 10th of each month.\n4. Inform the admin 30 days before vacating.\n5. Cooperate with police verification and security checks.\n\n🚫 *DON'Ts:*\n1. Strictly NO smoking, alcohol, or illegal substances.\n2. No overnight visitors allowed without prior permission.\n3. Do not use heavy appliances (Heaters/AC/Iron) without approval.\n4. No loud music, parties, or disturbances in rooms.\n5. Do not damage PG property or furniture.\n\n📜 *Note:* Rules are for the safety and comfort of all residents. Violations may lead to penalties or eviction.\n━━━━━━━━━━━━━━━━━━━━`;
+            await sendMessage(phone, rulesMsg);
+            break;
+        }
         case config.commands.RENT:
             await handleRent(phone);
             break;
@@ -597,7 +601,7 @@ async function handleIncomingMessage(phone, body, messageId = null, image = null
                 } catch (err) {
                     console.error('Error fetching payment history:', err.message);
                 }
-                const dashboardMsg = `━━━━━━━━━━━━━━━━━━━━━\n🏠 *${config.businessName} Portal*\n━━━━━━━━━━━━━━━━━━━━━\n\nWelcome back, *${name}*! 👋\n\n📍 *Your Details:*\n🚪 Room: ${room}\n📌 Location: ${location}\n${statusEmoji} Status: *${status}*\n\n💰 *Upcoming Bill - ${currentMonth}:*\n┌─────────────────────\n│ 🏠 Rent: ₹${rent}\n│ ⚡ EB: ₹${eb}\n└─────────────────────\n💵 *Total Due: ₹${total}*\n📅 *Due Date: ${dueDate}*${historyText}\n\n━━━━━━━━━━━━━━━━━━━━━\n⚡ *Quick Actions:*\n━━━━━━━━━━━━━━━━━━━━━\n📋 Type *RENT* - View bill & pay\n📜 Type *HISTORY* - Full payment history\n🚪 Type *VACATE* - Request to leave\n🆘 Type *HELP* - Raise complaint\n\n_Reply with any option above_`;
+                const dashboardMsg = `━━━━━━━━━━━━━━━━━━━━━\n🏠 *${config.businessName} Portal*\n━━━━━━━━━━━━━━━━━━━━━\n\nWelcome back, *${name}*! 👋\n\n📍 *Your Details:*\n🚪 Room: ${room}\n📌 Location: ${location}\n${statusEmoji} Status: *${status}*\n\n💰 *Upcoming Bill - ${currentMonth}:*\n┌─────────────────────\n│ 🏠 Rent: ₹${rent}\n│ ⚡ EB: ₹${eb}\n└─────────────────────\n💵 *Total Due: ₹${total}*\n📅 *Due Date: ${dueDate}*${historyText}\n\n━━━━━━━━━━━━━━━━━━━━━\n⚡ *Quick Actions:*\n━━━━━━━━━━━━━━━━━━━━━\n📋 Type *RENT* - View bill & pay\n📜 Type *HISTORY* - Full payment history\n🏢 Type *RULES* - View PG Rules\n🚪 Type *VACATE* - Request to leave\n🆘 Type *HELP* - Raise complaint\n\n_Reply with any option above_`;
                 await sendMessage(phone, dashboardMsg);
                 try {
                     await sheetsService.logNotification(phone, name, 'DASHBOARD_VIEW', 'Tenant viewed dashboard via HI command');
@@ -1261,15 +1265,26 @@ async function handleOnboarding(phone, input, image) {
             break;
         case 'AADHAAR_UPLOAD':
             if (!image) { await sendMessage(phone, `Please upload an *image*.`); return; }
-            await sheetsService.addTenant({
+            const tenantObj = {
                 name: state.name, phone: state.userPhone || phone, room: state.room,
                 advance: state.advance, sharingType: state.sharingType, monthlyRent: state.monthlyRent,
                 aadhaarImage: image.id
-            });
+            };
+            await sheetsService.addTenant(tenantObj);
 
-            const rulesMsg = `✅ *Registration Successful!* 🎉\n\nWelcome to *${config.businessName}*. You are now part of our community! 🏠\n\n🏢 *PG House Rules & Regulations*\n━━━━━━━━━━━━━━━━━━━━\n⚖️ *DO's:*\n1. Keep your room and shared areas clean and hygienic.\n2. Maintain silence after 10:00 PM for everyone's comfort.\n3. Pay rent by the 5th and EB bills by the 10th of each month.\n4. Inform the admin 30 days before vacating.\n5. Cooperate with police verification and security checks.\n\n🚫 *DON'Ts:*\n1. Strictly NO smoking, alcohol, or illegal substances.\n2. No overnight visitors allowed without prior permission.\n3. Do not use heavy appliances (Heaters/AC/Iron) without approval.\n4. No loud music, parties, or disturbances in rooms.\n5. Do not damage PG property or furniture.\n\n📜 *Note:* Rules are for the safety and comfort of all residents. Violations may lead to penalties or eviction.\n━━━━━━━━━━━━━━━━━━━━\n\n🤖 *How to Use This Bot:*\nJust type *HI* anytime to see your dashboard, bills, and options. You can also chat with me naturally for any questions!\n\nWelcome home! 😊`;
+            // Send to tenant (if registered by admin) or user (if self-registering)
+            const targetPhone = state.userPhone || phone;
 
-            await sendMessage(phone, rulesMsg);
+            await sendMessage(targetPhone, `✅ *Registration Successful!* 🎉\n\nWelcome to *${config.businessName}*. You are now part of our community! 🏠`);
+
+            const rulesMsg = `🏢 *PG House Rules & Regulations*\n━━━━━━━━━━━━━━━━━━━━\n⚖️ *DO's:*\n1. Keep your room and shared areas clean and hygienic.\n2. Maintain silence after 10:00 PM for everyone's comfort.\n3. Pay rent by the 5th and EB bills by the 10th of each month.\n4. Inform the admin 30 days before vacating.\n5. Cooperate with police verification and security checks.\n\n🚫 *DON'Ts:*\n1. Strictly NO smoking, alcohol, or illegal substances.\n2. No overnight visitors allowed without prior permission.\n3. Do not use heavy appliances (Heaters/AC/Iron) without approval.\n4. No loud music, parties, or disturbances in rooms.\n5. Do not damage PG property or furniture.\n\n📜 *Note:* Rules are for the safety and comfort of all residents. Violations may lead to penalties or eviction.\n━━━━━━━━━━━━━━━━━━━━\n\n🤖 *How to Use:* Type *HI* anytime to see your dashboard!`;
+
+            await sendMessage(targetPhone, rulesMsg);
+
+            if (config.ownerPhone && targetPhone !== config.ownerPhone) {
+                await sendMessage(config.ownerPhone, `📝 *New Registration*\nName: ${state.name}\nRoom: ${state.room}\nPhone: ${targetPhone}`);
+            }
+
             delete userState[phone];
             break;
 
