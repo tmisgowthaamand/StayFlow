@@ -1,5 +1,4 @@
 import 'dotenv/config';
-import Groq from 'groq-sdk';
 
 const config = {
     businessName: process.env.BUSINESS_NAME || 'StayFlow',
@@ -37,6 +36,7 @@ const config = {
         })(),
     },
     mongoUri: process.env.MONGODB_URI || 'mongodb://localhost:27017/stayflow',
+    geminiApiKey: process.env.GEMINI_API_KEY,
     groqApiKey: process.env.GROQ_API_KEY,
     googleMapsApiKey: process.env.GOOGLE_MAPS_API_KEY,
     razorpay: {

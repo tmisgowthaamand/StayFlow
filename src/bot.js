@@ -2,7 +2,7 @@ import axios from 'axios';
 import fs from 'fs';
 import path from 'path';
 import FormData from 'form-data';
-import Groq from 'groq-sdk';
+import { GoogleGenerativeAI } from '@google/generative-ai';
 import Razorpay from 'razorpay';
 import { fileURLToPath } from 'url';
 import config from './config.js';
@@ -15,7 +15,15 @@ import { Log, Media } from './db.js';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const groq = new Groq({ apiKey: config.groqApiKey });
+// Initialize Google Gemini AI
+let geminiModel = null;
+if (config.geminiApiKey) {
+    const genAI = new GoogleGenerativeAI(config.geminiApiKey);
+    geminiModel = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
+    console.log('✅ Google Gemini AI initialized');
+} else {
+    console.warn('⚠️ GEMINI_API_KEY not set - AI chat will be disabled');
+}
 
 let razorpay = null;
 if (config.razorpay.key_id && config.razorpay.key_secret) {
@@ -628,27 +636,184 @@ async function handleIncomingMessage(phone, body, messageId = null, image = null
                     }
                 }
             }
-            try {
-                const completion = await groq.chat.completions.create({
-                    messages: [
-                        {
-                            role: "system",
-                            content: `You are an intelligent assistant for ${config.businessName}, a premium Hostel/PG management service in India. 
-                            If users say they have paid (by cash or UPI), guide them to provide the Transaction ID or Amount. 
-                            Commands: JOIN (register), RENT (see bills), STATUS (check payment), EB (electricity bill), VACATE (request to leave), HISTORY (upload old payments).
-                            Always be warm, professional, and use a helpful Indian service tone. If they mention paying by cash or UPI, you can tell them the bot can record it instantly if they provide the details.`
-                        },
-                        { role: "user", content: body }
-                    ],
-                    model: "llama-3.3-70b-versatile",
-                });
-                const aiResponse = completion.choices[0]?.message?.content || "I'm sorry, I couldn't understand that. Type HI to see what I can do!";
-                await sendMessage(phone, aiResponse);
-            } catch (err) {
-                console.error('Groq AI Error:', err);
-                await sendMessage(phone, "I'm here to help, but having trouble thinking right now. Try a command like RENT or JOIN!");
-            }
+
+            // Smart keyword matching before AI
+            await handleSmartChat(phone, body, cleanBody);
             break;
+    }
+}
+
+// ==================== SMART AI CHAT ====================
+async function handleSmartChat(phone, body, cleanBody) {
+    const tenant = await sheetsService.getTenantByPhone(phone);
+
+    // --- Keyword matching for common queries ---
+    const billKeywords = ['BILL', 'DUE', 'HOW MUCH', 'KITNA', 'AMOUNT', 'TOTAL', 'PENDING AMOUNT'];
+    const ebKeywords = ['EB', 'ELECTRICITY', 'CURRENT BILL', 'LIGHT BILL', 'POWER'];
+    const historyKeywords = ['HISTORY', 'PREVIOUS', 'LAST PAYMENT', 'OLD PAYMENT', 'PAST'];
+    const receiptKeywords = ['RECEIPT', 'INVOICE', 'PDF', 'BILL COPY'];
+    const payKeywords = ['PAY', 'PAYMENT', 'UPI', 'CASH', 'TRANSFER', 'GPAY', 'PHONEPE', 'PAYTM'];
+    const statusKeywords = ['STATUS', 'PAID OR NOT', 'CHECK', 'CONFIRM'];
+
+    if (tenant && tenant.get('Status') !== 'VACATED') {
+        const name = tenant.get('Name');
+        const rent = parseFloat(tenant.get('Monthly Rent') || 0);
+        const eb = parseFloat(tenant.get('EB Amount') || 0);
+        const total = rent + eb;
+        const status = tenant.get('Status') || 'PENDING';
+        const room = tenant.get('Room') || 'N/A';
+
+        // Bill query
+        if (billKeywords.some(k => cleanBody.includes(k))) {
+            let msg = `💰 *Your Current Bill*\n\n🏠 Rent: ₹${rent}\n⚡ EB: ₹${eb}\n━━━━━━━━━━━━━━━━━━━━\n💵 *Total: ₹${total}*\n\n📊 Status: ${status === 'PAID' ? '✅ PAID' : '⏳ PENDING'}`;
+
+            // Add previous bill history
+            try {
+                const history = await sheetsService.getPaymentHistory(phone, 3);
+                if (history && history.length > 0) {
+                    msg += `\n\n📜 *Previous Bills:*`;
+                    history.forEach(h => {
+                        const monthYear = h.get('Month-Year') || 'Unknown';
+                        const amt = h.get('Total Amount') || '0';
+                        const pStatus = h.get('Status') || 'PAID';
+                        msg += `\n${pStatus === 'PAID' ? '✅' : '⏳'} ${monthYear}: ₹${amt}`;
+                    });
+                }
+            } catch (e) { }
+
+            if (status !== 'PAID') {
+                msg += `\n\n👉 Type *PAID* to record your payment`;
+            }
+            await sendMessage(phone, msg);
+            return;
+        }
+
+        // EB query
+        if (ebKeywords.some(k => cleanBody.includes(k)) && !cleanBody.includes('SET')) {
+            await sendMessage(phone, `⚡ *Electricity Bill*\n\nRoom: ${room}\nEB Amount: ₹${eb}\nRate: ₹${config.ebUnitRate}/unit\n\nThis is added to your monthly rent of ₹${rent}.\n💵 *Total Due: ₹${total}*`);
+            return;
+        }
+
+        // History query
+        if (historyKeywords.some(k => cleanBody.includes(k))) {
+            try {
+                const paymentHistory = await sheetsService.getPaymentHistory(phone, 6);
+                let historyMsg = `📜 *Payment History - ${name}*\n━━━━━━━━━━━━━━━━━━━━\n\n`;
+                if (paymentHistory && paymentHistory.length > 0) {
+                    paymentHistory.forEach(h => {
+                        const monthYear = h.get('Month-Year') || 'Unknown';
+                        const amount = h.get('Total Amount') || '0';
+                        const mode = h.get('Payment Mode') || 'N/A';
+                        const pStatus = h.get('Status') || 'PAID';
+                        historyMsg += `${pStatus === 'PAID' ? '✅' : '⏳'} *${monthYear}*\n   Amount: ₹${amount} | Mode: ${mode}\n\n`;
+                    });
+                } else {
+                    historyMsg += `No payment history found yet.\n\n`;
+                }
+                historyMsg += `━━━━━━━━━━━━━━━━━━━━`;
+                await sendMessage(phone, historyMsg);
+            } catch (err) {
+                await sendMessage(phone, `Unable to fetch history right now. Please try again.`);
+            }
+            return;
+        }
+
+        // Receipt / Invoice query
+        if (receiptKeywords.some(k => cleanBody.includes(k))) {
+            if (status === 'PAID') {
+                const trxId = tenant.get('Transaction ID') || 'N/A';
+                const paidDate = tenant.get('Paid Date') || new Date().toLocaleDateString();
+                const mode = tenant.get('Payment Mode') || 'N/A';
+                const { filePath } = await pdfService.generateInvoice({
+                    Name: name, Phone: tenant.get('Phone'), Room: room,
+                    EB_Amount: eb.toString(), Monthly_Rent: rent.toString(), Total_Amount: total.toString(),
+                    Paid_Date: paidDate, Transaction_ID: trxId, Payment_Mode: mode
+                });
+                await sendMessage(phone, `📄 Here's your latest payment receipt:`);
+                await sendMedia(phone, filePath, `Receipt - ${name}`);
+            } else {
+                await sendMessage(phone, `⏳ No payment recorded yet for this month.\n\nOnce you pay, type *PAID* and I'll generate your receipt instantly! 🧾`);
+            }
+            return;
+        }
+
+        // Pay query
+        if (payKeywords.some(k => cleanBody.includes(k))) {
+            if (status === 'PAID') {
+                await sendMessage(phone, `✅ You've already paid for this month! 🎉\n\nTotal Paid: ₹${total}\nMode: ${tenant.get('Payment Mode') || 'N/A'}\n\nType *RECEIPT* to get your invoice.`);
+            } else {
+                userState[phone] = { step: 'PAYMENT_METHOD', contextName: name };
+                await sendMessage(phone, `💰 *Payment - ${name}*\n\n🏠 Rent: ₹${rent}\n⚡ EB: ₹${eb}\n━━━━━━━━━━━━━━━━━━━━\n💵 *Total Due: ₹${total}*\n\n*How will you pay?*\n\n1️⃣ *UPI* - Online/UPI/Razorpay\n2️⃣ *CASH* - Paid by cash\n\nReply *1* or *2*`);
+            }
+            return;
+        }
+
+        // Status query
+        if (statusKeywords.some(k => cleanBody.includes(k))) {
+            const statusEmoji = status === 'PAID' ? '✅' : '⏳';
+            await sendMessage(phone, `${statusEmoji} *Payment Status*\n\nName: ${name}\nRoom: ${room}\nStatus: *${status}*\n\n${status === 'PAID' ? 'Your payment is confirmed! Type *RECEIPT* for invoice.' : 'Payment pending. Type *PAID* to record your payment.'}`);
+            return;
+        }
+    }
+
+    // --- Gemini AI for natural conversation ---
+    await handleGeminiChat(phone, body, tenant);
+}
+
+async function handleGeminiChat(phone, body, tenant) {
+    if (!geminiModel) {
+        await sendMessage(phone, `I'm sorry, I couldn't understand that. 😅\n\nHere's what I can do:\n\n📋 Type *HI* - See your dashboard\n💰 Type *RENT* - View your bill\n✅ Type *PAID* - Record payment\n📜 Type *HISTORY* - Payment history\n🆘 Type *HELP* - Raise a complaint\n🚪 Type *VACATE* - Request to leave`);
+        return;
+    }
+
+    try {
+        // Build tenant context for AI
+        let tenantContext = 'The user is NOT registered as a tenant.';
+        if (tenant && tenant.get('Status') !== 'VACATED') {
+            const rent = parseFloat(tenant.get('Monthly Rent') || 0);
+            const eb = parseFloat(tenant.get('EB Amount') || 0);
+            const total = rent + eb;
+            tenantContext = `TENANT INFO:\n- Name: ${tenant.get('Name')}\n- Room: ${tenant.get('Room')}\n- Rent: ₹${rent}\n- EB: ₹${eb}\n- Total Due: ₹${total}\n- Status: ${tenant.get('Status') || 'PENDING'}\n- Location: ${tenant.get('Location') || 'Main Branch'}`;
+        }
+
+        const systemPrompt = `You are a friendly, warm AI assistant for "${config.businessName}" - a premium PG/Hostel in India.
+
+RULES:
+1. Keep responses short (2-4 lines max unless showing data)
+2. Be friendly, use simple English with occasional Hindi words like "ji", "bhai", "no worries"
+3. Use emojis naturally but not excessively
+4. NEVER make up bill amounts - only use the TENANT INFO provided below
+5. If they ask about bills/payment/rent, tell them to type the specific command
+6. If they seem confused, guide them to type HI to see all options
+7. If they are not registered, guide them to type JOIN
+8. Don't generate long paragraphs. Be concise and helpful.
+9. If they say thanks or bye, respond warmly
+10. If they ask who you are, say you're the StayFlow AI assistant
+
+AVAILABLE COMMANDS to suggest:
+- HI → Dashboard with all details
+- RENT → View bill & pay
+- PAID → Record payment (UPI/Cash)
+- HISTORY → Past payments
+- RECEIPT → Get invoice PDF
+- EB → Electricity bill
+- STATUS → Payment status
+- HELP → Raise complaint
+- VACATE → Leave request
+- JOIN → Register
+
+${tenantContext}`;
+
+        const result = await geminiModel.generateContent([
+            { text: systemPrompt },
+            { text: `User message: ${body}` }
+        ]);
+
+        const aiResponse = result.response.text() || "I didn't catch that! Type *HI* to see what I can do 😊";
+        await sendMessage(phone, aiResponse);
+    } catch (err) {
+        console.error('Gemini AI Error:', err.message);
+        await sendMessage(phone, `I'm here to help! 😊\n\nTry these commands:\n📋 *HI* - Dashboard\n💰 *RENT* - View bill\n✅ *PAID* - Record payment\n📜 *HISTORY* - Past payments`);
     }
 }
 
