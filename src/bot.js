@@ -38,6 +38,9 @@ const userState = {};
 async function createRazorpayLink(phone, name, amount, room = 'N/A') {
     if (!razorpay || amount <= 0) return null;
     try {
+        // WhatsApp redirect URL - after payment, user returns to WhatsApp chat
+        const whatsappRedirect = `https://wa.me/${config.whatsapp.phoneNumberId ? phone : phone}?text=PAID%20BY%20UPI`;
+
         const paymentLink = await razorpay.paymentLink.create({
             amount: Math.round(amount * 100), // Amount in paise
             currency: "INR",
@@ -53,8 +56,12 @@ async function createRazorpayLink(phone, name, amount, room = 'N/A') {
                 email: true
             },
             reminder_enable: true,
+            callback_url: whatsappRedirect,
+            callback_method: 'get',
             notes: {
-                room: room
+                room: room,
+                phone: phone,
+                tenant_name: name
             }
         });
         return paymentLink.short_url;
@@ -476,8 +483,8 @@ async function handleIncomingMessage(phone, body, messageId = null, image = null
             const paidTotal = paidRent + paidEB;
             userState[phone] = { step: 'PAYMENT_METHOD', contextName: tenantForPaid.get('Name') };
 
-            const msg = `💰 *Payment - ${tenantForPaid.get('Name')}*\n\n🏠 Rent: ₹${paidRent}\n⚡ EB: ₹${paidEB}\n━━━━━━━━━━━━━━━━━━━━\n💵 *Total Due: ₹${paidTotal}*\n\n*How did you pay?*`;
-            await sendButtons(phone, msg, ["💳 Paid by UPI", "💵 Paid by Cash"]);
+            const msg = `💳 *Select payment method:*\n\n🏠 Rent: ₹${paidRent}\n⚡ EB: ₹${paidEB}\n━━━━━━━━━━━━━━━━━━━━\n💵 *Total Due: ₹${paidTotal}*`;
+            await sendButtons(phone, msg, ["UPI/APP", "Cash", "Cancel"]);
             break;
         }
         case config.commands.CASH_PAID: {
@@ -834,13 +841,31 @@ async function handleSmartPayment(phone, body) {
     const tenant = await sheetsService.getTenantByPhone(phone, contextName);
     if (!tenant) return false;
 
-    // Handle "PAID CASH 6400" style messages
-    if (clean.includes('PAID') && clean.includes('CASH')) {
+    const rent = parseFloat(tenant.get('Monthly Rent') || 0);
+    const eb = parseFloat(tenant.get('EB Amount') || 0);
+    const total = rent + eb;
+
+    // ===== "PAID BY UPI" — Direct UPI payment flow =====
+    if (clean === 'PAID BY UPI' || clean === 'PAID UPI' || clean === 'PAY BY UPI' || clean === 'UPI PAID') {
+        const razorpayLink = await createRazorpayLink(phone, tenant.get('Name'), total, tenant.get('Room'));
+        const upiLink = `upi://pay?pa=${config.upiId}&pn=${encodeURIComponent(config.businessName)}&am=${total}&cu=INR`;
+
+        let msg = `💳 *Pay via UPI/APP*\n\n🏠 Rent: ₹${rent}\n⚡ EB: ₹${eb}\n━━━━━━━━━━━━━━━━━━━━\n💰 *Total: ₹${total}*\n\n👇 *Pay using UPI:*\n${upiLink}`;
+        if (razorpayLink) msg += `\n\n💳 *Or Pay Online (Razorpay):*\n${razorpayLink}\n_After payment, you'll be redirected back here._`;
+        msg += `\n\n✅ After payment, send your *Transaction ID / UTR Number* here.`;
+
+        userState[phone] = { step: 'UPI_TXN_ID', contextName: tenant.get('Name'), amount: total };
+        await sendMessage(phone, msg);
+        return true;
+    }
+
+    // ===== "PAID BY CASH" — Direct Cash payment flow =====
+    if (clean === 'PAID BY CASH' || clean === 'PAID CASH' || clean === 'PAY BY CASH' || clean === 'CASH PAID' || clean === 'COD') {
+        // Check if amount is included
         const amountMatch = body.match(/\d{3,}/);
         if (amountMatch) {
+            // Amount provided inline - process immediately
             const amount = amountMatch[0];
-            const rent = parseFloat(tenant.get('Monthly Rent') || 0);
-            const eb = parseFloat(tenant.get('EB Amount') || 0);
             const trxId = `CASH-${Date.now().toString().slice(-6)}`;
 
             await sheetsService.updateTenant(phone, {
@@ -849,7 +874,6 @@ async function handleSmartPayment(phone, body) {
             }, contextName);
             await sheetsService.logPayment(tenant, amount, 'CASH', trxId);
 
-            // Generate invoice PDF
             const { filePath } = await pdfService.generateInvoice({
                 Name: tenant.get('Name'), Phone: tenant.get('Phone'), Room: tenant.get('Room'),
                 EB_Amount: eb.toString(), Monthly_Rent: rent.toString(), Total_Amount: amount,
@@ -864,18 +888,48 @@ async function handleSmartPayment(phone, body) {
             }
             return true;
         }
-        // No amount specified - redirect to CASH flow
+
+        // No amount — ask for amount
+        userState[phone] = { step: 'CASH_AMOUNT', contextName: tenant.get('Name'), expectedTotal: total };
+        await sendMessage(phone, `💵 *Cash Payment*\n\n🏠 Rent: ₹${rent}\n⚡ EB: ₹${eb}\n━━━━━━━━━━━━━━━━━━━━\n💰 *Total Due: ₹${total}*\n\nPlease enter the *amount paid*.\nExample: *${total}*`);
+        return true;
+    }
+
+    // ===== "PAID CASH 6400" — Cash with amount =====
+    if (clean.includes('PAID') && clean.includes('CASH')) {
+        const amountMatch = body.match(/\d{3,}/);
+        if (amountMatch) {
+            const amount = amountMatch[0];
+            const trxId = `CASH-${Date.now().toString().slice(-6)}`;
+
+            await sheetsService.updateTenant(phone, {
+                'Status': 'PAID', 'Payment Mode': 'CASH',
+                'Transaction ID': trxId, 'Paid Date': new Date().toLocaleDateString()
+            }, contextName);
+            await sheetsService.logPayment(tenant, amount, 'CASH', trxId);
+
+            const { filePath } = await pdfService.generateInvoice({
+                Name: tenant.get('Name'), Phone: tenant.get('Phone'), Room: tenant.get('Room'),
+                EB_Amount: eb.toString(), Monthly_Rent: rent.toString(), Total_Amount: amount,
+                Paid_Date: new Date().toLocaleDateString(), Transaction_ID: trxId, Payment_Mode: 'CASH'
+            });
+
+            await sendMessage(phone, `✅ *Cash Payment Confirmed!*\n\nHi ${tenant.get('Name')},\n\n📋 *Breakdown:*\n🏠 Rent: ₹${rent}\n⚡ EB: ₹${eb}\n💰 *Total Paid: ₹${amount}*\n\n💵 Mode: CASH\n🔖 Receipt: ${trxId}\n📅 Date: ${new Date().toLocaleDateString()}\n\nThank you! 🙏`);
+            await sendMedia(phone, filePath, '📄 Your payment receipt');
+
+            if (config.ownerPhone) {
+                await sendMessage(config.ownerPhone, `💵 *Cash Payment*\nTenant: ${tenant.get('Name')}\nRoom: ${tenant.get('Room')}\nRent: ₹${rent} | EB: ₹${eb}\nTotal: ₹${amount}\nReceipt: ${trxId}`);
+            }
+            return true;
+        }
         return false;
     }
 
-    // Handle "PAID UTR123456789" style messages with inline transaction ID
+    // ===== "PAID UTR123456789" — UPI with inline TXN ID =====
     if (clean.includes('PAID')) {
         const trxMatch = clean.match(/[A-Z0-9]{10,}/);
         if (trxMatch) {
             const trxId = trxMatch[0];
-            const rent = parseFloat(tenant.get('Monthly Rent') || 0);
-            const eb = parseFloat(tenant.get('EB Amount') || 0);
-            const total = rent + eb;
 
             await sheetsService.updateTenant(phone, {
                 'Status': 'PAID', 'Payment Mode': 'UPI',
@@ -883,7 +937,6 @@ async function handleSmartPayment(phone, body) {
             }, contextName);
             await sheetsService.logPayment(tenant, total.toString(), 'UPI', trxId);
 
-            // Generate invoice PDF
             const { filePath } = await pdfService.generateInvoice({
                 Name: tenant.get('Name'), Phone: tenant.get('Phone'), Room: tenant.get('Room'),
                 EB_Amount: eb.toString(), Monthly_Rent: rent.toString(), Total_Amount: total.toString(),
@@ -1071,9 +1124,14 @@ async function handleOnboarding(phone, input, image) {
         // ========== PAYMENT FLOW STATES ==========
         case 'PAYMENT_METHOD': {
             const choice = input.trim().toUpperCase();
-            const isUPI = choice === '1' || choice === 'UPI' || choice.includes('UPI') || choice.includes('PAID BY UPI');
-            const isCash = choice === '2' || choice === 'CASH' || choice.includes('CASH') || choice.includes('PAID BY CASH');
-            if (isUPI) {
+            const isUPI = choice === '1' || choice === 'UPI' || choice === 'UPI/APP' || choice.includes('UPI') || choice.includes('PAID BY UPI');
+            const isCash = choice === '2' || choice === 'CASH' || choice === 'COD' || choice.includes('CASH') || choice.includes('PAID BY CASH');
+            const isCancel = choice === '3' || choice === 'CANCEL' || choice === 'NO' || choice.includes('CANCEL');
+
+            if (isCancel) {
+                await sendMessage(phone, '❌ Payment cancelled. Type *PAID* anytime to try again.');
+                delete userState[phone];
+            } else if (isUPI) {
                 const tenant = await sheetsService.getTenantByPhone(phone, state.contextName);
                 if (!tenant) { await sendMessage(phone, 'Tenant not found.'); delete userState[phone]; return; }
                 const rent = parseFloat(tenant.get('Monthly Rent') || 0);
@@ -1082,9 +1140,9 @@ async function handleOnboarding(phone, input, image) {
                 const razorpayLink = await createRazorpayLink(phone, tenant.get('Name'), total, tenant.get('Room'));
                 const upiLink = `upi://pay?pa=${config.upiId}&pn=${encodeURIComponent(config.businessName)}&am=${total}&cu=INR`;
 
-                let msg = `💳 *Pay via UPI*\n\n🏠 Rent: ₹${rent}\n⚡ EB: ₹${eb}\n💰 *Total: ₹${total}*\n\n👇 *Pay using UPI:*\n${upiLink}`;
-                if (razorpayLink) msg += `\n\n💳 *Or Pay Online (Razorpay):*\n${razorpayLink}`;
-                msg += `\n\n✅ After payment, send your *Transaction ID / UTR Number* here.`;
+                let msg = `💳 *Pay via UPI/APP*\n\n🏠 Rent: ₹${rent}\n⚡ EB: ₹${eb}\n━━━━━━━━━━━━━━━━━━━━\n💰 *Total: ₹${total}*\n\n👇 *Pay using UPI:*\n${upiLink}`;
+                if (razorpayLink) msg += `\n\n🔗 *Pay Online (Razorpay):*\n${razorpayLink}\n_✅ After paying, you'll be redirected back here._`;
+                msg += `\n\n📩 After payment, send your *Transaction ID / UTR Number* here.`;
 
                 state.step = 'UPI_TXN_ID';
                 state.amount = total;
@@ -1097,9 +1155,9 @@ async function handleOnboarding(phone, input, image) {
                 const total = rent + eb;
                 state.step = 'CASH_AMOUNT';
                 state.expectedTotal = total;
-                await sendMessage(phone, `💵 *Cash Payment*\n\n🏠 Rent: ₹${rent}\n⚡ EB: ₹${eb}\n💰 *Total Due: ₹${total}*\n\nPlease enter the *amount paid*.\nExample: *${total}*`);
+                await sendMessage(phone, `💵 *Cash Payment*\n\n🏠 Rent: ₹${rent}\n⚡ EB: ₹${eb}\n━━━━━━━━━━━━━━━━━━━━\n💰 *Total Due: ₹${total}*\n\nPlease enter the *amount paid*.\nExample: *${total}*`);
             } else {
-                await sendMessage(phone, '❌ Please reply with *1* for UPI or *2* for CASH.');
+                await sendButtons(phone, '❌ Please select a payment method:', ["UPI/APP", "Cash", "Cancel"]);
             }
             break;
         }
