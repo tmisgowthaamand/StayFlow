@@ -18,55 +18,274 @@ class PDFService {
         const doc = new jsPDF();
         const { Name, Phone, Room, EB_Amount, Monthly_Rent, Total_Amount, Paid_Date, Transaction_ID, Payment_Mode } = tenantData;
 
-        // Header
-        doc.setFillColor(41, 128, 185);
-        doc.rect(0, 0, 210, 40, 'F');
-        doc.setTextColor(255, 255, 255);
-        doc.setFontSize(22);
-        doc.text(config.businessName, 20, 25);
-        doc.setFontSize(10);
-        doc.text('Payment Receipt & Invoice', 20, 32);
+        const pageW = 210;
+        const margin = 15;
+        const contentW = pageW - margin * 2;
 
-        // Invoice Details
-        doc.setTextColor(50, 50, 50);
-        doc.setFontSize(12);
-        doc.text(`Receipt No: SF-${Date.now().toString().slice(-6)}`, 140, 55);
-        doc.text(`Date: ${new Date().toLocaleDateString()}`, 140, 62);
+        // Color palette (olive/dark green theme matching the reference image)
+        const olive = [107, 114, 87];       // #6B7257 - primary accent
+        const oliveDark = [85, 91, 69];     // #555B45 - darker shade
+        const oliveLight = [142, 149, 126]; // #8E957E - lighter shade
+        const textDark = [40, 40, 40];
+        const textMid = [100, 100, 100];
+        const bgLight = [245, 244, 240];    // light warm gray
 
-        doc.setFontSize(14);
-        doc.text('Bill To:', 20, 55);
+        const invoiceNo = `SF-${Date.now().toString().slice(-6)}`;
+        const invoiceDate = new Date().toLocaleDateString('en-IN');
+        const now = new Date();
+        const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+        const billingMonth = `${monthNames[now.getMonth()]} ${now.getFullYear()}`;
+
+        // ==================== TITLE ====================
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(20);
+        doc.setTextColor(...textDark);
+        doc.text('BILLING INVOICE', margin, 22);
+
+        // Thin olive line under title
+        doc.setDrawColor(...olive);
+        doc.setLineWidth(0.8);
+        doc.line(margin, 26, pageW - margin, 26);
+
+        // ==================== COMPANY INFO (left) ====================
+        doc.setFont('helvetica', 'bold');
         doc.setFontSize(11);
-        doc.text(`Name: ${Name}`, 20, 62);
-        doc.text(`Phone: ${Phone}`, 20, 68);
-        doc.text(`Room: ${Room}`, 20, 74);
+        doc.setTextColor(...textDark);
+        doc.text(config.businessName, margin, 35);
 
-        // Table
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(8.5);
+        doc.setTextColor(...textMid);
+        const ownerPhone = config.ownerPhone || Phone;
+        doc.text(`Phone: ${ownerPhone}`, margin, 40);
+        doc.text(`UPI: ${config.upiId || 'N/A'}`, margin, 45);
+
+        // ==================== INVOICE META BOX (right) ====================
+        const metaX = 130;
+        const metaW = 65;
+
+        // Invoice No row
+        doc.setFillColor(...olive);
+        doc.rect(metaX, 29, metaW / 2, 7, 'F');
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(7);
+        doc.setTextColor(255, 255, 255);
+        doc.text('INVOICE NO.', metaX + 1.5, 34);
+
+        doc.setFillColor(...bgLight);
+        doc.rect(metaX + metaW / 2, 29, metaW / 2, 7, 'F');
+        doc.setTextColor(...textDark);
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(8);
+        doc.text(invoiceNo, metaX + metaW / 2 + 2, 34);
+
+        // Date row
+        doc.setFillColor(...olive);
+        doc.rect(metaX, 36, metaW / 2, 7, 'F');
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(7);
+        doc.setTextColor(255, 255, 255);
+        doc.text('DATE', metaX + 1.5, 41);
+
+        doc.setFillColor(...bgLight);
+        doc.rect(metaX + metaW / 2, 36, metaW / 2, 7, 'F');
+        doc.setTextColor(...textDark);
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(8);
+        doc.text(invoiceDate, metaX + metaW / 2 + 2, 41);
+
+        // Billing Month row
+        doc.setFillColor(...olive);
+        doc.rect(metaX, 43, metaW / 2, 7, 'F');
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(7);
+        doc.setTextColor(255, 255, 255);
+        doc.text('BILLING MONTH', metaX + 1.5, 48);
+
+        doc.setFillColor(...bgLight);
+        doc.rect(metaX + metaW / 2, 43, metaW / 2, 7, 'F');
+        doc.setTextColor(...textDark);
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(8);
+        doc.text(billingMonth, metaX + metaW / 2 + 2, 48);
+
+        // Payment Terms row
+        doc.setFillColor(...olive);
+        doc.rect(metaX, 50, metaW / 2, 7, 'F');
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(7);
+        doc.setTextColor(255, 255, 255);
+        doc.text('TERMS', metaX + 1.5, 55);
+
+        doc.setFillColor(...bgLight);
+        doc.rect(metaX + metaW / 2, 50, metaW / 2, 7, 'F');
+        doc.setTextColor(...textDark);
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(8);
+        doc.text(`Due by ${config.rentDueDate}th`, metaX + metaW / 2 + 2, 55);
+
+        // ==================== BILL TO (left) & PROPERTY (right) ====================
+        const sectionY = 65;
+
+        // BILL TO label
+        doc.setFillColor(...olive);
+        doc.rect(margin, sectionY, 30, 6, 'F');
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(7);
+        doc.setTextColor(255, 255, 255);
+        doc.text('BILL TO:', margin + 1.5, sectionY + 4.5);
+
+        // BILL TO details
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(9);
+        doc.setTextColor(...textDark);
+        doc.text(Name, margin, sectionY + 13);
+        doc.setTextColor(...textMid);
+        doc.setFontSize(8.5);
+        doc.text(`Phone: ${Phone}`, margin, sectionY + 18);
+
+        // PROPERTY label
+        doc.setFillColor(...olive);
+        doc.rect(metaX, sectionY, 35, 6, 'F');
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(7);
+        doc.setTextColor(255, 255, 255);
+        doc.text('PROPERTY:', metaX + 1.5, sectionY + 4.5);
+
+        // PROPERTY details
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(9);
+        doc.setTextColor(...textDark);
+        doc.text(`Room: ${Room}`, metaX, sectionY + 13);
+        doc.setTextColor(...textMid);
+        doc.setFontSize(8.5);
+        doc.text(`Payment: ${Payment_Mode || 'Pending'}`, metaX, sectionY + 18);
+        if (Transaction_ID && Transaction_ID !== 'PENDING') {
+            doc.text(`TXN: ${Transaction_ID}`, metaX, sectionY + 23);
+        }
+
+        // ==================== ITEMS TABLE ====================
+        const rent = parseFloat(Monthly_Rent) || 0;
+        const eb = parseFloat(EB_Amount) || 0;
+        const total = parseFloat(Total_Amount) || (rent + eb);
+
+        const tableBody = [
+            ['Monthly Room Rent', '1', `${rent.toFixed(2)}`, `${rent.toFixed(2)}`],
+            ['Electricity Bill (EB)', '1', `${eb.toFixed(2)}`, `${eb.toFixed(2)}`],
+        ];
+
+        // Add empty rows to match the reference image style
+        for (let i = 0; i < 5; i++) {
+            tableBody.push(['', '', '', '']);
+        }
+
         autoTable(doc, {
-            startY: 85,
-            head: [['Description', 'Amount']],
-            body: [
-                ['Monthly Rent', `INR ${Monthly_Rent}`],
-                ['Electricity Bill', `INR ${EB_Amount}`],
-            ],
-            foot: [['Total Paid', `INR ${Total_Amount}`]],
-            theme: 'striped',
-            headStyles: { fillColor: [41, 128, 185] },
-            footStyles: { fillColor: [41, 128, 185] },
+            startY: 95,
+            head: [['DESCRIPTION', 'QTY', 'UNIT PRICE', 'AMOUNT']],
+            body: tableBody,
+            theme: 'plain',
+            styles: {
+                fontSize: 8.5,
+                cellPadding: { top: 3, right: 4, bottom: 3, left: 4 },
+                lineColor: [200, 200, 195],
+                lineWidth: 0.3,
+                textColor: textDark,
+            },
+            headStyles: {
+                fillColor: olive,
+                textColor: [255, 255, 255],
+                fontStyle: 'bold',
+                fontSize: 7.5,
+                halign: 'left',
+            },
+            columnStyles: {
+                0: { cellWidth: 90 },
+                1: { cellWidth: 20, halign: 'center' },
+                2: { cellWidth: 35, halign: 'right' },
+                3: { cellWidth: 35, halign: 'right' },
+            },
+            alternateRowStyles: {
+                fillColor: [250, 249, 245],
+            },
+            didParseCell: (data) => {
+                // Add ₹ symbol to price columns for non-empty rows
+                if ((data.column.index === 2 || data.column.index === 3) && data.section === 'body') {
+                    const val = data.cell.raw?.toString().trim();
+                    if (val && val !== '' && val !== '0.00') {
+                        data.cell.text = [`₹  ${val}`];
+                    }
+                }
+            },
         });
 
-        // Verification Info
-        const finalY = doc.lastAutoTable.finalY + 20;
-        doc.setFontSize(10);
-        doc.text(`Payment Method: ${Payment_Mode || 'UPI / Cash'}`, 20, finalY);
-        doc.text(`Transaction ID: ${Transaction_ID}`, 20, finalY + 7);
-        doc.text(`Paid Date: ${Paid_Date}`, 20, finalY + 14);
+        // ==================== SUBTOTAL & TOTAL ====================
+        const tableEndY = doc.lastAutoTable.finalY;
 
-        // Footer
+        // Subtotal row
+        const subX = margin + 90 + 20; // After description + qty columns
+        doc.setDrawColor(...oliveLight);
+        doc.setLineWidth(0.3);
+        doc.line(subX, tableEndY + 2, pageW - margin, tableEndY + 2);
+
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(8.5);
+        doc.setTextColor(...textDark);
+        doc.text('SUBTOTAL', subX + 2, tableEndY + 8);
+        doc.text(`₹`, pageW - margin - 38, tableEndY + 8);
+        doc.text(`${total.toFixed(2)}`, pageW - margin - 2, tableEndY + 8, { align: 'right' });
+
+        // Total row with olive background
+        doc.setFillColor(...olive);
+        doc.rect(subX, tableEndY + 12, contentW - 90 - 20, 9, 'F');
+        doc.setFont('helvetica', 'bold');
         doc.setFontSize(9);
-        doc.setTextColor(150, 150, 150);
-        doc.text('This is a computer-generated receipt and does not require a physical signature.', 105, 280, { align: 'center' });
-        doc.text(`Thank you for staying with ${config.businessName}!`, 105, 285, { align: 'center' });
+        doc.setTextColor(255, 255, 255);
+        doc.text('TOTAL', subX + 2, tableEndY + 18);
+        doc.text(`₹`, pageW - margin - 38, tableEndY + 18);
+        doc.text(`${total.toFixed(2)}`, pageW - margin - 2, tableEndY + 18, { align: 'right' });
 
+        // ==================== PAYMENT STATUS BOX ====================
+        const statusY = tableEndY + 28;
+        if (Paid_Date && Paid_Date !== 'PENDING') {
+            doc.setFillColor(232, 245, 233);
+            doc.roundedRect(margin, statusY, contentW, 14, 2, 2, 'F');
+            doc.setFont('helvetica', 'bold');
+            doc.setFontSize(9);
+            doc.setTextColor(46, 125, 50);
+            doc.text(`✓  PAID on ${Paid_Date}  |  Mode: ${Payment_Mode}  |  TXN: ${Transaction_ID}`, margin + 5, statusY + 9);
+        } else {
+            doc.setFillColor(255, 243, 224);
+            doc.roundedRect(margin, statusY, contentW, 14, 2, 2, 'F');
+            doc.setFont('helvetica', 'bold');
+            doc.setFontSize(9);
+            doc.setTextColor(230, 126, 34);
+            doc.text(`⏳  PAYMENT PENDING  |  Due by ${config.rentDueDate}th of this month`, margin + 5, statusY + 9);
+        }
+
+        // ==================== THANK YOU ====================
+        const tyY = statusY + 25;
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(18);
+        doc.setTextColor(...oliveLight);
+        doc.text('THANK YOU', margin, tyY);
+
+        // ==================== FOOTER ====================
+        doc.setDrawColor(...oliveLight);
+        doc.setLineWidth(0.4);
+        doc.line(margin, 268, pageW - margin, 268);
+
+        doc.setFont('helvetica', 'italic');
+        doc.setFontSize(8);
+        doc.setTextColor(...textMid);
+        doc.text('For questions concerning this invoice, please contact', pageW / 2, 274, { align: 'center' });
+        doc.text(`${config.businessName}, ${config.ownerPhone || 'N/A'}, UPI: ${config.upiId || 'N/A'}`, pageW / 2, 279, { align: 'center' });
+
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(7.5);
+        doc.setTextColor(...olive);
+        doc.text('This is a computer-generated invoice. No signature required.', pageW / 2, 286, { align: 'center' });
+
+        // ==================== SAVE ====================
         const fileName = `invoice_${Phone}_${Date.now()}.pdf`;
         const filePath = path.join(__dirname, '../uploads', fileName);
 
