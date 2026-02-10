@@ -903,14 +903,32 @@ async function handleRent(phone) {
         return;
     }
     const name = tenant.get('Name');
-    const rent = tenant.get('Monthly Rent');
-    const eb = tenant.get('EB Amount') || '0';
-    const total = parseFloat(rent) + parseFloat(eb);
-    const upiLink = `upi://pay?pa=${config.upiId}&pn=${encodeURIComponent(config.businessName)}&am=${total}&cu=INR`;
+    const rent = parseFloat(tenant.get('Monthly Rent') || 0);
+    const eb = parseFloat(tenant.get('EB Amount') || 0);
+    const total = rent + eb;
+    const status = tenant.get('Status') || 'PENDING';
+
+    const now = new Date();
+    const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+    const currentMonth = monthNames[now.getMonth()];
+    const dueDate = `${config.rentDueDate}th ${currentMonth}`;
+
+    let msg = `🧾 *Invoice & Payment*\n\nHi ${name},\n💰 *Total Due: ₹${total}*\n📅 *Due Date: ${dueDate}*\n\n📋 *Breakdown:*\n🏠 Rent: ₹${rent}\n⚡ EB: ₹${eb}\n━━━━━━━━━━━━━━━━━━━━\n💵 *Total: ₹${total}*`;
+
     const razorpayLink = await createRazorpayLink(phone, name, total, tenant.get('Room'));
-    let msg = `💰 *Rent Details*\n\nName: ${name}\nRent: ₹${rent}\nEB: ₹${eb}\n*Total Due: ₹${total}*\n\n👇 *Pay via UPI:*\n${upiLink}`;
-    if (razorpayLink) msg += `\n\n💳 *Pay Online:* ${razorpayLink}`;
+    if (razorpayLink) msg += `\n\n💳 *Pay Online:*\n${razorpayLink}`;
+
+    const upiLink = `upi://pay?pa=${config.upiId}&pn=${encodeURIComponent(config.businessName)}&am=${total}&cu=INR`;
+    msg += `\n\n👇 *Quick UPI Pay:*\n${upiLink}`;
+
+    // Send the bill message first
     await sendMessage(phone, msg);
+
+    // Then send buttons for payment confirmation
+    if (status !== 'PAID') {
+        userState[phone] = { step: 'PAYMENT_METHOD', contextName: name };
+        await sendButtons(phone, `How did you pay? Tap below 👇`, ["💳 Paid by UPI", "💵 Paid by Cash"]);
+    }
 }
 
 async function handleEB(phone) {
@@ -1037,7 +1055,9 @@ async function handleOnboarding(phone, input, image) {
         // ========== PAYMENT FLOW STATES ==========
         case 'PAYMENT_METHOD': {
             const choice = input.trim().toUpperCase();
-            if (choice === '1' || choice === 'UPI') {
+            const isUPI = choice === '1' || choice === 'UPI' || choice.includes('UPI') || choice.includes('PAID BY UPI');
+            const isCash = choice === '2' || choice === 'CASH' || choice.includes('CASH') || choice.includes('PAID BY CASH');
+            if (isUPI) {
                 const tenant = await sheetsService.getTenantByPhone(phone, state.contextName);
                 if (!tenant) { await sendMessage(phone, 'Tenant not found.'); delete userState[phone]; return; }
                 const rent = parseFloat(tenant.get('Monthly Rent') || 0);
@@ -1053,7 +1073,7 @@ async function handleOnboarding(phone, input, image) {
                 state.step = 'UPI_TXN_ID';
                 state.amount = total;
                 await sendMessage(phone, msg);
-            } else if (choice === '2' || choice === 'CASH') {
+            } else if (isCash) {
                 const tenant = await sheetsService.getTenantByPhone(phone, state.contextName);
                 if (!tenant) { await sendMessage(phone, 'Tenant not found.'); delete userState[phone]; return; }
                 const rent = parseFloat(tenant.get('Monthly Rent') || 0);
