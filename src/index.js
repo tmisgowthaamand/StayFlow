@@ -119,6 +119,13 @@ app.post('/webhook/razorpay', async (req, res) => {
         const payload = req.body;
         console.log('Razorpay Webhook Received:', JSON.stringify(payload));
 
+        // Log the webhook payload for verification later
+        await Log.create({
+            action: 'RAZORPAY_WEBHOOK',
+            details: payload,
+            timestamp: new Date()
+        });
+
         // Verify webhook signature if secret is set
         const webhookSecret = config.razorpay?.key_secret;
         if (webhookSecret && req.headers['x-razorpay-signature']) {
@@ -151,6 +158,81 @@ app.post('/webhook/razorpay', async (req, res) => {
         res.status(200).json({ status: 'ok' });
     } catch (err) {
         console.error('Razorpay Webhook Error:', err.message);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// ==================== TRANSACTION VERIFICATION API ====================
+// Called from confirmation.html to verify a transaction ID
+app.post('/api/verify-transaction', async (req, res) => {
+    try {
+        const { phone, trxId } = req.body;
+        if (!trxId) return res.status(400).json({ error: 'Transaction ID is required' });
+
+        console.log(`Verifying Transaction: ${trxId} for phone: ${phone}`);
+
+        // 1. Check Google Sheets Records
+        const tenants = await sheetsService.getAllTenants();
+        const tenant = tenants.find(t =>
+            t.get('Transaction ID') === trxId ||
+            (phone && sheetsService.normalizePhone && sheetsService.normalizePhone(t.get('Phone')) === sheetsService.normalizePhone(phone))
+        );
+
+        if (tenant && tenant.get('Transaction ID') === trxId && (tenant.get('Status') === 'VALID' || tenant.get('Status') === 'PAID')) {
+            console.log(`Found VALID transaction in sheets: ${trxId}`);
+            return res.json({
+                success: true,
+                message: 'Payment Verified',
+                botNumber: config.ownerPhone || ''
+            });
+        }
+
+        // 2. Check Razorpay Webhook Data in MongoDB logs
+        const webhookLog = await Log.findOne({
+            action: 'RAZORPAY_WEBHOOK',
+            $or: [
+                { 'details.payload.payment.entity.id': trxId },
+                { 'details.payload.payment_link.entity.id': trxId },
+                { 'details.payload.payment.entity.acquirer_data.rrn': trxId }, // UPI UTR
+                { 'details.payload.payment.entity.acquirer_data.upi_transaction_id': trxId }
+            ]
+        });
+
+        if (webhookLog) {
+            console.log(`Found matching Razorpay webhook for TRX: ${trxId}`);
+
+            // If it's found in logs but not yet marked valid in sheets (maybe webhook delay),
+            // trigger the success handler now.
+            const payload = webhookLog.details;
+            const paymentEntity = payload.payload?.payment?.entity || payload.payload?.payment_link?.entity || {};
+            const notes = paymentEntity.notes || {};
+            const targetPhone = phone || notes.phone || '';
+            const amount = (paymentEntity.amount || 0) / 100;
+
+            if (targetPhone && trxId) {
+                await handleRazorpaySuccess(targetPhone, amount, trxId, 'UPI (Razorpay)');
+            }
+
+            return res.json({
+                success: true,
+                message: 'Payment Verified',
+                botNumber: config.ownerPhone || ''
+            });
+        }
+
+        // 3. Fallback: Check if this phone has a general PAID status with this TRX
+        if (tenant && tenant.get('Transaction ID') === trxId) {
+            return res.json({
+                success: true,
+                message: 'Payment Verified',
+                botNumber: config.ownerPhone || ''
+            });
+        }
+
+        console.warn(`Transaction NOT found: ${trxId}`);
+        res.status(404).json({ error: 'Transaction ID not found. Please contact support.' });
+    } catch (err) {
+        console.error('Verify Transaction Error:', err.message);
         res.status(500).json({ error: err.message });
     }
 });
@@ -430,7 +512,7 @@ app.post('/api/trigger-notifications', async (req, res) => {
                     let caption = `🔔 *Bill Reminder*\n\nHi ${name},\nTotal Due: *₹${total}*\n📅 *Due Date: 5th ${currentMonth}*`;
                     if (razorpayLink) caption += `\n\n💳 *Pay Online (Razorpay):* ${razorpayLink}`;
 
-                    await sendMedia(phone, filePath, caption, ["💳 Pay Now", "💵 Pay by Cash"]);
+                    await sendMedia(phone, filePath, caption, ["💳 Pay Now"]);
                     sentCount++;
                     await new Promise(r => setTimeout(r, 1000));
                 } catch (e) { console.error(`Failed to notify ${name}:`, e.message); }
@@ -490,7 +572,7 @@ app.post('/api/notify-tenant', async (req, res) => {
         let caption = `🧾 *Invoice & Payment*\n\nHi ${name},\n💰 *Total Due: ₹${total}*\n📅 *Due Date:* 5th ${currentMonth}`;
         if (razorpayLink) caption += `\n\n💳 *Pay Online (Razorpay):*\n${razorpayLink}`;
 
-        if (filePath) await sendMedia(phone, filePath, caption, ["💳 Pay Now", "💵 Pay by Cash"]);
+        if (filePath) await sendMedia(phone, filePath, caption, ["💳 Pay Now"]);
         else await sendMessage(phone, caption);
 
         res.json({ success: true });

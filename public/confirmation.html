@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Payment Successful | StayFlow</title>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #6366f1;
+            --primary-dark: #4f46e5;
+            --success: #22c55e;
+            --bg: #0f172a;
+            --card-bg: #1e293b;
+            --text: #f8fafc;
+            --text-muted: #94a3b8;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Outfit', sans-serif;
+        }
+
+        body {
+            background-color: var(--bg);
+            color: var(--text);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            background: var(--card-bg);
+            width: 100%;
+            max-width: 450px;
+            padding: 40px;
+            border-radius: 24px;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+            text-align: center;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            animation: slideUp 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        @keyframes slideUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .icon-wrapper {
+            width: 80px;
+            height: 80px;
+            background: rgba(34, 197, 94, 0.1);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 24px;
+            color: var(--success);
+            font-size: 40px;
+        }
+
+        h1 {
+            font-size: 28px;
+            font-weight: 700;
+            margin-bottom: 12px;
+            background: linear-gradient(to right, #fff, #94a3b8);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        p {
+            color: var(--text-muted);
+            line-height: 1.6;
+            margin-bottom: 32px;
+        }
+
+        .form-group {
+            text-align: left;
+            margin-bottom: 24px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--text-muted);
+        }
+
+        input {
+            width: 100%;
+            background: rgba(15, 23, 42, 0.6);
+            border: 1.5px solid rgba(255, 255, 255, 0.1);
+            padding: 14px 18px;
+            border-radius: 12px;
+            color: #fff;
+            font-size: 16px;
+            transition: all 0.3s ease;
+            outline: none;
+        }
+
+        input:focus {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.2);
+        }
+
+        .btn {
+            width: 100%;
+            background: var(--primary);
+            color: white;
+            border: none;
+            padding: 16px;
+            border-radius: 12px;
+            font-size: 16px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 10px 15px -3px rgba(99, 102, 241, 0.4);
+        }
+
+        .btn:hover {
+            background: var(--primary-dark);
+            transform: translateY(-2px);
+            box-shadow: 0 15px 20px -5px rgba(99, 102, 241, 0.5);
+        }
+
+        .btn:active {
+            transform: translateY(0);
+        }
+
+        .btn:disabled {
+            background: #475569;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        .status-msg {
+            margin-top: 20px;
+            padding: 12px;
+            border-radius: 12px;
+            font-size: 14px;
+            display: none;
+        }
+
+        .status-msg.error {
+            display: block;
+            background: rgba(239, 68, 68, 0.1);
+            color: #ef4444;
+            border: 1px solid rgba(239, 68, 68, 0.2);
+        }
+
+        .status-msg.success {
+            display: block;
+            background: rgba(34, 197, 94, 0.1);
+            color: var(--success);
+            border: 1px solid rgba(34, 197, 94, 0.2);
+        }
+
+        .loader {
+            width: 20px;
+            height: 20px;
+            border: 2px solid #fff;
+            border-bottom-color: transparent;
+            border-radius: 50%;
+            display: inline-block;
+            box-sizing: border-box;
+            animation: rotation 1s linear infinite;
+            margin-right: 10px;
+            vertical-align: middle;
+            display: none;
+        }
+
+        @keyframes rotation {
+            0% {
+                transform: rotate(0deg);
+            }
+
+            100% {
+                transform: rotate(360deg);
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <div class="icon-wrapper">
+            ✅
+        </div>
+        <h1>Payment Successful</h1>
+        <p>Thank you for your payment! Please paste your 12-digit UPI Transaction ID or Razorpay Payment ID to confirm.
+        </p>
+
+        <form id="verifyForm">
+            <div class="form-group">
+                <label for="trxId">Transaction ID / Reference Number</label>
+                <input type="text" id="trxId" placeholder="e.g. 412345678901" required>
+            </div>
+            <button type="submit" class="btn" id="submitBtn">
+                <span class="loader" id="loader"></span>
+                Verify & Confirm
+            </button>
+        </form>
+
+        <div id="statusMsg" class="status-msg"></div>
+
+        <div style="margin-top: 32px;">
+            <a href="https://wa.me/919876543210" id="waLink"
+                style="color: var(--primary); text-decoration: none; font-size: 14px; font-weight: 600;">
+                Return to WhatsApp Chat
+            </a>
+        </div>
+    </div>
+
+    <script>
+        const form = document.getElementById('verifyForm');
+        const submitBtn = document.getElementById('submitBtn');
+        const loader = document.getElementById('loader');
+        const statusMsg = document.getElementById('statusMsg');
+        const waLink = document.getElementById('waLink');
+
+        // Extract phone and maybe payment_id from URL
+        const urlParams = new URLSearchParams(window.location.search);
+        const phone = urlParams.get('phone');
+        const rzp_payment_id = urlParams.get('razorpay_payment_id');
+
+        if (rzp_payment_id) {
+            document.getElementById('trxId').value = rzp_payment_id;
+        }
+
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const trxId = document.getElementById('trxId').value.trim();
+
+            if (!trxId) return;
+
+            // Clear previous status
+            statusMsg.className = 'status-msg';
+            statusMsg.innerHTML = '';
+
+            // Show loader
+            loader.style.display = 'inline-block';
+            submitBtn.disabled = true;
+
+            try {
+                const response = await fetch('/api/verify-transaction', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ phone, trxId })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    statusMsg.className = 'status-msg success';
+                    statusMsg.innerHTML = '✅ Payment Verified! You will receive your invoice on WhatsApp shortly.';
+                    form.style.display = 'none';
+                    // Update WA link with a custom message
+                    if (phone) {
+                        waLink.href = `https://wa.me/${data.botNumber}?text=Payment Verified. My ID: ${trxId}`;
+                    }
+                } else {
+                    statusMsg.className = 'status-msg error';
+                    statusMsg.innerHTML = '❌ ' + (data.error || 'Transaction ID not found. Please contact support.');
+                    submitBtn.disabled = false;
+                }
+            } catch (err) {
+                statusMsg.className = 'status-msg error';
+                statusMsg.innerHTML = '❌ Connection error. Please try again or contact support.';
+                submitBtn.disabled = false;
+            } finally {
+                loader.style.display = 'none';
+            }
+        });
+    </script>
+</body>
+
+</html>
