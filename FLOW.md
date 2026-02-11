@@ -109,11 +109,11 @@ Incoming WhatsApp Message
 ┌─────────────────────────────────────────────────────────────┐
 │                    TENANT COMMANDS                           │
 ├──────────┬──────────────────────────────────────────────────┤
-│ HI/HELLO │ Shows personal dashboard:                        │
-│          │ → Name, Room, Location, Status                   │
-│          │ → Current month bill (Rent + EB)                 │
-│          │ → Due date, last 3 payment history               │
-│          │ → Quick action menu                              │
+│ HI/HELLO │ Shows Interactive List Menu with 9 options:       │
+│ HAI/HEY  │ → Dynamic: New Register OR Vacate (if registered)│
+│ NAMASTE  │ → Rent, EB Bill, Statements, Queries             │
+│          │ → Holidays, Rules, Vacancy, Refer a Friend       │
+│          │ → Registered users see personalized dashboard    │
 ├──────────┼──────────────────────────────────────────────────┤
 │ JOIN     │ Shows registration form URL                      │
 │          │ → Sends JOIN banner image                        │
@@ -703,8 +703,10 @@ POST /api/send-message          → Send WhatsApp message
 POST /api/send-media            → Send WhatsApp media
 POST /api/broadcast             → Broadcast to all tenants
 POST /api/upload-aadhaar        → Upload Aadhaar image
+POST /api/submit-query          → Submit tenant query/complaint
 
 POST /register                  → Web registration form
+GET  /queries                   → Queries submission form
 ```
 
 ---

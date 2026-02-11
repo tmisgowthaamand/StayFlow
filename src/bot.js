@@ -201,6 +201,91 @@ async function sendButtons(to, text, buttons) {
     }
 }
 
+// Send WhatsApp Interactive List Message
+async function sendListMessage(to, headerText, bodyText, buttonText, sections) {
+    const cleanTo = normalizePhone(to);
+    try {
+        const payload = {
+            messaging_product: "whatsapp",
+            to: cleanTo,
+            type: "interactive",
+            interactive: {
+                type: "list",
+                header: { type: "text", text: headerText },
+                body: { text: bodyText },
+                action: {
+                    button: buttonText,
+                    sections: sections
+                }
+            }
+        };
+        await axios.post(
+            `https://graph.facebook.com/v17.0/${config.whatsapp.phoneNumberId}/messages`,
+            payload,
+            { headers: { Authorization: `Bearer ${config.whatsapp.token}` } }
+        );
+    } catch (err) {
+        console.error('Error sending list message:', err.response ? JSON.stringify(err.response.data) : err.message);
+        // Fallback: send as plain text
+        let fallbackMsg = `${headerText}\n\n${bodyText}\n\n`;
+        sections.forEach(s => {
+            fallbackMsg += `*${s.title}*\n`;
+            s.rows.forEach(r => {
+                fallbackMsg += `▸ ${r.title}${r.description ? ' — ' + r.description : ''}\n`;
+            });
+            fallbackMsg += '\n';
+        });
+        await sendMessage(to, fallbackMsg);
+    }
+}
+
+// Send CTA URL Button (click-to-action link)
+async function sendCTAButton(to, bodyText, buttonText, url, headerText = null) {
+    const cleanTo = normalizePhone(to);
+    try {
+        const interactive = {
+            type: "cta_url",
+            body: { text: bodyText },
+            action: {
+                name: "cta_url",
+                parameters: {
+                    display_text: buttonText,
+                    url: url
+                }
+            }
+        };
+        if (headerText) interactive.header = { type: "text", text: headerText };
+
+        await axios.post(
+            `https://graph.facebook.com/v17.0/${config.whatsapp.phoneNumberId}/messages`,
+            {
+                messaging_product: "whatsapp",
+                to: cleanTo,
+                type: "interactive",
+                interactive: interactive
+            },
+            { headers: { Authorization: `Bearer ${config.whatsapp.token}` } }
+        );
+    } catch (err) {
+        console.error('Error sending CTA button:', err.response ? JSON.stringify(err.response.data) : err.message);
+        // Fallback: send URL as text
+        await sendMessage(to, `${bodyText}\n\n🔗 ${buttonText}: ${url}`);
+    }
+}
+
+// Send Call CTA Button (click-to-call)
+async function sendCallCTA(to, bodyText, buttonDisplayText, phoneNumber) {
+    const cleanTo = normalizePhone(to);
+    const callUrl = `tel:${phoneNumber}`;
+    try {
+        // WhatsApp doesn't have a native 'call' CTA, so we use phone link as CTA URL
+        // Alternatively, we send the number with a message to call
+        await sendMessage(to, `${bodyText}\n\n📞 *Tap to Call:*\nhttps://wa.me/${normalizePhone(phoneNumber)}\n\nOr dial directly: *${phoneNumber}*`);
+    } catch (err) {
+        console.error('Error sending call CTA:', err.response ? JSON.stringify(err.response.data) : err.message);
+    }
+}
+
 async function sendMedia(to, filePath, caption = "", buttons = null, displayFilename = null) {
     try {
         const { default: wweb } = await import('./wweb.js');
@@ -574,61 +659,205 @@ async function handleIncomingMessage(phone, body, messageId = null, image = null
             userState[phone] = { step: 'ANNOUNCE_MSG' };
             await sendMessage(phone, `What is the announcement?`);
             break;
+
+        // ==================== WELCOME / HI MESSAGE WITH LIST MENU ====================
         case 'HI':
+        case 'HII':
+        case 'HIE':
+        case 'HELO':
         case 'HELLO':
+        case 'HOLA':
+        case 'HAI':
+        case 'HEY':
+        case 'NAMASTE': {
             const tenantForHi = await sheetsService.getTenantByPhone(phone);
-            if (tenantForHi && tenantForHi.get('Status') !== 'VACATED') {
+            const isRegistered = tenantForHi && tenantForHi.get('Status') !== 'VACATED';
+
+            // Build dynamic welcome text
+            let welcomeBody = '';
+            if (isRegistered) {
                 const name = tenantForHi.get('Name');
                 const room = tenantForHi.get('Room') || 'N/A';
                 const rent = parseFloat(tenantForHi.get('Monthly Rent') || 0);
                 const eb = parseFloat(tenantForHi.get('EB Amount') || 0);
                 const total = rent + eb;
                 const status = tenantForHi.get('Status') || 'ACTIVE';
-                const location = tenantForHi.get('Location') || 'Main Branch';
-                const now = new Date();
-                const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
-                const currentMonth = monthNames[now.getMonth()];
-                const dueDate = `${config.rentDueDate}th ${currentMonth}`;
                 const statusEmoji = status === 'PAID' ? '✅' : (status === 'PENDING' ? '⏳' : '🔔');
-                let historyText = '';
-                try {
-                    const paymentHistory = await sheetsService.getPaymentHistory(phone, 3);
-                    if (paymentHistory && paymentHistory.length > 0) {
-                        historyText = '\n\n📊 *Past Payments:*\n';
-                        paymentHistory.forEach(h => {
-                            const monthYear = h.get('Month-Year') || 'Unknown';
-                            const amount = h.get('Total Amount') || '0';
-                            const pStatus = h.get('Status') || 'PAID';
-                            const pEmoji = pStatus === 'PAID' ? '✅' : '⏳';
-                            historyText += `${pEmoji} ${monthYear}: ₹${amount}\n`;
-                        });
-                    } else {
-                        const oldHistory = await sheetsService.getHistoryByPhone(phone);
-                        if (oldHistory.length > 0) {
-                            historyText = '\n\n📊 *Past Payments:*\n';
-                            oldHistory.slice(-3).reverse().forEach(h => {
-                                const month = h.get('Month') || '';
-                                const year = h.get('Year') || '';
-                                const amount = h.get('Amount') || '0';
-                                historyText += `✅ ${month} ${year}: ₹${amount}\n`;
-                            });
-                        }
-                    }
-                } catch (err) {
-                    console.error('Error fetching payment history:', err.message);
-                }
-                const dashboardMsg = `━━━━━━━━━━━━━━━━━━━━━\n🏠 *${config.businessName} Portal*\n━━━━━━━━━━━━━━━━━━━━━\n\nWelcome back, *${name}*! 👋\n\n📍 *Your Details:*\n🚪 Room: ${room}\n📌 Location: ${location}\n${statusEmoji} Status: *${status}*\n\n💰 *Upcoming Bill - ${currentMonth}:*\n┌─────────────────────\n│ 🏠 Rent: ₹${rent}\n│ ⚡ EB: ₹${eb}\n└─────────────────────\n💵 *Total Due: ₹${total}*\n📅 *Due Date: ${dueDate}*${historyText}\n\n━━━━━━━━━━━━━━━━━━━━━\n⚡ *Quick Actions:*\n━━━━━━━━━━━━━━━━━━━━━\n📋 Type *RENT* - View bill & pay\n📜 Type *HISTORY* - Full payment history\n🚪 Type *VACATE* - Request to leave\n🆘 Type *HELP* - Raise complaint\n\n_Reply with any option above_`;
-                await sendMessage(phone, dashboardMsg);
-                try {
-                    await sheetsService.logNotification(phone, name, 'DASHBOARD_VIEW', 'Tenant viewed dashboard via HI command');
-                } catch (e) { }
+                welcomeBody = `Welcome back, *${name}*! 👋\n\n🚪 Room: ${room}\n${statusEmoji} Status: *${status}*\n\n💰 *Current Bill:*\n🏠 Rent: ₹${rent} | ⚡ EB: ₹${eb}\n💵 *Total: ₹${total}*\n\nPlease select an option below 👇`;
             } else {
-                const welcomeBanner = path.join(__dirname, '../assets/START BANNER.png');
-                if (fs.existsSync(welcomeBanner)) await sendImage(phone, welcomeBanner);
-                await sendMessage(phone, `Hello! 👋 Welcome to ${config.businessName}.\n\nTo get started, please register with us:\n\n👉 Type *JOIN* to Register\n\nIf you are already a member, please contact the admin if your number has changed.`);
+                welcomeBody = `Hello! 👋 Welcome to *${config.businessName}*.\n\nWe're happy to have you here! Please select an option below to get started 👇`;
             }
+
+            // Build menu rows — dynamically swap "New Register" ↔ "Vacate" based on registration
+            const mainMenuRows = [];
+            if (isRegistered) {
+                mainMenuRows.push({ id: 'menu_vacate', title: '🚪 Vacate', description: 'Request to vacate your room' });
+            } else {
+                mainMenuRows.push({ id: 'menu_register', title: '📝 New Register', description: 'Register as a new tenant' });
+            }
+            mainMenuRows.push(
+                { id: 'menu_rent', title: '🏠 Rent', description: 'View rent details & pay' },
+                { id: 'menu_eb_bill', title: '⚡ EB Bill', description: 'View electricity bill' },
+                { id: 'menu_statements', title: '📜 Statements', description: 'Monthly payment statements' },
+                { id: 'menu_queries', title: '❓ Queries', description: 'Submit a query or complaint' }
+            );
+
+            const infoMenuRows = [
+                { id: 'menu_holidays', title: '🎉 Holiday List', description: 'View upcoming holidays' },
+                { id: 'menu_rules', title: '📋 Rules', description: 'PG house rules & regulations' },
+                { id: 'menu_vacancy', title: '🛏️ Vacancy Rooms', description: 'Check available rooms' },
+                { id: 'menu_refer', title: '👥 Refer a Friend', description: 'Refer someone & earn rewards' }
+            ];
+
+            const sections = [
+                { title: '🏠 Services', rows: mainMenuRows },
+                { title: 'ℹ️ Information', rows: infoMenuRows }
+            ];
+
+            // Send welcome banner if available
+            const welcomeBanner = path.join(__dirname, '../assets/START BANNER.png');
+            if (fs.existsSync(welcomeBanner)) await sendImage(phone, welcomeBanner);
+
+            await sendListMessage(
+                phone,
+                `🏠 ${config.businessName}`,
+                welcomeBody,
+                '📋 View Menu',
+                sections
+            );
+
+            try {
+                if (isRegistered) {
+                    await sheetsService.logNotification(phone, tenantForHi.get('Name'), 'WELCOME_MENU', 'Tenant viewed welcome menu');
+                }
+            } catch (e) { }
             break;
+        }
+
+        // ==================== LIST MENU SELECTIONS ====================
+        // New Register (from list)
+        case 'MENU_REGISTER':
+        case '📝 NEW REGISTER': {
+            const regUrl = config.googleFormUrl || 'https://forms.gle/YOUR_FORM_ID';
+            await sendCTAButton(
+                phone,
+                `📝 *New Registration*\n\nJoin *${config.businessName}* by filling out the registration form.\n\nClick the button below to register 👇`,
+                '📝 Register Now',
+                regUrl,
+                '🏠 Welcome to ' + config.businessName
+            );
+            break;
+        }
+
+        // Vacate (from list — registered users)
+        case 'MENU_VACATE':
+        case '🚪 VACATE': {
+            await handleTenantVacateRequest(phone);
+            break;
+        }
+
+        // Rent (from list)
+        case 'MENU_RENT':
+        case '🏠 RENT': {
+            await handleMenuRent(phone);
+            break;
+        }
+
+        // EB Bill (from list)
+        case 'MENU_EB_BILL':
+        case '⚡ EB BILL': {
+            await handleMenuEBBill(phone);
+            break;
+        }
+
+        // Statements (from list)
+        case 'MENU_STATEMENTS':
+        case '📜 STATEMENTS': {
+            await handleMenuStatements(phone);
+            break;
+        }
+
+        // Queries (from list)
+        case 'MENU_QUERIES':
+        case '❓ QUERIES': {
+            const baseUrl = config.whatsapp.callbackUrl ? config.whatsapp.callbackUrl.replace('/webhook', '') : 'https://stayflow.onrender.com';
+            const queriesUrl = `${baseUrl}/queries.html?phone=${encodeURIComponent(phone)}`;
+            await sendCTAButton(
+                phone,
+                `❓ *Submit a Query*\n\nHave a question or concern? Use the form below to send us your queries.\n\nOur team will review and get back to you shortly! 🙏`,
+                '📝 Fill Query Form',
+                queriesUrl,
+                '❓ Queries & Support'
+            );
+            break;
+        }
+
+        // Holiday List (from list)
+        case 'MENU_HOLIDAYS':
+        case '🎉 HOLIDAY LIST': {
+            await handleMenuHolidays(phone);
+            break;
+        }
+
+        // Rules (from list)
+        case 'MENU_RULES':
+        case '📋 RULES': {
+            const rulesMenuMsg = `🏢 *PG House Rules & Regulations*\n━━━━━━━━━━━━━━━━━━━━\n\n⚖️ *DO's:*\n1. Keep your room and shared areas clean and hygienic.\n2. Maintain silence after 10:00 PM for everyone's comfort.\n3. Pay rent by the 5th and EB bills by the 10th of each month.\n4. Inform the admin 30 days before vacating.\n5. Cooperate with police verification and security checks.\n\n🚫 *DON'Ts:*\n1. Strictly NO smoking, alcohol, or illegal substances.\n2. No overnight visitors allowed without prior permission.\n3. Do not use heavy appliances (Heaters/AC/Iron) without approval.\n4. No loud music, parties, or disturbances in rooms.\n5. Do not damage PG property or furniture.\n\n📜 *Note:* Rules are for the safety and comfort of all residents. Violations may lead to penalties or eviction.\n━━━━━━━━━━━━━━━━━━━━`;
+            await sendMessage(phone, rulesMenuMsg);
+            break;
+        }
+
+        // Vacancy Rooms (from list)
+        case 'MENU_VACANCY':
+        case '🛏️ VACANCY ROOMS': {
+            await handleMenuVacancy(phone);
+            break;
+        }
+
+        // Refer a Friend (from list)
+        case 'MENU_REFER':
+        case '👥 REFER A FRIEND': {
+            await handleMenuRefer(phone);
+            break;
+        }
+
+        // ==================== REPLY BUTTON HANDLERS ====================
+        // Rent Pay Now button
+        case '💳 PAY NOW':
+        case 'PAY NOW': {
+            const tenantPay = await sheetsService.getTenantByPhone(phone);
+            if (!tenantPay || tenantPay.get('Status') === 'VACATED') {
+                await sendMessage(phone, "You're not registered. Type *HI* to start.");
+                break;
+            }
+            const payRent = parseFloat(tenantPay.get('Monthly Rent') || 0);
+            const payEB = parseFloat(tenantPay.get('EB Amount') || 0);
+            const payTotal = payRent + payEB;
+            userState[phone] = { step: 'PAYMENT_METHOD', contextName: tenantPay.get('Name') };
+            await sendButtons(phone, `💳 *Select payment method:*\n\n🏠 Rent: ₹${payRent}\n⚡ EB: ₹${payEB}\n━━━━━━━━━━━━━━━━━━━━\n💵 *Total Due: ₹${payTotal}*`, ["1. UPI/APP", "2. Cash", "Cancel"]);
+            break;
+        }
+
+        // Contact Admin button
+        case '📞 CONTACT':
+        case 'CONTACT':
+        case 'CONTACT ADMIN': {
+            const adminPhone = config.ownerPhone || '';
+            await sendCallCTA(phone, `📞 *Contact Admin*\n\nFor any urgent queries, please contact our admin directly.`, '📞 Call Admin', adminPhone);
+            break;
+        }
         default:
+            // Handle statement month selections (STMT_YYYY_M)
+            if (cleanBody.startsWith('STMT_')) {
+                const stmtParts = cleanBody.split('_');
+                if (stmtParts.length === 3) {
+                    const stmtYear = parseInt(stmtParts[1]);
+                    const stmtMonth = parseInt(stmtParts[2]) - 1; // 0-indexed
+                    await handleStatementMonth(phone, stmtYear, stmtMonth);
+                    return;
+                }
+            }
+
             if (phone === config.ownerPhone) {
                 if (cleanBody.startsWith('SET EB')) {
                     const parts = cleanBody.split(' ');
@@ -1007,6 +1236,222 @@ async function handleEB(phone) {
     if (!tenant) return;
     const eb = tenant.get('EB Amount') || '0';
     await sendMessage(phone, `⚡ Your Electricity Bill for this month is *₹${eb}*. This is included in your total rent.`);
+}
+
+// ==================== MENU HANDLER FUNCTIONS ====================
+
+// Handle Rent from Menu — show rent with Pay Now / Contact buttons
+async function handleMenuRent(phone) {
+    const tenant = await sheetsService.getTenantByPhone(phone);
+    if (!tenant || tenant.get('Status') === 'VACATED') {
+        await sendMessage(phone, `❌ You are not registered yet.\n\nType *HI* and select *New Register* to join.`);
+        return;
+    }
+    const name = tenant.get('Name');
+    const room = tenant.get('Room') || 'N/A';
+    const rent = parseFloat(tenant.get('Monthly Rent') || 0);
+    const eb = parseFloat(tenant.get('EB Amount') || 0);
+    const total = rent + eb;
+    const status = tenant.get('Status') || 'PENDING';
+    const now = new Date();
+    const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+    const currentMonth = monthNames[now.getMonth()];
+    const dueDate = `${config.rentDueDate}th ${currentMonth}`;
+
+    let rentMsg = `🏠 *Rent Details — ${currentMonth}*\n━━━━━━━━━━━━━━━━━━━━\n\n👤 Name: ${name}\n🚪 Room: ${room}\n\n💰 *Bill Breakdown:*\n┌─────────────────────\n│ 🏠 Rent: ₹${rent}\n│ ⚡ EB: ₹${eb}\n└─────────────────────\n💵 *Total Due: ₹${total}*\n📅 *Due Date: ${dueDate}*\n\n${status === 'PAID' ? '✅ *Payment Status: PAID*' : '⏳ *Payment Status: PENDING*'}`;
+
+    if (status !== 'PAID') {
+        // Show Pay Now + Contact buttons
+        await sendButtons(phone, rentMsg, ['💳 Pay Now', '📞 Contact']);
+    } else {
+        // Already paid — show contact only
+        await sendButtons(phone, rentMsg, ['📞 Contact']);
+    }
+}
+
+// Handle EB Bill from Menu — show EB bill with Total Rent / Contact buttons
+async function handleMenuEBBill(phone) {
+    const tenant = await sheetsService.getTenantByPhone(phone);
+    if (!tenant || tenant.get('Status') === 'VACATED') {
+        await sendMessage(phone, `❌ You are not registered yet.\n\nType *HI* and select *New Register* to join.`);
+        return;
+    }
+    const name = tenant.get('Name');
+    const room = tenant.get('Room') || 'N/A';
+    const rent = parseFloat(tenant.get('Monthly Rent') || 0);
+    const eb = parseFloat(tenant.get('EB Amount') || 0);
+    const total = rent + eb;
+    const now = new Date();
+    const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+    const currentMonth = monthNames[now.getMonth()];
+
+    const ebMsg = `⚡ *Electricity Bill — ${currentMonth}*\n━━━━━━━━━━━━━━━━━━━━\n\n👤 Name: ${name}\n🚪 Room: ${room}\n\n⚡ *EB Amount: ₹${eb}*\n💡 Rate: ₹${config.ebUnitRate}/unit\n\n🏠 Rent: ₹${rent}\n━━━━━━━━━━━━━━━━━━━━\n💵 *Total (Rent + EB): ₹${total}*`;
+
+    const status = tenant.get('Status') || 'PENDING';
+    if (status !== 'PAID') {
+        await sendButtons(phone, ebMsg, ['💳 Pay Now', '📞 Contact']);
+    } else {
+        await sendButtons(phone, ebMsg, ['📞 Contact']);
+    }
+}
+
+// Handle Statements from Menu — show last 10 months as a list
+async function handleMenuStatements(phone) {
+    const tenant = await sheetsService.getTenantByPhone(phone);
+    if (!tenant || tenant.get('Status') === 'VACATED') {
+        await sendMessage(phone, `❌ You are not registered yet.\n\nType *HI* and select *New Register* to join.`);
+        return;
+    }
+
+    // Generate list of last 10 months
+    const now = new Date();
+    const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+    const monthRows = [];
+    for (let i = 0; i < 10; i++) {
+        const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+        const monthLabel = `${monthNames[d.getMonth()]} ${d.getFullYear()}`;
+        monthRows.push({
+            id: `stmt_${d.getFullYear()}_${d.getMonth() + 1}`,
+            title: monthLabel,
+            description: `View ${monthLabel} statement`
+        });
+    }
+
+    await sendListMessage(
+        phone,
+        '📜 Monthly Statements',
+        `Hi *${tenant.get('Name')}*! 👋\n\nSelect a month below to view your detailed payment statement for that month.`,
+        '📅 Select Month',
+        [{ title: '📅 Choose Month', rows: monthRows }]
+    );
+}
+
+// Handle Holiday List from Menu
+async function handleMenuHolidays(phone) {
+    // Admin can update this list from the backend. For now, show common holidays.
+    const now = new Date();
+    const year = now.getFullYear();
+    const holidayMsg = `🎉 *Holiday List — ${year}*\n━━━━━━━━━━━━━━━━━━━━\n\n🇮🇳 *National Holidays:*\n📅 Jan 26 — Republic Day\n📅 Mar 14 — Holi\n📅 Apr 14 — Tamil New Year\n📅 May 01 — May Day\n📅 Aug 15 — Independence Day\n📅 Sep 07 — Vinayagar Chaturthi\n📅 Oct 02 — Gandhi Jayanti\n📅 Oct 12 — Dussehra\n📅 Nov 01 — Deepavali\n📅 Dec 25 — Christmas\n\n🏠 *PG Specific:*\n📅 Every Sunday — Common Area Cleaning Day\n📅 1st of Month — Rent Due Reminder\n\n━━━━━━━━━━━━━━━━━━━━\n_Holidays may include reduced mess/services. Plan accordingly!_`;
+    await sendMessage(phone, holidayMsg);
+}
+
+// Handle Vacancy Rooms from Menu — show available rooms
+async function handleMenuVacancy(phone) {
+    try {
+        const tenants = await sheetsService.getAllTenants();
+        const locations = await sheetsService.getAllLocations();
+
+        // Find occupied rooms
+        const occupiedRooms = new Set();
+        tenants.forEach(t => {
+            if (t.get('Status') !== 'VACATED') {
+                occupiedRooms.add(t.get('Room'));
+            }
+        });
+
+        let vacancyMsg = `🛏️ *Available Rooms*\n━━━━━━━━━━━━━━━━━━━━\n\n`;
+
+        if (locations && locations.length > 0) {
+            locations.forEach(loc => {
+                const locName = loc.name || loc.get?.('Name') || 'Location';
+                const totalRooms = parseInt(loc.totalRooms || loc.get?.('Total Rooms') || 0);
+                const locTenants = tenants.filter(t => {
+                    const tLoc = t.get('Location') || '';
+                    return tLoc === locName && t.get('Status') !== 'VACATED';
+                });
+                const occupied = locTenants.length;
+                const available = Math.max(0, totalRooms - occupied);
+                vacancyMsg += `📍 *${locName}*\n   Total Rooms: ${totalRooms}\n   Occupied: ${occupied}\n   🟢 Available: ${available}\n\n`;
+            });
+        } else {
+            const totalActive = tenants.filter(t => t.get('Status') !== 'VACATED').length;
+            vacancyMsg += `📍 *${config.businessName}*\n   🏠 Active Tenants: ${totalActive}\n   🟢 Rooms maybe available — Contact admin for details\n\n`;
+        }
+
+        vacancyMsg += `━━━━━━━━━━━━━━━━━━━━\n📞 Contact admin for booking!`;
+        await sendButtons(phone, vacancyMsg, ['📞 Contact']);
+    } catch (err) {
+        console.error('Vacancy check error:', err.message);
+        await sendMessage(phone, `🛏️ *Vacancy Rooms*\n\nPlease contact the admin to check room availability.`);
+        await sendButtons(phone, 'Contact admin for room availability:', ['📞 Contact']);
+    }
+}
+
+// Handle Refer a Friend from Menu
+async function handleMenuRefer(phone) {
+    const tenant = await sheetsService.getTenantByPhone(phone);
+    const tenantName = tenant ? tenant.get('Name') : 'there';
+    const regUrl = config.googleFormUrl || 'https://forms.gle/YOUR_FORM_ID';
+    const referLink = `${regUrl}?ref=${encodeURIComponent(phone)}`;
+
+    const referMsg = `👥 *Refer a Friend*\n━━━━━━━━━━━━━━━━━━━━\n\nHi *${tenantName}*! 🎉\n\nKnow someone looking for a great PG?\nRefer them to *${config.businessName}* and help them find a comfortable home!\n\n📲 *Share this registration link:*\n${referLink}\n\n🎁 *Referral Benefits:*\n• Your friend gets smooth onboarding\n• You may receive special discounts!\n\n━━━━━━━━━━━━━━━━━━━━\n_Share the link with your friends via WhatsApp!_`;
+
+    await sendCTAButton(
+        phone,
+        referMsg,
+        '📤 Share Registration Link',
+        referLink,
+        '👥 Refer a Friend'
+    );
+}
+
+// Handle Statement for a specific month
+async function handleStatementMonth(phone, year, month) {
+    const tenant = await sheetsService.getTenantByPhone(phone);
+    if (!tenant || tenant.get('Status') === 'VACATED') {
+        await sendMessage(phone, `You are not registered. Type *HI* to start.`);
+        return;
+    }
+
+    const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+    const monthLabel = `${monthNames[month]} ${year}`;
+    const name = tenant.get('Name');
+
+    try {
+        const paymentHistory = await sheetsService.getPaymentHistory(phone, 12);
+        let found = null;
+
+        if (paymentHistory && paymentHistory.length > 0) {
+            found = paymentHistory.find(h => {
+                const my = h.get('Month-Year') || '';
+                return my.toLowerCase().includes(monthNames[month].toLowerCase()) && my.includes(year.toString());
+            });
+        }
+
+        if (found) {
+            const amount = found.get('Total Amount') || '0';
+            const mode = found.get('Payment Mode') || 'N/A';
+            const status = found.get('Status') || 'PAID';
+            const trxId = found.get('Transaction ID') || 'N/A';
+            const paidDate = found.get('Paid Date') || 'N/A';
+            const rentAmt = found.get('Rent Amount') || tenant.get('Monthly Rent') || '0';
+            const ebAmt = found.get('EB Amount') || tenant.get('EB Amount') || '0';
+
+            const stmtMsg = `\ud83d\udcdc *Payment Statement*\n\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\n\n\ud83d\udcc5 *Month: ${monthLabel}*\n\ud83d\udc64 Name: ${name}\n\ud83d\udeaa Room: ${tenant.get('Room') || 'N/A'}\n\n\ud83d\udcb0 *Breakdown:*\n\u250c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\n\u2502 \ud83c\udfe0 Rent: \u20b9${rentAmt}\n\u2502 \u26a1 EB: \u20b9${ebAmt}\n\u2514\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\n\ud83d\udcb5 *Total: \u20b9${amount}*\n\n\ud83d\udcb3 Mode: ${mode}\n\ud83d\udd16 TXN ID: ${trxId}\n\ud83d\udcc5 Paid: ${paidDate}\n${status === 'PAID' ? '\u2705' : '\u23f3'} Status: *${status}*\n\n\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501`;
+            await sendMessage(phone, stmtMsg);
+        } else {
+            // Check old history format
+            const oldHistory = await sheetsService.getHistoryByPhone(phone);
+            const oldFound = oldHistory.find(h => {
+                const m = (h.get('Month') || '').toLowerCase();
+                const y = h.get('Year') || '';
+                return m === monthNames[month].toLowerCase() && y.toString() === year.toString();
+            });
+
+            if (oldFound) {
+                const amount = oldFound.get('Amount') || '0';
+                const mode = oldFound.get('Mode') || 'N/A';
+                const stmtMsg = `\ud83d\udcdc *Payment Statement*\n\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\n\n\ud83d\udcc5 *Month: ${monthLabel}*\n\ud83d\udc64 Name: ${name}\n\n\ud83d\udcb5 *Total Paid: \u20b9${amount}*\n\ud83d\udcb3 Mode: ${mode}\n\u2705 Status: *PAID*\n\n\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501`;
+                await sendMessage(phone, stmtMsg);
+            } else {
+                const noDataMsg = `\ud83d\udcdc *Payment Statement*\n\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\n\n\ud83d\udcc5 *Month: ${monthLabel}*\n\ud83d\udc64 Name: ${name}\n\n\u274c No payment record found for this month.\n\n_If you believe this is an error, please contact the admin._\n\n\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501`;
+                await sendButtons(phone, noDataMsg, ['\ud83d\udcde Contact']);
+            }
+        }
+    } catch (err) {
+        console.error('Statement fetch error:', err.message);
+        await sendMessage(phone, `Unable to fetch statement for ${monthLabel}. Please try again later.`);
+    }
 }
 
 async function handleStatus(phone) {
@@ -1399,6 +1844,9 @@ export {
     sendMessage,
     sendMedia,
     sendImage,
+    sendListMessage,
+    sendCTAButton,
+    sendButtons,
     createRazorpayLink,
     setTenantContext,
     handleUpdateEB

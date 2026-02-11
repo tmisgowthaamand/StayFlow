@@ -86,12 +86,22 @@ app.post('/webhook', async (req, res) => {
             let text = msg.text ? msg.text.body : '';
             const image = msg.image ? msg.image : null;
 
+            // Handle interactive button replies
             if (msg.type === 'interactive' && msg.interactive.button_reply) {
                 text = msg.interactive.button_reply.title;
             }
 
+            // Handle interactive list replies (menu selections)
+            if (msg.type === 'interactive' && msg.interactive.list_reply) {
+                const listId = msg.interactive.list_reply.id || '';
+                const listTitle = msg.interactive.list_reply.title || '';
+                // Use the ID (e.g., 'menu_rent', 'stmt_2026_2') for routing
+                text = listId.toUpperCase();
+                console.log(`List selection from ${phone}: ID=${listId}, Title=${listTitle}`);
+            }
+
             if (text || image) {
-                console.log(`Received ${image ? 'image' : (msg.type === 'interactive' ? 'button click' : 'message')} from ${phone}: ${text}`);
+                console.log(`Received ${image ? 'image' : (msg.type === 'interactive' ? 'interactive' : 'message')} from ${phone}: ${text}`);
                 await handleIncomingMessage(phone, text, msg.id, image);
             }
         }
@@ -179,6 +189,41 @@ app.post('/api/upload-aadhaar', upload.single('aadhaar'), async (req, res) => {
 // New /register route to serve the registration page
 app.get('/register', (req, res) => {
     res.sendFile(path.join(__dirname, '../public/register.html'));
+});
+
+// Serve queries form
+app.get('/queries', (req, res) => {
+    res.sendFile(path.join(__dirname, '../public/queries.html'));
+});
+
+// API to submit a query from the queries form
+app.post('/api/submit-query', async (req, res) => {
+    try {
+        const { name, phone, room, category, description } = req.body;
+        if (!name || !phone || !description) {
+            return res.status(400).json({ error: 'Name, phone and description are required' });
+        }
+
+        // Log to MongoDB
+        await Log.create({
+            phone,
+            action: 'QUERY_SUBMITTED',
+            details: { name, room, category, description, timestamp: new Date().toISOString() }
+        });
+
+        // Send confirmation to the user via WhatsApp
+        await sendMessage(phone, `\u2705 *Query Received!*\n\n\ud83d\udccb Category: ${category || 'General'}\n\ud83d\udcdd Issue: "${description}"\n\nOur team will review and get back to you shortly. Thank you for your patience! \ud83d\ude4f`);
+
+        // Notify admin
+        if (config.ownerPhone) {
+            await sendMessage(config.ownerPhone, `\ud83c\udd98 *New Query Received*\n\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\n\ud83d\udc64 Name: ${name}\n\ud83d\udcde Phone: ${phone}\n\ud83d\udeaa Room: ${room || 'N/A'}\n\ud83d\udccb Category: ${category || 'General'}\n\ud83d\udcdd Query: ${description}\n\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\n_Reply to ${phone} directly to respond._`);
+        }
+
+        res.json({ success: true });
+    } catch (err) {
+        console.error('Query submit error:', err);
+        res.status(500).json({ error: err.message });
+    }
 });
 
 // Serve modern dashboard at /admin and /

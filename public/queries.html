@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>StayFlow - Submit Query</title>
+    <meta name="description" content="Submit your queries, complaints or suggestions to StayFlow PG management.">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: linear-gradient(135deg, #0f0c29 0%, #302b63 50%, #24243e 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            color: #e0e0e0;
+        }
+        .container {
+            width: 100%;
+            max-width: 480px;
+            background: rgba(255,255,255,0.05);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 24px;
+            padding: 32px 28px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.4);
+        }
+        .logo {
+            text-align: center;
+            margin-bottom: 24px;
+        }
+        .logo h1 {
+            font-size: 28px;
+            font-weight: 700;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 4px;
+        }
+        .logo p {
+            font-size: 14px;
+            color: #a0a0c0;
+        }
+        .form-group {
+            margin-bottom: 20px;
+        }
+        label {
+            display: block;
+            font-size: 13px;
+            font-weight: 600;
+            color: #b0b0d0;
+            margin-bottom: 6px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        input, select, textarea {
+            width: 100%;
+            padding: 14px 16px;
+            border: 1px solid rgba(255,255,255,0.12);
+            border-radius: 12px;
+            background: rgba(255,255,255,0.06);
+            color: #e0e0e0;
+            font-family: 'Inter', sans-serif;
+            font-size: 15px;
+            outline: none;
+            transition: all 0.3s;
+        }
+        input:focus, select:focus, textarea:focus {
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102,126,234,0.15);
+            background: rgba(255,255,255,0.08);
+        }
+        input::placeholder, textarea::placeholder {
+            color: rgba(255,255,255,0.3);
+        }
+        select option {
+            background: #24243e;
+            color: #e0e0e0;
+        }
+        textarea {
+            min-height: 120px;
+            resize: vertical;
+        }
+        .submit-btn {
+            width: 100%;
+            padding: 16px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 12px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            position: relative;
+            overflow: hidden;
+        }
+        .submit-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(102,126,234,0.35);
+        }
+        .submit-btn:active {
+            transform: translateY(0);
+        }
+        .submit-btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+        .success-msg {
+            display: none;
+            text-align: center;
+            padding: 24px;
+        }
+        .success-msg .icon {
+            font-size: 48px;
+            margin-bottom: 12px;
+        }
+        .success-msg h2 {
+            font-size: 20px;
+            font-weight: 700;
+            color: #4ade80;
+            margin-bottom: 8px;
+        }
+        .success-msg p {
+            font-size: 14px;
+            color: #a0a0c0;
+            line-height: 1.6;
+        }
+        .back-link {
+            display: inline-block;
+            margin-top: 16px;
+            padding: 10px 24px;
+            background: rgba(255,255,255,0.08);
+            border: 1px solid rgba(255,255,255,0.15);
+            border-radius: 10px;
+            color: #b0b0d0;
+            text-decoration: none;
+            font-size: 14px;
+            transition: all 0.3s;
+        }
+        .back-link:hover {
+            background: rgba(255,255,255,0.12);
+            color: #fff;
+        }
+        .error-toast {
+            display: none;
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 12px 24px;
+            background: #ef4444;
+            color: white;
+            border-radius: 10px;
+            font-size: 14px;
+            box-shadow: 0 4px 15px rgba(239,68,68,0.3);
+            z-index: 100;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="logo">
+            <h1>🏠 StayFlow</h1>
+            <p>Submit your query or complaint</p>
+        </div>
+
+        <form id="queryForm">
+            <div class="form-group">
+                <label>Your Name</label>
+                <input type="text" id="name" placeholder="Enter your full name" required>
+            </div>
+
+            <div class="form-group">
+                <label>Phone Number</label>
+                <input type="tel" id="phone" placeholder="Your WhatsApp number" required>
+            </div>
+
+            <div class="form-group">
+                <label>Room Number</label>
+                <input type="text" id="room" placeholder="e.g. 101">
+            </div>
+
+            <div class="form-group">
+                <label>Query Category</label>
+                <select id="category" required>
+                    <option value="">Select category...</option>
+                    <option value="Maintenance">🔧 Maintenance</option>
+                    <option value="Payment">💰 Payment Issue</option>
+                    <option value="Electricity">⚡ Electricity</option>
+                    <option value="Water">🚿 Water Supply</option>
+                    <option value="WiFi">📶 WiFi / Internet</option>
+                    <option value="Cleanliness">🧹 Cleanliness</option>
+                    <option value="Security">🔒 Security</option>
+                    <option value="Noise">🔊 Noise Complaint</option>
+                    <option value="Food">🍽️ Food / Mess</option>
+                    <option value="Suggestion">💡 Suggestion</option>
+                    <option value="Other">📋 Other</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label>Describe your query</label>
+                <textarea id="description" placeholder="Please describe your issue or question in detail..." required></textarea>
+            </div>
+
+            <button type="submit" class="submit-btn" id="submitBtn">📩 Submit Query</button>
+        </form>
+
+        <div class="success-msg" id="successMsg">
+            <div class="icon">✅</div>
+            <h2>Query Submitted!</h2>
+            <p>Your query has been received. Our admin team will review it and get back to you via WhatsApp shortly.</p>
+            <a href="javascript:void(0)" onclick="resetForm()" class="back-link">📝 Submit Another Query</a>
+        </div>
+    </div>
+
+    <div class="error-toast" id="errorToast">Something went wrong. Please try again.</div>
+
+    <script>
+        // Auto-fill phone from URL params
+        const params = new URLSearchParams(window.location.search);
+        const phoneParam = params.get('phone');
+        if (phoneParam) {
+            document.getElementById('phone').value = phoneParam;
+        }
+
+        document.getElementById('queryForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const btn = document.getElementById('submitBtn');
+            btn.disabled = true;
+            btn.textContent = '⏳ Submitting...';
+
+            const data = {
+                name: document.getElementById('name').value,
+                phone: document.getElementById('phone').value,
+                room: document.getElementById('room').value,
+                category: document.getElementById('category').value,
+                description: document.getElementById('description').value
+            };
+
+            try {
+                const res = await fetch('/api/submit-query', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
+
+                if (res.ok) {
+                    document.getElementById('queryForm').style.display = 'none';
+                    document.getElementById('successMsg').style.display = 'block';
+                } else {
+                    throw new Error('Failed');
+                }
+            } catch (err) {
+                const toast = document.getElementById('errorToast');
+                toast.style.display = 'block';
+                setTimeout(() => toast.style.display = 'none', 3000);
+            }
+
+            btn.disabled = false;
+            btn.textContent = '📩 Submit Query';
+        });
+
+        function resetForm() {
+            document.getElementById('queryForm').reset();
+            if (phoneParam) document.getElementById('phone').value = phoneParam;
+            document.getElementById('queryForm').style.display = 'block';
+            document.getElementById('successMsg').style.display = 'none';
+        }
+    </script>
+</body>
+</html>
