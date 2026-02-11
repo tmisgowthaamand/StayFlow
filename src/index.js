@@ -536,7 +536,7 @@ app.post('/api/trigger-notifications', async (req, res) => {
                     let caption = `🔔 *Bill Reminder*\n\nHi ${name},\nTotal Due: *₹${total}*\n📅 *Due Date: 5th ${currentMonth}*`;
                     if (razorpayLink) caption += `\n\n💳 *Pay Online (Razorpay):* ${razorpayLink}`;
 
-                    await sendMedia(phone, filePath, caption, ["💳 Pay Now"]);
+                    await sendMedia(phone, filePath, caption, ["💳 Pay Now UPI", "💵 Pay Cash", "❌ Cancel"]);
                     sentCount++;
                     await new Promise(r => setTimeout(r, 1000));
                 } catch (e) { console.error(`Failed to notify ${name}:`, e.message); }
@@ -596,7 +596,7 @@ app.post('/api/notify-tenant', async (req, res) => {
         let caption = `🧾 *Invoice & Payment*\n\nHi ${name},\n💰 *Total Due: ₹${total}*\n📅 *Due Date:* 5th ${currentMonth}`;
         if (razorpayLink) caption += `\n\n💳 *Pay Online (Razorpay):*\n${razorpayLink}`;
 
-        if (filePath) await sendMedia(phone, filePath, caption, ["💳 Pay Now"]);
+        if (filePath) await sendMedia(phone, filePath, caption, ["💳 Pay Now UPI", "💵 Pay Cash", "❌ Cancel"]);
         else await sendMessage(phone, caption);
 
         res.json({ success: true });
