@@ -220,7 +220,7 @@
         <div id="statusMsg" class="status-msg"></div>
 
         <div style="margin-top: 32px;">
-            <a href="https://wa.me/919876543210" id="waLink"
+            <a href="https://wa.me/15551569280" id="waLink"
                 style="color: var(--primary); text-decoration: none; font-size: 14px; font-weight: 600;">
                 Return to WhatsApp Chat
             </a>
@@ -234,14 +234,9 @@
         const statusMsg = document.getElementById('statusMsg');
         const waLink = document.getElementById('waLink');
 
-        // Extract phone and maybe payment_id from URL
+        // Extract phone from URL
         const urlParams = new URLSearchParams(window.location.search);
         const phone = urlParams.get('phone');
-        const rzp_payment_id = urlParams.get('razorpay_payment_id');
-
-        if (rzp_payment_id) {
-            document.getElementById('trxId').value = rzp_payment_id;
-        }
 
         form.addEventListener('submit', async (e) => {
             e.preventDefault();
@@ -268,12 +263,13 @@
 
                 if (data.success) {
                     statusMsg.className = 'status-msg success';
-                    statusMsg.innerHTML = '✅ Payment Verified! You will receive your invoice on WhatsApp shortly.';
+                    statusMsg.innerHTML = '✅ Payment Verified! Redirecting to WhatsApp...';
                     form.style.display = 'none';
-                    // Update WA link with a custom message
-                    if (phone) {
-                        waLink.href = `https://wa.me/${data.botNumber}?text=Payment Verified. My ID: ${trxId}`;
-                    }
+
+                    const botNum = data.botNumber ? data.botNumber.replace(/\D/g, '') : '15551569280';
+                    setTimeout(() => {
+                        window.location.href = `https://wa.me/${botNum}?text=Payment%20Verified%20TXN%20ID:%20${trxId}`;
+                    }, 2000);
                 } else {
                     statusMsg.className = 'status-msg error';
                     statusMsg.innerHTML = '❌ ' + (data.error || 'Transaction ID not found. Please contact support.');
@@ -281,7 +277,7 @@
                 }
             } catch (err) {
                 statusMsg.className = 'status-msg error';
-                statusMsg.innerHTML = '❌ Connection error. Please try again or contact support.';
+                statusMsg.innerHTML = '❌ Connection error. Please try again.';
                 submitBtn.disabled = false;
             } finally {
                 loader.style.display = 'none';

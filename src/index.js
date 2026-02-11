@@ -166,12 +166,14 @@ app.post('/webhook/razorpay', async (req, res) => {
 // Called from confirmation.html to verify a transaction ID
 app.post('/api/verify-transaction', async (req, res) => {
     try {
-        const { phone, trxId } = req.body;
+        let { phone, trxId } = req.body;
         if (!trxId) return res.status(400).json({ error: 'Transaction ID is required' });
 
+        // Clean Transaction ID (remove whitespace, common prefixes if user added them)
+        trxId = trxId.trim();
         console.log(`Verifying Transaction: ${trxId} for phone: ${phone}`);
 
-        // 1. Check Google Sheets Records
+        // 1. Check Google Sheets Records First
         const tenants = await sheetsService.getAllTenants();
         const tenant = tenants.find(t =>
             t.get('Transaction ID') === trxId ||
@@ -183,7 +185,7 @@ app.post('/api/verify-transaction', async (req, res) => {
             return res.json({
                 success: true,
                 message: 'Payment Verified',
-                botNumber: config.ownerPhone || ''
+                botNumber: '+1 (555) 156-9280'
             });
         }
 
@@ -193,44 +195,62 @@ app.post('/api/verify-transaction', async (req, res) => {
             $or: [
                 { 'details.payload.payment.entity.id': trxId },
                 { 'details.payload.payment_link.entity.id': trxId },
-                { 'details.payload.payment.entity.acquirer_data.rrn': trxId }, // UPI UTR
+                { 'details.payload.payment.entity.acquirer_data.rrn': trxId },
                 { 'details.payload.payment.entity.acquirer_data.upi_transaction_id': trxId }
             ]
         });
 
         if (webhookLog) {
-            console.log(`Found matching Razorpay webhook for TRX: ${trxId}`);
-
-            // If it's found in logs but not yet marked valid in sheets (maybe webhook delay),
-            // trigger the success handler now.
+            console.log(`Found matching Razorpay webhook in logs for TRX: ${trxId}`);
             const payload = webhookLog.details;
             const paymentEntity = payload.payload?.payment?.entity || payload.payload?.payment_link?.entity || {};
             const notes = paymentEntity.notes || {};
             const targetPhone = phone || notes.phone || '';
             const amount = (paymentEntity.amount || 0) / 100;
 
-            if (targetPhone && trxId) {
+            if (targetPhone) {
                 await handleRazorpaySuccess(targetPhone, amount, trxId, 'UPI (Razorpay)');
+                return res.json({ success: true, botNumber: '+1 (555) 156-9280' });
             }
-
-            return res.json({
-                success: true,
-                message: 'Payment Verified',
-                botNumber: config.ownerPhone || ''
-            });
         }
 
-        // 3. Fallback: Check if this phone has a general PAID status with this TRX
+        // 3. Direct Razorpay API Lookup (Fallback if webhook is delayed)
+        if (config.razorpay.key_id && config.razorpay.key_secret) {
+            try {
+                const auth = Buffer.from(`${config.razorpay.key_id}:${config.razorpay.key_secret}`).toString('base64');
+                const rzpResponse = await axios.get(`https://api.razorpay.com/v1/payments/${trxId}`, {
+                    headers: { 'Authorization': `Basic ${auth}` }
+                });
+
+                if (rzpResponse.data && (rzpResponse.data.status === 'captured' || rzpResponse.data.status === 'authorized')) {
+                    console.log(`Verified TRX ${trxId} directly via Razorpay API`);
+                    const rzpPayment = rzpResponse.data;
+                    const notes = rzpPayment.notes || {};
+                    const targetPhone = phone || notes.phone || '';
+                    const amount = rzpPayment.amount / 100;
+
+                    if (targetPhone) {
+                        await handleRazorpaySuccess(targetPhone, amount, trxId, 'UPI (Razorpay)');
+                        return res.json({ success: true, botNumber: '+1 (555) 156-9280' });
+                    }
+                }
+            } catch (rzpErr) {
+                console.warn(`Razorpay API lookup failed for ${trxId}: ${rzpErr.message}`);
+                // Continue to fallback
+            }
+        }
+
+        // 4. Final Fallback: Check if this phone has a general PAID status with this TRX
         if (tenant && tenant.get('Transaction ID') === trxId) {
             return res.json({
                 success: true,
                 message: 'Payment Verified',
-                botNumber: config.ownerPhone || ''
+                botNumber: '+1 (555) 156-9280'
             });
         }
 
-        console.warn(`Transaction NOT found: ${trxId}`);
-        res.status(404).json({ error: 'Transaction ID not found. Please contact support.' });
+        console.warn(`Transaction NOT found after all checks: ${trxId}`);
+        res.status(404).json({ error: 'Transaction ID not found. Please wait a moment or contact support.' });
     } catch (err) {
         console.error('Verify Transaction Error:', err.message);
         res.status(500).json({ error: err.message });

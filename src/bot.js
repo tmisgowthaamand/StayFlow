@@ -1131,7 +1131,7 @@ async function handleSmartPayment(phone, body) {
     const total = rent + eb;
 
     // ===== "PAID" / "PAY" / "RENT" / "UPI" — Trigger Razorpay flow =====
-    if (['PAID', 'PAY', 'RENT', 'UPI', 'UPI/APP'].includes(clean) || (clean.includes('PAID') && !clean.match(/[A-Z0-9]{10,}/))) {
+    if (['PAID', 'PAY', 'RENT', 'UPI', 'UPI/APP'].includes(clean) || (clean.includes('PAID') && !clean.match(/[A-Z0-9]{10,}/) && !clean.includes('CASH'))) {
         const razorpayLink = await createRazorpayLink(phone, tenant.get('Name'), total, tenant.get('Room'));
 
         let msg = `💳 *Pay via Razorpay*\n\n🏠 Rent: ₹${rent}\n⚡ EB: ₹${eb}\n━━━━━━━━━━━━━━━━━━━━\n💰 *Total: ₹${total}*`;
@@ -1142,6 +1142,13 @@ async function handleSmartPayment(phone, body) {
             msg += `\n\n❌ Online payment is currently unavailable. Please contact admin.`;
             await sendMessage(phone, msg);
         }
+        return true;
+    }
+
+    // ===== "PAID BY CASH" — Cash payment flow =====
+    if (clean.includes('CASH')) {
+        userState[phone] = { step: 'CASH_AMOUNT', contextName: tenant.get('Name'), expectedTotal: total };
+        await sendMessage(phone, `💵 *Cash Payment*\n\n🏠 Rent: ₹${rent}\n⚡ EB: ₹${eb}\n━━━━━━━━━━━━━━━━━━━━\n💰 *Total Due: ₹${total}*\n\nPlease enter the *exact amount paid*.\nExample: *${total}*`);
         return true;
     }
 
@@ -1226,7 +1233,8 @@ async function handleRent(phone) {
     if (isVerified) {
         await sendMedia(phone, filePath, caption + `\n\n✅ *Payment Status: VALID*`, null, 'StayFlow_Invoice.pdf');
     } else {
-        await sendMedia(phone, filePath, caption, ["💳 Pay Now"], 'StayFlow_Invoice.pdf');
+        userState[phone] = { step: 'PAYMENT_METHOD', contextName: name };
+        await sendMedia(phone, filePath, caption + `\n\n━━━━━━━━━━━━━━━━━━━━\n*Select payment method to proceed* 👇`, ["💳 Pay Now", "💵 Pay by Cash", "❌ Cancel"], 'StayFlow_Invoice.pdf');
         // Send Contact Us CTA as a follow-up
         const adminPhone = config.ownerPhone || '';
         await sendCTAButton(phone, `📞 *Need help with payment?*\nContact our admin directly.`, '📞 Contact Us', `https://wa.me/${adminPhone}`);
@@ -1264,8 +1272,9 @@ async function handleMenuRent(phone) {
     let rentMsg = `🏠 *Rent Details — ${currentMonth}*\n━━━━━━━━━━━━━━━━━━━━\n\n👤 Name: ${name}\n🚪 Room: ${room}\n\n💰 *Bill Breakdown:*\n┌─────────────────────\n│ 🏠 Rent: ₹${rent}\n│ ⚡ EB: ₹${eb}\n└─────────────────────\n💵 *Total Due: ₹${total}*\n📅 *Due Date: ${dueDate}*\n\n${isVerified ? '✅ *Payment Status: VALID*' : (status === 'PENDING' ? '⏳ *Payment Status: PENDING*' : '❌ *Payment Status: INVALID*')}`;
 
     if (!isVerified) {
-        // Show Pay Now + Contact buttons
-        await sendButtons(phone, rentMsg, ['💳 Pay Now', '📞 Contact']);
+        // Show Pay Now + Cash + Cancel buttons
+        await sendButtons(phone, rentMsg, ['💳 Pay Now', '💵 Pay by Cash', '❌ Cancel']);
+        userState[phone] = { step: 'PAYMENT_METHOD', contextName: name };
     } else {
         // Already paid — show contact only
         await sendButtons(phone, rentMsg, ['📞 Contact']);
@@ -1293,7 +1302,8 @@ async function handleMenuEBBill(phone) {
     const status = tenant.get('Status') || 'PENDING';
     const isVerified = status === 'PAID' || status === 'VALID';
     if (!isVerified) {
-        await sendButtons(phone, ebMsg, ['💳 Pay Now', '📞 Contact']);
+        await sendButtons(phone, ebMsg, ['💳 Pay Now', '💵 Pay by Cash', '❌ Cancel']);
+        userState[phone] = { step: 'PAYMENT_METHOD', contextName: name };
     } else {
         await sendButtons(phone, ebMsg, ['📞 Contact']);
     }
@@ -1672,9 +1682,84 @@ async function handleOnboarding(phone, input, image) {
     const state = userState[phone];
     switch (state.step) {
 
-        // ========== PAYMENT FLOW STATES (LEGACY REMOVED) ==========
-        // These are now handled by handleSmartPayment and confirmation page
+        // ========== PAYMENT FLOW STATES ==========
+        case 'PAYMENT_METHOD': {
+            const choice = input.trim().toUpperCase();
+            const isUPI = choice.includes('PAY NOW') || choice.includes('UPI');
+            const isCash = choice.includes('CASH');
+            const isCancel = choice.includes('CANCEL');
 
+            if (isCancel) {
+                await sendMessage(phone, '❌ Payment cancelled. Type *PAID* anytime to try again.');
+                delete userState[phone];
+            } else if (isUPI) {
+                const tenant = await sheetsService.getTenantByPhone(phone, state.contextName);
+                if (!tenant) { await sendMessage(phone, 'Tenant not found.'); delete userState[phone]; return; }
+                const rent = parseFloat(tenant.get('Monthly Rent') || 0);
+                const eb = parseFloat(tenant.get('EB Amount') || 0);
+                const total = rent + eb;
+
+                const razorpayLink = await createRazorpayLink(phone, tenant.get('Name'), total, tenant.get('Room'));
+
+                let msg = `💳 *Secure Payment (Razorpay)*\n\n🏠 Rent: ₹${rent}\n⚡ EB: ₹${eb}\n━━━━━━━━━━━━━━━━━━━━\n💰 *Total: ₹${total}*\n\n_Redirecting to secure gateway..._`;
+
+                if (razorpayLink) {
+                    await sendCTAButton(phone, msg, '💳 Pay Now', razorpayLink, '💳 Secure Payment');
+                } else {
+                    await sendMessage(phone, `❌ Online payment is currently unavailable. Please contact admin.`);
+                }
+                delete userState[phone]; // Let Webhook/Confirmation page handle it
+            } else if (isCash) {
+                const tenant = await sheetsService.getTenantByPhone(phone, state.contextName);
+                if (!tenant) { await sendMessage(phone, 'Tenant not found.'); delete userState[phone]; return; }
+                const rent = parseFloat(tenant.get('Monthly Rent') || 0);
+                const eb = parseFloat(tenant.get('EB Amount') || 0);
+                const total = rent + eb;
+                state.step = 'CASH_AMOUNT';
+                state.expectedTotal = total;
+
+                await sendMessage(phone, `💵 *Cash Payment*\n\n🏠 Rent: ₹${rent}\n⚡ EB: ₹${eb}\n━━━━━━━━━━━━━━━━━━━━\n💰 *Total Due (Rent + EB): ₹${total}*\n\nPlease enter the *exact amount paid*.\nExample: *${total}*\n\n⚠️ _Invoice will be generated after admin verification._`);
+            } else {
+                await sendButtons(phone, '❌ Please select a payment method:', ["💳 Pay Now", "💵 Pay by Cash", "❌ Cancel"]);
+            }
+            break;
+        }
+
+        case 'CASH_AMOUNT': {
+            const amount = parseFloat(input.replace(/[^0-9.]/g, ''));
+            if (isNaN(amount) || amount <= 0) {
+                await sendMessage(phone, '❌ Please enter a valid number (e.g., 6500).');
+                return;
+            }
+            state.amountPaid = amount;
+            state.step = 'CASH_DATE';
+            await sendMessage(phone, `📅 *Step 2: Date of Payment*\n\nPlease enter the date you paid cash (e.g., *Today*).`);
+            break;
+        }
+
+        case 'CASH_DATE': {
+            const pDate = input.trim();
+            const tenant = await sheetsService.getTenantByPhone(phone, state.contextName);
+            if (!tenant) { delete userState[phone]; return; }
+
+            const rent = parseFloat(tenant.get('Monthly Rent') || 0);
+            const eb = parseFloat(tenant.get('EB Amount') || 0);
+            const trxId = `CASH-${Date.now().toString().slice(-6)}`;
+
+            await sheetsService.updateTenant(phone, {
+                'Status': 'PENDING', 'Payment Mode': 'CASH',
+                'Transaction ID': trxId, 'Paid Date': pDate
+            }, state.contextName);
+            await sheetsService.logPayment(tenant, state.amountPaid.toString(), 'CASH', trxId, 'PENDING');
+
+            await sendMessage(phone, `⏳ *Cash Payment Submitted*\n\nHi ${tenant.get('Name')},\n\n📋 *Breakdown:*\n🏠 Rent: ₹${rent}\n⚡ EB: ₹${eb}\n💰 *Amount Paid: ₹${state.amountPaid}*\n\n💵 Mode: CASH\n🔖 Ref: ${trxId}\n📅 Date: ${pDate}\n\n⚠️ _Your payment is pending admin verification. Invoice will be sent after confirmation._ 🙏`);
+
+            if (config.ownerPhone) {
+                await sendMessage(config.ownerPhone, `💵 *Cash Payment — Needs Verification*\nTenant: ${tenant.get('Name')}\nPhone: ${phone}\nRoom: ${tenant.get('Room')}\nRent: ₹${rent} | EB: ₹${eb}\nAmount: ₹${state.amountPaid}\nRef: ${trxId}\nDate: ${pDate}\n\n✅ Reply: *VERIFY CASH ${phone}*`);
+            }
+            delete userState[phone];
+            break;
+        }
 
         case 'HELP_CATEGORY': {
             const category = input.trim().replace(/[^\w\s]/g, '').trim() || 'General';
