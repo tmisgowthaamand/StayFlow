@@ -238,6 +238,11 @@
         const urlParams = new URLSearchParams(window.location.search);
         const phone = urlParams.get('phone');
 
+        function updateWALink(botNum) {
+            const cleanBotNum = botNum ? botNum.replace(/\D/g, '') : '15551569280';
+            waLink.href = `https://wa.me/${cleanBotNum}`;
+        }
+
         form.addEventListener('submit', async (e) => {
             e.preventDefault();
             const trxId = document.getElementById('trxId').value.trim();
@@ -260,6 +265,10 @@
                 });
 
                 const data = await response.json();
+
+                if (data.botNumber) {
+                    updateWALink(data.botNumber);
+                }
 
                 if (data.success) {
                     statusMsg.className = 'status-msg success';

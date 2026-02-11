@@ -826,7 +826,9 @@ async function handleIncomingMessage(phone, body, messageId = null, image = null
         }
 
         // ==================== REPLY BUTTON HANDLERS ====================
-        // Rent Pay Now button
+        // Rent Pay Now UPI button
+        case '💳 PAY NOW UPI':
+        case 'PAY NOW UPI':
         case '💳 PAY NOW':
         case 'PAY NOW': {
             const tenantPay = await sheetsService.getTenantByPhone(phone);
@@ -853,6 +855,29 @@ async function handleIncomingMessage(phone, body, messageId = null, image = null
             } else {
                 await sendMessage(phone, `❌ Online payment is currently unavailable. Please contact admin.`);
             }
+            break;
+        }
+
+        // Pay Cash button
+        case '💵 PAY CASH':
+        case 'PAY CASH':
+        case '💵 PAY BY CASH':
+        case 'PAY BY CASH': {
+            const tenantCash = await sheetsService.getTenantByPhone(phone);
+            if (!tenantCash) break;
+            const cashRent = parseFloat(tenantCash.get('Monthly Rent') || 0);
+            const cashEB = parseFloat(tenantCash.get('EB Amount') || 0);
+            const cashTotal = cashRent + cashEB;
+            userState[phone] = { step: 'CASH_AMOUNT', contextName: tenantCash.get('Name'), expectedTotal: cashTotal };
+            await sendMessage(phone, `💵 *Cash Payment*\n\n🏠 Rent: ₹${cashRent}\n⚡ EB: ₹${cashEB}\n━━━━━━━━━━━━━━━━━━━━\n💰 *Total Due: ₹${cashTotal}*\n\nPlease enter the *exact amount paid*.\nExample: *${cashTotal}*`);
+            break;
+        }
+
+        // Cancel button
+        case '❌ CANCEL':
+        case 'CANCEL': {
+            await sendMessage(phone, '❌ Payment cancelled. You can type *RENT* anytime to view your bill and pay.');
+            delete userState[phone];
             break;
         }
 
@@ -1234,7 +1259,7 @@ async function handleRent(phone) {
         await sendMedia(phone, filePath, caption + `\n\n✅ *Payment Status: VALID*`, null, 'StayFlow_Invoice.pdf');
     } else {
         userState[phone] = { step: 'PAYMENT_METHOD', contextName: name };
-        await sendMedia(phone, filePath, caption + `\n\n━━━━━━━━━━━━━━━━━━━━\n*Select payment method to proceed* 👇`, ["💳 Pay Now", "💵 Pay by Cash", "❌ Cancel"], 'StayFlow_Invoice.pdf');
+        await sendMedia(phone, filePath, caption + `\n\n━━━━━━━━━━━━━━━━━━━━\n*Select payment method to proceed* 👇`, ["💳 Pay Now UPI", "💵 Pay Cash", "❌ Cancel"], 'StayFlow_Invoice.pdf');
         // Send Contact Us CTA as a follow-up
         const adminPhone = config.ownerPhone || '';
         await sendCTAButton(phone, `📞 *Need help with payment?*\nContact our admin directly.`, '📞 Contact Us', `https://wa.me/${adminPhone}`);
@@ -1273,7 +1298,7 @@ async function handleMenuRent(phone) {
 
     if (!isVerified) {
         // Show Pay Now + Cash + Cancel buttons
-        await sendButtons(phone, rentMsg, ['💳 Pay Now', '💵 Pay by Cash', '❌ Cancel']);
+        await sendButtons(phone, rentMsg, ['💳 Pay Now UPI', '💵 Pay Cash', '❌ Cancel']);
         userState[phone] = { step: 'PAYMENT_METHOD', contextName: name };
     } else {
         // Already paid — show contact only
@@ -1302,7 +1327,7 @@ async function handleMenuEBBill(phone) {
     const status = tenant.get('Status') || 'PENDING';
     const isVerified = status === 'PAID' || status === 'VALID';
     if (!isVerified) {
-        await sendButtons(phone, ebMsg, ['💳 Pay Now', '💵 Pay by Cash', '❌ Cancel']);
+        await sendButtons(phone, ebMsg, ['💳 Pay Now UPI', '💵 Pay Cash', '❌ Cancel']);
         userState[phone] = { step: 'PAYMENT_METHOD', contextName: name };
     } else {
         await sendButtons(phone, ebMsg, ['📞 Contact']);
@@ -1685,12 +1710,12 @@ async function handleOnboarding(phone, input, image) {
         // ========== PAYMENT FLOW STATES ==========
         case 'PAYMENT_METHOD': {
             const choice = input.trim().toUpperCase();
-            const isUPI = choice.includes('PAY NOW') || choice.includes('UPI');
-            const isCash = choice.includes('CASH');
+            const isUPI = choice.includes('PAY NOW UPI') || choice.includes('UPI');
+            const isCash = choice.includes('PAY CASH') || (choice.includes('CASH') && !choice.includes('VERIFY'));
             const isCancel = choice.includes('CANCEL');
 
             if (isCancel) {
-                await sendMessage(phone, '❌ Payment cancelled. Type *PAID* anytime to try again.');
+                await sendMessage(phone, '❌ Payment cancelled. Type *RENT* anytime to view your bill.');
                 delete userState[phone];
             } else if (isUPI) {
                 const tenant = await sheetsService.getTenantByPhone(phone, state.contextName);
@@ -1708,7 +1733,7 @@ async function handleOnboarding(phone, input, image) {
                 } else {
                     await sendMessage(phone, `❌ Online payment is currently unavailable. Please contact admin.`);
                 }
-                delete userState[phone]; // Let Webhook/Confirmation page handle it
+                delete userState[phone];
             } else if (isCash) {
                 const tenant = await sheetsService.getTenantByPhone(phone, state.contextName);
                 if (!tenant) { await sendMessage(phone, 'Tenant not found.'); delete userState[phone]; return; }
@@ -1720,7 +1745,7 @@ async function handleOnboarding(phone, input, image) {
 
                 await sendMessage(phone, `💵 *Cash Payment*\n\n🏠 Rent: ₹${rent}\n⚡ EB: ₹${eb}\n━━━━━━━━━━━━━━━━━━━━\n💰 *Total Due (Rent + EB): ₹${total}*\n\nPlease enter the *exact amount paid*.\nExample: *${total}*\n\n⚠️ _Invoice will be generated after admin verification._`);
             } else {
-                await sendButtons(phone, '❌ Please select a payment method:', ["💳 Pay Now", "💵 Pay by Cash", "❌ Cancel"]);
+                await sendButtons(phone, '❌ Please select a payment method:', ["💳 Pay Now UPI", "💵 Pay Cash", "❌ Cancel"]);
             }
             break;
         }

@@ -250,7 +250,11 @@ app.post('/api/verify-transaction', async (req, res) => {
         }
 
         console.warn(`Transaction NOT found after all checks: ${trxId}`);
-        res.status(404).json({ error: 'Transaction ID not found. Please wait a moment or contact support.' });
+        res.status(404).json({
+            success: false,
+            error: 'Transaction ID not found. Please contact support.',
+            botNumber: '+1 (555) 156-9280'
+        });
     } catch (err) {
         console.error('Verify Transaction Error:', err.message);
         res.status(500).json({ error: err.message });
