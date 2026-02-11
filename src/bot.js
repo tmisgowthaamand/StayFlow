@@ -1662,8 +1662,8 @@ async function handleRejectPayment(ownerPhone, tenantPhone) {
 
 // ==================== RAZORPAY PAYMENT VERIFICATION ====================
 
-// Called when Razorpay webhook confirms successful payment
-async function handleRazorpaySuccess(phone, amount, trxId, paymentMode = 'Paid Successfully (UPI via Razorpay)') {
+// Called when Razorpay webhook or confirmation page verifies successful payment
+async function handleRazorpaySuccess(phone, amount, trxId, paymentMode = 'UPI (Razorpay)') {
     const cleanPhone = normalizePhone(phone);
     const tenant = await sheetsService.getTenantByPhone(cleanPhone);
     if (!tenant) {
@@ -1677,14 +1677,22 @@ async function handleRazorpaySuccess(phone, amount, trxId, paymentMode = 'Paid S
     const eb = parseFloat(tenant.get('EB Amount') || 0);
     const total = rent + eb;
 
-    // Mark as VALID (auto-verified by Razorpay)
+    // Check if already marked as PAID to avoid duplicate processing
+    if (tenant.get('Status') === 'PAID' && tenant.get('Transaction ID') === trxId) {
+        console.log(`Payment already processed for ${name} [${trxId}]`);
+        return;
+    }
+
+    // Mark as PAID (auto-verified by Razorpay)
     await sheetsService.updateTenant(cleanPhone, {
-        'Status': 'VALID',
-        'Payment Mode': 'UPI (Razorpay)',
+        'Status': 'PAID',
+        'Payment Mode': paymentMode,
         'Transaction ID': trxId,
         'Paid Date': new Date().toLocaleDateString()
     });
-    await sheetsService.logPayment(tenant, total.toString(), 'UPI (Razorpay)', trxId, 'VALID');
+
+    // Log to History and Payments sheets
+    await sheetsService.logPayment(tenant, total.toString(), paymentMode, trxId, 'PAID');
 
     // Generate Invoice PDF
     const { filePath } = await pdfService.generateInvoice({
@@ -1693,13 +1701,13 @@ async function handleRazorpaySuccess(phone, amount, trxId, paymentMode = 'Paid S
         Paid_Date: new Date().toLocaleDateString(), Transaction_ID: trxId, Payment_Mode: paymentMode
     });
 
-    // Send to tenant
-    await sendMessage(cleanPhone, `✅ *Payment Successful via Razorpay!*\n\nHi ${name},\n\n📋 *Breakdown:*\n🏠 Rent: ₹${rent}\n⚡ EB: ₹${eb}\n💰 *Total Paid: ₹${total}*\n\n💳 Mode: UPI (Razorpay)\n🔖 TXN ID: ${trxId}\n📅 Date: ${new Date().toLocaleDateString()}\n\nThank you! 🙏`);
+    // Send to tenant via WhatsApp
+    await sendMessage(cleanPhone, `✅ *Payment Successful via UPI!*\n\nHi ${name},\n\n📋 *Breakdown:*\n🏠 Rent: ₹${rent}\n⚡ EB: ₹${eb}\n💰 *Total Paid: ₹${total}*\n\n💳 Mode: UPI\n🔖 TXN ID: ${trxId}\n📅 Date: ${new Date().toLocaleDateString()}\n\nThank you for choosing StayFlow! 🙏`);
     await sendMedia(cleanPhone, filePath, '📄 Your payment receipt', null, 'StayFlow_Invoice.pdf');
 
     // Notify owner
     if (config.ownerPhone) {
-        await sendMessage(config.ownerPhone, `✅ *Razorpay Payment — Auto Verified*\nTenant: ${name}\nRoom: ${room}\nAmount: ₹${total}\nTXN: ${trxId}\nStatus: VALID\n\n📄 Invoice sent automatically.`);
+        await sendMessage(config.ownerPhone, `✅ *UPI Payment — Verified*\nTenant: ${name}\nRoom: ${room}\nAmount: ₹${total}\nTXN: ${trxId}\nStatus: PAID\n\n📄 Invoice sent automatically.`);
     }
 }
 

@@ -221,7 +221,7 @@ class SheetsService {
 
     // ==================== TENANT METHODS ====================
 
-    async logPayment(tenant, amount, mode, trxId, status = 'VALID') {
+    async logPayment(tenant, amount, mode, trxId, status = 'PAID') {
         await this.init();
         const date = new Date();
         const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
@@ -281,12 +281,12 @@ class SheetsService {
             mode = pRow.get('Payment Mode') || mode;
             pDate = pRow.get('Paid Date') || pDate;
 
-            pRow.set('Status', 'VALID');
+            pRow.set('Status', 'PAID');
             await pRow.save();
         }
 
         // 2. Update Tenant Status in main sheet
-        tenant.set('Status', 'VALID');
+        tenant.set('Status', 'PAID');
         tenant.set('Transaction ID', trxId);
         tenant.set('Paid Date', pDate);
         await tenant.save();
