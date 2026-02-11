@@ -233,20 +233,39 @@
         const loader = document.getElementById('loader');
         const statusMsg = document.getElementById('statusMsg');
         const waLink = document.getElementById('waLink');
+        const trxInput = document.getElementById('trxId');
 
-        // Extract phone from URL
+        // Extract params from URL
         const urlParams = new URLSearchParams(window.location.search);
         const phone = urlParams.get('phone');
+        
+        // Check for Razorpay IDs
+        const rzpPaymentId = urlParams.get('razorpay_payment_id');
+        const rzpRefId = urlParams.get('razorpay_payment_link_reference_id');
+        const urlTrxId = rzpPaymentId || rzpRefId;
 
-        function updateWALink(botNum) {
-            const cleanBotNum = botNum ? botNum.replace(/\D/g, '') : '15551569280';
-            waLink.href = `https://wa.me/${cleanBotNum}`;
+        // Default Bot Number
+        let botNumber = '15551569280';
+
+        function updateWALink(botNum, trxId = null) {
+            if (botNum) botNumber = botNum.replace(/\D/g, '');
+            let link = `https://wa.me/${botNumber}`;
+            if (trxId) {
+                const text = encodeURIComponent(`Payment Verified. My ID is: ${trxId}`);
+                link += `?text=${text}`;
+            }
+            waLink.href = link;
         }
 
-        form.addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const trxId = document.getElementById('trxId').value.trim();
+        // Auto-fill and Verify if ID exists
+        if (urlTrxId) {
+            trxInput.value = urlTrxId;
+            updateWALink(botNumber, urlTrxId);
+            // Small delay to allow page load before auto-verification
+            setTimeout(() => verifyTransaction(urlTrxId), 500);
+        }
 
+        async function verifyTransaction(trxId) {
             if (!trxId) return;
 
             // Clear previous status
@@ -267,22 +286,25 @@
                 const data = await response.json();
 
                 if (data.botNumber) {
-                    updateWALink(data.botNumber);
+                    botNumber = data.botNumber.replace(/\D/g, '');
                 }
+                
+                // Always update link with the specific ID we tried to verify
+                updateWALink(botNumber, trxId);
 
                 if (data.success) {
                     statusMsg.className = 'status-msg success';
                     statusMsg.innerHTML = '✅ Payment Verified! Redirecting to WhatsApp...';
                     form.style.display = 'none';
 
-                    const botNum = data.botNumber ? data.botNumber.replace(/\D/g, '') : '15551569280';
                     setTimeout(() => {
-                        window.location.href = `https://wa.me/${botNum}?text=Payment%20Verified%20TXN%20ID:%20${trxId}`;
+                        window.location.href = waLink.href;
                     }, 2000);
                 } else {
                     statusMsg.className = 'status-msg error';
                     statusMsg.innerHTML = '❌ ' + (data.error || 'Transaction ID not found. Please contact support.');
                     submitBtn.disabled = false;
+                    // If auto-verify failed, user can still see the ID and click the link manually
                 }
             } catch (err) {
                 statusMsg.className = 'status-msg error';
@@ -291,6 +313,12 @@
             } finally {
                 loader.style.display = 'none';
             }
+        }
+
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const trxId = trxInput.value.trim();
+            verifyTransaction(trxId);
         });
     </script>
 </body>
