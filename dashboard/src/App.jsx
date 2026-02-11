@@ -993,7 +993,7 @@ const App = () => {
     <div className="dashboard-container">
       <div className="sidebar">
         <div className="logo-section">
-          <div className="logo-blob"><Zap fill="currentColor" size={20} /></div>
+          <img src="/logo.svg" alt="StayFlow Logo" style={{ width: 32, height: 32 }} />
           <span className="logo-text">StayFlow</span>
         </div>
         <nav className="nav-links">
