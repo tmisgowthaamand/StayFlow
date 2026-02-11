@@ -244,13 +244,6 @@ class PDFService {
             doc.setFontSize(9);
             doc.setTextColor(46, 125, 50);
             doc.text(`✓  PAID on ${Paid_Date}  |  Mode: ${Payment_Mode}  |  TXN: ${Transaction_ID}`, margin + 5, statusY + 9);
-        } else {
-            doc.setFillColor(255, 243, 224);
-            doc.roundedRect(margin, statusY, contentW, 14, 2, 2, 'F');
-            doc.setFont('helvetica', 'bold');
-            doc.setFontSize(9);
-            doc.setTextColor(230, 126, 34);
-            doc.text(`⏳  PAYMENT PENDING  |  Due by ${config.rentDueDate}th of this month`, margin + 5, statusY + 9);
         }
 
         // ==================== THANK YOU ====================
