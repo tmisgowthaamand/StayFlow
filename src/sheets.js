@@ -193,7 +193,7 @@ class SheetsService {
         // ========== PAYMENTS SHEET ==========
         let paymentsSheet = this.doc.sheetsByTitle['Payments'];
         const paymentsHeaders = [
-            'Phone', 'Name', 'Month-Year', 'Rent Amount', 'EB Amount',
+            'Phone', 'Name', 'Room', 'Month-Year', 'Rent Amount', 'EB Amount',
             'Total Amount', 'Payment Mode', 'Transaction ID', 'Payment Proof',
             'Paid Date', 'Status', 'Location'
         ];
@@ -221,29 +221,32 @@ class SheetsService {
 
     // ==================== TENANT METHODS ====================
 
-    async logPayment(tenant, amount, mode, trxId) {
+    async logPayment(tenant, amount, mode, trxId, status = 'VALID') {
         await this.init();
         const date = new Date();
         const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 
-        // Log to History (backward compatibility)
-        await this.historySheet.addRow({
-            'Name': tenant.get('Name'),
-            'Phone': tenant.get('Phone'),
-            'Room': tenant.get('Room'),
-            'Month': monthNames[date.getMonth()],
-            'Year': date.getFullYear(),
-            'Amount': amount,
-            'Mode': mode,
-            'TRX_ID': trxId,
-            'Date': date.toLocaleDateString()
-        });
+        // Log to History ONLY if it's VALID/PAID
+        if (status === 'VALID' || status === 'PAID') {
+            await this.historySheet.addRow({
+                'Name': tenant.get('Name'),
+                'Phone': tenant.get('Phone'),
+                'Room': tenant.get('Room'),
+                'Month': monthNames[date.getMonth()],
+                'Year': date.getFullYear(),
+                'Amount': amount,
+                'Mode': mode,
+                'TRX_ID': trxId,
+                'Date': date.toLocaleDateString()
+            });
+        }
 
         // Also log to Payments sheet
         const monthYear = `${monthNames[date.getMonth()]}-${date.getFullYear()}`;
         await this.paymentsSheet.addRow({
             'Phone': tenant.get('Phone'),
             'Name': tenant.get('Name'),
+            'Room': tenant.get('Room') || 'N/A',
             'Month-Year': monthYear,
             'Rent Amount': tenant.get('Monthly Rent') || '0',
             'EB Amount': tenant.get('EB Amount') || '0',
@@ -251,9 +254,91 @@ class SheetsService {
             'Payment Mode': mode,
             'Transaction ID': trxId,
             'Paid Date': date.toLocaleDateString(),
-            'Status': 'PAID',
+            'Status': status,
             'Location': tenant.get('Location') || 'Main Branch'
         });
+    }
+
+    async verifyPayment(phone) {
+        await this.init();
+        const tenant = await this.getTenantByPhone(phone);
+        if (!tenant) return false;
+
+        const currentMonthYear = `${["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"][new Date().getMonth()]}-${new Date().getFullYear()}`;
+
+        // 1. Find Pending Payment in Payments Sheet
+        const pRows = await this.paymentsSheet.getRows();
+        const pRow = pRows.find(r => r.get('Phone') === phone && r.get('Status') === 'PENDING');
+
+        let trxId = tenant.get('Transaction ID');
+        let amount = tenant.get('Total Amount') || '0';
+        let mode = tenant.get('Payment Mode') || 'UPI (Manual)';
+        let pDate = tenant.get('Paid Date') || new Date().toLocaleDateString();
+
+        if (pRow) {
+            trxId = pRow.get('Transaction ID') || trxId;
+            amount = pRow.get('Total Amount') || amount;
+            mode = pRow.get('Payment Mode') || mode;
+            pDate = pRow.get('Paid Date') || pDate;
+
+            pRow.set('Status', 'VALID');
+            await pRow.save();
+        }
+
+        // 2. Update Tenant Status in main sheet
+        tenant.set('Status', 'VALID');
+        tenant.set('Transaction ID', trxId);
+        tenant.set('Paid Date', pDate);
+        await tenant.save();
+
+        // 3. Add to History (if not already there)
+        const hRows = await this.historySheet.getRows();
+        const exists = hRows.some(r => r.get('TRX_ID') === trxId && trxId !== 'PENDING');
+        if (!exists && trxId) {
+            await this.historySheet.addRow({
+                'Name': tenant.get('Name'),
+                'Phone': tenant.get('Phone'),
+                'Room': tenant.get('Room'),
+                'Month': ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"][new Date().getMonth()],
+                'Year': new Date().getFullYear(),
+                'Amount': amount,
+                'Mode': mode,
+                'TRX_ID': trxId,
+                'Date': pDate
+            });
+        }
+
+        return {
+            name: tenant.get('Name'),
+            room: tenant.get('Room'),
+            amount: amount,
+            mode: mode,
+            trxId: trxId,
+            date: pDate
+        };
+    }
+
+    async rejectPayment(phone) {
+        await this.init();
+        const tenant = await this.getTenantByPhone(phone);
+        if (!tenant) return false;
+
+        const trxId = tenant.get('Transaction ID');
+
+        // 1. Update Payments Sheet record
+        if (trxId) {
+            const rows = await this.paymentsSheet.getRows();
+            const row = rows.find(r => r.get('Transaction ID') === trxId);
+            if (row) {
+                row.set('Status', 'INVALID');
+                await row.save();
+            }
+        }
+
+        // 2. Update Tenant Status
+        tenant.set('Status', 'INVALID');
+        await tenant.save();
+        return true;
     }
 
     async getHistoryByPhone(phone) {
@@ -529,8 +614,9 @@ class SheetsService {
         const locations = await this.getAllLocations();
 
         const activeTenants = tenants.filter(t => t.get('Status') !== 'VACATED');
-        const paidTenants = tenants.filter(t => t.get('Status') === 'PAID');
-        const pendingTenants = activeTenants.filter(t => t.get('Status') !== 'PAID');
+        const paidTenants = tenants.filter(t => t.get('Status') === 'VALID' || t.get('Status') === 'PAID');
+        const pendingTenants = activeTenants.filter(t => t.get('Status') === 'PENDING');
+        const unpaidTenants = activeTenants.filter(t => t.get('Status') === 'ACTIVE');
 
         // Calculate total revenue this month
         const now = new Date();
@@ -560,6 +646,7 @@ class SheetsService {
             totalTenants: activeTenants.length,
             paidCount: paidTenants.length,
             pendingCount: pendingTenants.length,
+            unpaidCount: unpaidTenants.length,
             vacatedCount: tenants.filter(t => t.get('Status') === 'VACATED').length,
             totalRevenue,
             expectedRevenue,

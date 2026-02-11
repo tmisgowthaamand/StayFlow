@@ -9,7 +9,8 @@ import { fileURLToPath } from 'url';
 import multer from 'multer';
 
 import config from './config.js';
-import { handleIncomingMessage, sendMessage, sendMedia, setTenantContext, handleUpdateEB, createRazorpayLink } from './bot.js';
+import { handleIncomingMessage, sendMessage, sendMedia, setTenantContext, handleUpdateEB, createRazorpayLink, handleRazorpaySuccess } from './bot.js';
+import crypto from 'crypto';
 import setupCron from './cron.js';
 import sheetsService from './sheets.js';
 import wweb from './wweb.js';
@@ -108,6 +109,49 @@ app.post('/webhook', async (req, res) => {
         res.sendStatus(200);
     } else {
         res.sendStatus(404);
+    }
+});
+
+// ==================== RAZORPAY WEBHOOK ====================
+// Receives payment confirmation from Razorpay — Auto-verifies payment
+app.post('/webhook/razorpay', async (req, res) => {
+    try {
+        const payload = req.body;
+        console.log('Razorpay Webhook Received:', JSON.stringify(payload));
+
+        // Verify webhook signature if secret is set
+        const webhookSecret = config.razorpay?.key_secret;
+        if (webhookSecret && req.headers['x-razorpay-signature']) {
+            const expectedSignature = crypto
+                .createHmac('sha256', webhookSecret)
+                .update(JSON.stringify(req.body))
+                .digest('hex');
+            if (expectedSignature !== req.headers['x-razorpay-signature']) {
+                console.error('Razorpay webhook signature mismatch!');
+                return res.status(400).json({ error: 'Invalid signature' });
+            }
+        }
+
+        // Process payment.captured event
+        if (payload.event === 'payment_link.paid' || payload.event === 'payment.captured') {
+            const paymentEntity = payload.payload?.payment?.entity || payload.payload?.payment_link?.entity || {};
+            const notes = paymentEntity.notes || {};
+            const phone = notes.phone || '';
+            const amount = (paymentEntity.amount || 0) / 100; // Convert paise to rupees
+            const trxId = paymentEntity.id || `RZP-${Date.now().toString().slice(-6)}`;
+
+            if (phone) {
+                await handleRazorpaySuccess(phone, amount, trxId, 'UPI (Razorpay)');
+                console.log(`Razorpay payment verified for ${phone}: ₹${amount}, TXN: ${trxId}`);
+            } else {
+                console.error('Razorpay webhook: No phone number in payment notes');
+            }
+        }
+
+        res.status(200).json({ status: 'ok' });
+    } catch (err) {
+        console.error('Razorpay Webhook Error:', err.message);
+        res.status(500).json({ error: err.message });
     }
 });
 
@@ -373,7 +417,6 @@ app.post('/api/trigger-notifications', async (req, res) => {
                     const rent = (tenant.get('Monthly Rent') || '0').toString().replace(/[^\d.]/g, '');
                     const eb = (tenant.get('EB Amount') || '0').toString().replace(/[^\d.]/g, '');
                     const total = parseFloat(rent) + parseFloat(eb);
-                    const upiLink = `upi://pay?pa=${config.upiId}&pn=${encodeURIComponent(config.businessName)}&am=${total}&cu=INR`;
                     const razorpayLink = await createRazorpayLink(phone, name, total, tenant.get('Room'));
 
                     const tenantData = {
@@ -385,10 +428,9 @@ app.post('/api/trigger-notifications', async (req, res) => {
 
                     const currentMonth = new Date().toLocaleString('default', { month: 'long' });
                     let caption = `🔔 *Bill Reminder*\n\nHi ${name},\nTotal Due: *₹${total}*\n📅 *Due Date: 5th ${currentMonth}*`;
-                    if (razorpayLink) caption += `\n\n💳 *Pay Online:* ${razorpayLink}`;
-                    caption += `\n\n👇 *Pay via UPI:*\n${upiLink}`;
+                    if (razorpayLink) caption += `\n\n💳 *Pay Online (Razorpay):* ${razorpayLink}`;
 
-                    await sendMedia(phone, filePath, caption, ["💳 Paid by UPI", "💵 Paid by Cash"]);
+                    await sendMedia(phone, filePath, caption, ["💳 Pay Now", "💵 Pay by Cash"]);
                     sentCount++;
                     await new Promise(r => setTimeout(r, 1000));
                 } catch (e) { console.error(`Failed to notify ${name}:`, e.message); }
@@ -443,14 +485,12 @@ app.post('/api/notify-tenant', async (req, res) => {
         const { filePath } = await pdfService.generateInvoice(tenantData);
 
         const currentMonth = new Date().toLocaleString('default', { month: 'long' });
-        const upiLink = `upi://pay?pa=${config.upiId}&pn=${encodeURIComponent(config.businessName)}&am=${total}&cu=INR`;
         const razorpayLink = await createRazorpayLink(phone, name, total, tenant.get('Room'));
 
         let caption = `🧾 *Invoice & Payment*\n\nHi ${name},\n💰 *Total Due: ₹${total}*\n📅 *Due Date:* 5th ${currentMonth}`;
-        if (razorpayLink) caption += `\n\n💳 *Pay Online:*\n${razorpayLink}`;
-        caption += `\n\n👇 *Quick UPI Pay:*\n${upiLink}`;
+        if (razorpayLink) caption += `\n\n💳 *Pay Online (Razorpay):*\n${razorpayLink}`;
 
-        if (filePath) await sendMedia(phone, filePath, caption, ["💳 Paid by UPI", "💵 Paid by Cash"]);
+        if (filePath) await sendMedia(phone, filePath, caption, ["💳 Pay Now", "💵 Pay by Cash"]);
         else await sendMessage(phone, caption);
 
         res.json({ success: true });
@@ -501,14 +541,14 @@ app.post('/api/mark-paid', async (req, res) => {
     try {
         const { phone, name, amount, mode } = req.body;
         const success = await sheetsService.updateTenant(phone, {
-            'Status': 'PAID', 'Paid Date': new Date().toLocaleDateString(),
+            'Status': 'VALID', 'Paid Date': new Date().toLocaleDateString(),
             'Transaction ID': `${mode.toUpperCase()}-${Date.now().toString().slice(-4)}`,
             'Payment Mode': mode
         }, name);
         if (!success) return res.status(404).json({ error: 'Tenant not found' });
 
         const tenant = await sheetsService.getTenantByPhone(phone, name);
-        await sheetsService.logPayment(tenant, amount, mode, 'MANUAL-ENTRY');
+        await sheetsService.logPayment(tenant, amount, mode, 'MANUAL-ENTRY', 'VALID');
 
         const tenantData = {
             Name: tenant.get('Name'), Phone: tenant.get('Phone'), Room: tenant.get('Room'),

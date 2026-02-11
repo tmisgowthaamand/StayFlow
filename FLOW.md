@@ -119,16 +119,16 @@ Incoming WhatsApp Message
 │          │ → Sends JOIN banner image                        │
 ├──────────┼──────────────────────────────────────────────────┤
 │ RENT     │ Generates PDF invoice & sends to tenant          │
-│          │ → If PAID: sends receipt only                    │
-│          │ → If PENDING: shows pay buttons (UPI/Cash)       │
+│          │ → If VALID: sends receipt only                   │
+│          │ → If PENDING: shows pay buttons (Pay Now/Cash)   │
 ├──────────┼──────────────────────────────────────────────────┤
 │ EB       │ Shows current electricity bill amount            │
 ├──────────┼──────────────────────────────────────────────────┤
-│ STATUS   │ Shows payment status (PAID/PENDING)              │
+│ STATUS   │ Shows payment status (VALID/PENDING/INVALID)     │
 ├──────────┼──────────────────────────────────────────────────┤
-│ PAID     │ Starts payment flow → UPI/APP or Cash or Cancel  │
+│ PAID     │ Starts payment flow → Pay Now/Pay by Cash/Cancel │
 ├──────────┼──────────────────────────────────────────────────┤
-│ CASH PAID│ Direct cash payment flow → Enter amount          │
+│ CASH PAID│ Direct cash flow → Enter amount → PENDING        │
 ├──────────┼──────────────────────────────────────────────────┤
 │ HISTORY  │ Shows last 6 payment records                     │
 ├──────────┼──────────────────────────────────────────────────┤
@@ -149,42 +149,55 @@ Incoming WhatsApp Message
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │                     OWNER COMMANDS                          │
-├────────────────┬────────────────────────────────────────────┤
-│ TOTAL TENANTS  │ Count of all active tenants                │
-├────────────────┼────────────────────────────────────────────┤
-│ PAID LIST      │ List of tenants who paid this month        │
-├────────────────┼────────────────────────────────────────────┤
-│ PENDING LIST   │ List of tenants with pending payment       │
-├────────────────┼────────────────────────────────────────────┤
-│ DASHBOARD      │ Sends dashboard URL to owner               │
-├────────────────┼────────────────────────────────────────────┤
-│ SEND BILL      │ Sends invoice PDF to ALL tenants           │
-├────────────────┼────────────────────────────────────────────┤
-│ SEND REMINDER  │ Sends reminder to PENDING tenants only     │
-├────────────────┼────────────────────────────────────────────┤
-│ ANNOUNCE       │ Broadcast message to all tenants           │
-├────────────────┼────────────────────────────────────────────┤
-│ SET EB 101 150 │ Set EB units for Room 101 = 150 units      │
-├────────────────┼────────────────────────────────────────────┤
-│ VACATE 101     │ Mark Room 101 tenant as vacated            │
-├────────────────┼────────────────────────────────────────────┤
-│ MARK CASH 91xx │ Mark tenant phone as cash paid             │
-└────────────────┴────────────────────────────────────────────┘
+├────────────────────┬────────────────────────────────────────┤
+│ TOTAL TENANTS      │ Count of all active tenants             │
+├────────────────────┼────────────────────────────────────────┤
+│ PAID LIST          │ List of tenants who paid this month     │
+├────────────────────┼────────────────────────────────────────┤
+│ PENDING LIST       │ List of tenants with pending payment    │
+├────────────────────┼────────────────────────────────────────┤
+│ DASHBOARD          │ Sends dashboard URL to owner            │
+├────────────────────┼────────────────────────────────────────┤
+│ SEND BILL          │ Sends invoice PDF to ALL tenants        │
+├────────────────────┼────────────────────────────────────────┤
+│ SEND REMINDER      │ Sends reminder to PENDING tenants       │
+├────────────────────┼────────────────────────────────────────┤
+│ ANNOUNCE           │ Broadcast message to all tenants        │
+├────────────────────┼────────────────────────────────────────┤
+│ SET EB 101 150     │ Set EB units for Room 101 = 150 units   │
+├────────────────────┼────────────────────────────────────────┤
+│ VACATE 101         │ Mark Room 101 tenant as vacated         │
+├────────────────────┼────────────────────────────────────────┤
+│ MARK CASH 91xx     │ Mark tenant phone as cash paid          │
+├────────────────────┼────────────────────────────────────────┤
+│ VERIFY UPI 91xx    │ Verify manual UPI → Generate Invoice    │
+├────────────────────┼────────────────────────────────────────┤
+│ VERIFY CASH 91xx   │ Verify cash payment → Generate Invoice  │
+├────────────────────┼────────────────────────────────────────┤
+│ REJECT 91xx        │ Reject payment → Mark INVALID           │
+└────────────────────┴────────────────────────────────────────┘
 ```
 
 ---
 
-## 💰 Payment Flow (Complete — Updated)
+## 💰 Payment Flow (Complete — Updated v2)
+
+### ⚠️ Key Rules
+- **Online payments (Pay Now)** → Razorpay Gateway ONLY. No direct UPI ID links.
+- **Manual UPI (Pay by UPI)** → Tenant submits TXN ID → Status = PENDING → Admin verifies → Invoice generated
+- **Cash (Pay by Cash)** → Tenant submits amount → Status = PENDING → Admin verifies → Invoice generated
+- **Razorpay webhook** → Auto-verified → Invoice generated immediately → Status = PAID
+- **Invoice is NEVER generated** until payment is verified (by admin or Razorpay webhook)
 
 ### How Tenant Triggers Payment
 
 Tenant can start the payment flow in **4 ways**:
 
 ```
-1. Type "PAID"       → Interactive 3-button selector
-2. Type "RENT"       → Invoice PDF + payment buttons
-3. Type "paid by upi"  → Direct UPI flow (Razorpay + UPI link)
-4. Type "paid by cash" → Direct Cash flow (enter amount)
+1. Type "PAID"         → Interactive 3-button selector (Pay Now / Pay by Cash / Cancel)
+2. Type "RENT"         → Invoice PDF + payment buttons (Pay Now / Pay by Cash)
+3. Type "paid by upi"  → Razorpay link + "I Already Paid" option
+4. Type "paid by cash" → Enter cash amount → PENDING until admin verifies
 ```
 
 ### Option 1: Type "PAID" — Interactive Button Flow
@@ -196,110 +209,150 @@ Tenant types: PAID
 ┌─────────────────────────────────┐
 │ 💳 Select payment method:       │
 │                                 │
+│ 💳 Pay Now — Pay via Razorpay  │
+│ 💵 Pay by Cash — Submit amount │
+│                                 │
 │ 🏠 Rent: ₹6000                 │
 │ ⚡ EB: ₹500                    │
 │ ━━━━━━━━━━━━━━━━━━━━            │
 │ 💵 Total Due: ₹6500            │
 │                                 │
-│  ┌──────────┐                   │
-│  │ UPI/APP  │  ← Button 1      │
-│  └──────────┘                   │
-│  ┌──────────┐                   │
-│  │ Cash     │  ← Button 2      │
-│  └──────────┘                   │
-│  ┌──────────┐                   │
-│  │ Cancel   │  ← Button 3      │
-│  └──────────┘                   │
+│  ┌──────────────┐               │
+│  │ 💳 Pay Now   │  ← Button 1  │
+│  └──────────────┘               │
+│  ┌──────────────┐               │
+│  │ 💵 Pay Cash  │  ← Button 2  │
+│  └──────────────┘               │
+│  ┌──────────────┐               │
+│  │ Cancel       │  ← Button 3  │
+│  └──────────────┘               │
 └────────┬────────────────────────┘
          │
     ┌────┼────────────────┐
     │    │                │
     ▼    ▼                ▼
-  UPI  Cash            Cancel
-  Flow Flow          (exit flow)
+  Pay   Cash            Cancel
+  Now   Flow          (exit flow)
 ```
 
-### UPI/APP Flow (after selecting UPI/APP button)
+### Pay Now Flow (Razorpay Gateway Only)
 
 ```
+Tenant taps: 💳 Pay Now
+        │
+        ▼
 ┌─────────────────────────────────────┐
-│ 💳 Pay via UPI/APP                  │
+│ 💳 Pay via Razorpay                  │
 │                                     │
 │ 🏠 Rent: ₹6000                     │
 │ ⚡ EB: ₹500                        │
 │ ━━━━━━━━━━━━━━━━━━━━                │
 │ 💰 Total: ₹6500                    │
 │                                     │
-│ 👇 Pay using UPI:                   │
-│ upi://pay?pa=owner@upi&am=6500     │
-│                                     │
 │ 🔗 Pay Online (Razorpay):          │
 │ https://rzp.io/i/xxxx              │
 │ ✅ After paying, you'll be          │
 │ redirected back here.              │
 │                                     │
-│ ┌────────────────────┐              │
-│ │  ☑ Pay Now         │ ← Razorpay  │
-│ └────────────────────┘              │
+│ ━━━━━━━━━━━━━━━━━━━━                │
+│ 📩 Already paid? Tap below.        │
 │                                     │
-│ 📩 After payment, send your         │
-│ Transaction ID / UTR Number here.   │
+│ [✅ I Already Paid] [❌ Cancel]     │
 └────────────────┬────────────────────┘
                  │
     ┌────────────┼──────────────┐
     │            │              │
     ▼            ▼              ▼
- Tap UPI     Tap "Pay Now"   Type TXN ID
-  Link       (Razorpay)      directly
-    │            │              │
-    ▼            │              │
- UPI App        │              │
- Opens          ▼              │
-    │     Razorpay Page        │
-    │     Opens in Browser     │
-    ▼            │              │
- Complete        ▼              │
- Payment    Complete Payment   │
-    │            │              │
-    │            ▼              │
-    │     ✅ Redirected back    │
-    │     to WhatsApp with     │
-    │     "PAID BY UPI" text   │
-    │            │              │
-    └────────────┼──────────────┘
-                 │
-                 ▼
-    Tenant sends TXN ID / UTR
-                 │
-                 ▼
+ Razorpay    "I Already       Cancel
+  Payment     Paid" →          (exit)
+    │        Ask TXN ID
+    │            │
+    ▼            ▼
+ WEBHOOK     PENDING
+ Auto-       (admin must
+ Verified     verify)
+    │            │
+    ▼            ▼
+ INVOICE    Admin types:
+ GENERATED  VERIFY UPI <phone>
+    │            │
+    ▼            ▼
+ Tenant      INVOICE
+ gets        GENERATED
+ receipt     & sent
+```
+
+### Razorpay → WhatsApp → Auto-Verification Flow
+
+```
+┌───────────────────────────────────────────────────────────┐
+│ RAZORPAY PAYMENT → AUTO-VERIFICATION FLOW                 │
+│                                                           │
+│ 1. Bot generates Razorpay payment link with:              │
+│    callback_url = "https://wa.me/<phone>?text=PAID BY UPI"│
+│    notes.phone = tenant's phone number                    │
+│                                                           │
+│ 2. Tenant taps Razorpay link → Opens in browser           │
+│                                                           │
+│ 3. Tenant completes payment on Razorpay                   │
+│                                                           │
+│ 4. Razorpay sends webhook to /webhook/razorpay            │
+│    → event: "payment_link.paid" or "payment.captured"     │
+│    → Contains phone number in payment notes               │
+│                                                           │
+│ 5. handleRazorpaySuccess() fires automatically:           │
+│    → Status = "PAID"                                      │
+│    → Payment Mode = "UPI (Razorpay)"                      │
+│    → Invoice PDF generated automatically                  │
+│    → Receipt sent to tenant                               │
+│    → Owner notified                                       │
+│                                                           │
+│ ⚠️ NO admin verification needed — Razorpay = trusted      │
+└───────────────────────────────────────────────────────────┘
+```
+
+### Manual UPI TXN ID Flow (PENDING → Admin Verify)
+
+```
+Tenant submits TXN ID (via "I Already Paid" or "PAID UTR123456789")
+        │
+        ▼
 ┌────────────────────────────────┐
-│ ✅ UPI Payment Confirmed!      │
+│ ⏳ UPI Payment Submitted       │
 │                                │
-│ 📋 Breakdown:                  │
-│ 🏠 Rent: ₹6000                │
-│ ⚡ EB: ₹500                   │
-│ 💰 Total Paid: ₹6500          │
-│                                │
-│ 💳 Mode: UPI                  │
+│ 💳 Mode: UPI (Manual)         │
 │ 🔖 TXN ID: UTR123456789      │
 │ 📅 Date: 10/02/2026           │
 │                                │
-│ Thank you! 🙏                  │
-├────────────────────────────────┤
-│ 📄 StayFlow_Invoice.pdf        │
-│ (Receipt with PAID status)     │
+│ ⚠️ Admin will verify.          │
+│ Invoice sent after confirm.   │
 └────────────────────────────────┘
-         │
-         ▼
-  Owner gets notification:
-  💰 UPI Payment
-  Tenant: Ravi
-  Room: 101
-  Total: ₹6500
-  TXN: UTR123456789
+        │
+        ▼ (Owner receives)
+┌────────────────────────────────┐
+│ 💰 UPI Payment — Verify       │
+│ Tenant: Ravi                   │
+│ Phone: 919876543210            │
+│ Room: 101                      │
+│ Total: ₹6500                  │
+│ TXN: UTR123456789             │
+│                                │
+│ ✅ Reply: VERIFY UPI 91xxxx   │
+│ ❌ Reply: REJECT 91xxxx       │
+└────────────────────────────────┘
+        │
+   ┌────┼────┐
+   │         │
+   ▼         ▼
+ VERIFY    REJECT
+   │         │
+   ▼         ▼
+ Invoice   Status=INVALID
+ Generated  Tenant notified
+ Status=PAID to retry
 ```
 
-### Cash Flow (after selecting Cash button)
+### Cash Flow (PENDING → Admin Verify)
 
 ```
 ┌─────────────────────────────────┐
@@ -310,8 +363,11 @@ Tenant types: PAID
 │ ━━━━━━━━━━━━━━━━━━━━            │
 │ 💰 Total Due: ₹6500            │
 │                                 │
-│ Please enter the amount paid.   │
+│ Enter the exact amount paid.    │
 │ Example: 6500                   │
+│                                 │
+│ ⚠️ Invoice will be generated    │
+│ after admin verification.       │
 └────────────────┬────────────────┘
                  │
                  ▼
@@ -319,159 +375,108 @@ Tenant types: PAID
                  │
                  ▼
 ┌────────────────────────────────┐
-│ ✅ Cash Payment Confirmed!     │
-│                                │
-│ 📋 Breakdown:                  │
-│ 🏠 Rent: ₹6000                │
-│ ⚡ EB: ₹500                   │
-│ 💰 Total Paid: ₹6500          │
+│ ⏳ Cash Payment Submitted      │
 │                                │
 │ 💵 Mode: CASH                 │
-│ 🔖 Receipt: CASH-123456       │
+│ 🔖 Ref: CASH-123456           │
 │ 📅 Date: 10/02/2026           │
 │                                │
-│ Thank you! 🙏                  │
-├────────────────────────────────┤
-│ 📄 StayFlow_Invoice.pdf        │
-│ (Receipt with PAID status)     │
+│ ⚠️ Pending admin verification. │
+│ Invoice sent after confirm.   │
 └────────────────────────────────┘
-```
-
-### Option 2: Type "RENT" — Invoice + Buttons
-
-```
-Tenant types: RENT
+        │
+        ▼ (Owner receives)
+┌────────────────────────────────┐
+│ 💵 Cash Payment — Verify       │
+│ Tenant: Ravi                   │
+│ Phone: 919876543210            │
+│ Amount: ₹6500                  │
+│ Ref: CASH-123456               │
+│                                │
+│ ✅ Reply: VERIFY CASH 91xxxx  │
+└────────────────────────────────┘
         │
         ▼
-┌─────────────────────────────────┐
-│ 🧾 Invoice & Payment            │
-│                                 │
-│ Hi Ravi,                        │
-│ 💰 Total Due: ₹6500            │
-│ 📅 Due Date: 5th February      │
-│                                 │
-│ 📋 Breakdown:                   │
-│ 🏠 Rent: ₹6000                 │
-│ ⚡ EB: ₹500                    │
-│ ━━━━━━━━━━━━━━━━━━━━            │
-│ 💵 Total: ₹6500                │
-│                                 │
-│ 💳 Pay Online:                  │
-│ https://rzp.io/i/xxxx          │
-│ ┌────────────────────┐          │
-│ │  ☑ Pay Now         │          │
-│ └────────────────────┘          │
-│                                 │
-│ 👇 Quick UPI Pay:               │
-│ upi://pay?pa=owner@upi&am=6500 │
-│                                 │
-│ ━━━━━━━━━━━━━━━━━━━━            │
-│ How did you pay? Tap below 👇   │
-│                                 │
-│  [💳 Paid by UPI] [💵 Paid Cash]│
-├─────────────────────────────────┤
-│ 📄 StayFlow_Invoice.pdf         │
-│ (Attached as document)          │
-└─────────────────────────────────┘
+ Admin verifies → Invoice generated → Sent to tenant
 ```
 
-### Option 3: Type "paid by upi" — Smart Direct UPI
+### Admin Verification Commands
 
 ```
-Tenant types: "paid by upi"
-        │
-        ▼ (handleSmartPayment detects it)
-        │
-    Same as UPI/APP flow above
-    → Shows UPI link + Razorpay link
-    → Asks for TXN ID
-    → Generates receipt PDF
+┌──────────────────────────────────────────────────────────┐
+│                ADMIN VERIFICATION COMMANDS                │
+├───────────────────────┬──────────────────────────────────┤
+│ VERIFY UPI <phone>    │ Verify manual UPI payment        │
+│                       │ → Status = PAID                  │
+│                       │ → Invoice generated & sent       │
+├───────────────────────┼──────────────────────────────────┤
+│ VERIFY CASH <phone>   │ Verify cash payment              │
+│                       │ → Status = PAID                  │
+│                       │ → Invoice generated & sent       │
+├───────────────────────┼──────────────────────────────────┤
+│ REJECT <phone>        │ Reject payment submission        │
+│                       │ → Status = INVALID               │
+│                       │ → No invoice generated           │
+│                       │ → Tenant notified to retry       │
+└───────────────────────┴──────────────────────────────────┘
 ```
 
-### Option 4: Type "paid by cash" — Smart Direct Cash
+### Payment Status Values (Google Sheet)
 
 ```
-Tenant types: "paid by cash"
-        │
-        ▼ (handleSmartPayment detects it)
-        │
-    Same as Cash flow above
-    → Asks for amount
-    → Generates receipt PDF
+┌──────────┬────────────────────────────────────────────────┐
+│ Status   │ Meaning                                        │
+├──────────┼────────────────────────────────────────────────┤
+│ PENDING  │ Payment submitted, awaiting admin verification │
+│ VALID    │ Payment verified (by admin or Razorpay)        │
+│ INVALID  │ Payment rejected by admin                      │
+│ VACATED  │ Tenant has vacated                             │
+└──────────┴────────────────────────────────────────────────┘
 ```
 
-### Smart Text Detection (All Triggers)
+### Invoice Generation Rules
 
 ```
-┌──────────────────────────┬────────────────────────────────┐
-│ What tenant types         │ What StayFlow does             │
-├──────────────────────────┼────────────────────────────────┤
-│ "PAID"                   │ Shows 3 buttons: UPI/Cash/Cancel│
-│ "RENT"                   │ Invoice PDF + payment buttons  │
-│ "paid by upi"            │ Direct UPI flow               │
-│ "paid upi"               │ Direct UPI flow               │
-│ "pay by upi"             │ Direct UPI flow               │
-│ "upi paid"               │ Direct UPI flow               │
-│ "paid by cash"           │ Direct Cash flow (enter amount)│
-│ "paid cash"              │ Direct Cash flow              │
-│ "pay by cash"            │ Direct Cash flow              │
-│ "cash paid"              │ Direct Cash flow              │
-│ "COD"                    │ Direct Cash flow              │
-│ "CASH PAID"              │ Direct Cash flow              │
-│ "paid cash 6500"         │ Instant receipt (₹6500)       │
-│ "PAID UTR123456789"      │ Instant receipt (UPI + TXN)   │
-│ 1                        │ UPI (when in payment selector) │
-│ 2                        │ Cash (when in payment selector)│
-│ 3                        │ Cancel payment                │
-└──────────────────────────┴────────────────────────────────┘
+┌──────────────────────────────────────────────────────────┐
+│            INVOICE GENERATION RULES                       │
+│                                                          │
+│ ✅ Invoice IS generated when:                            │
+│    1. Razorpay webhook confirms payment (auto)           │
+│    2. Admin types VERIFY UPI <phone>                     │
+│    3. Admin types VERIFY CASH <phone>                    │
+│    4. Admin marks paid via dashboard (/api/mark-paid)    │
+│                                                          │
+│ ❌ Invoice is NOT generated when:                        │
+│    1. Tenant submits manual UPI TXN ID (PENDING)         │
+│    2. Tenant submits cash amount (PENDING)               │
+│    3. Admin rejects payment (INVALID)                    │
+└──────────────────────────────────────────────────────────┘
 ```
 
-### Razorpay → WhatsApp Redirect
-
-```
-┌───────────────────────────────────────────────────────────┐
-│ RAZORPAY PAYMENT → WHATSAPP REDIRECT FLOW                │
-│                                                           │
-│ 1. Bot generates Razorpay payment link with:              │
-│    callback_url = "https://wa.me/<phone>?text=PAID BY UPI"│
-│    callback_method = "get"                                │
-│                                                           │
-│ 2. Tenant taps "Pay Now" → Opens Razorpay in browser      │
-│                                                           │
-│ 3. Tenant completes payment on Razorpay                   │
-│                                                           │
-│ 4. Razorpay redirects to callback_url                     │
-│    → Opens WhatsApp chat with pre-filled "PAID BY UPI"    │
-│                                                           │
-│ 5. Tenant sends the message → handleSmartPayment() fires  │
-│    → Bot asks for TXN ID → Confirms payment → Receipt PDF │
-└───────────────────────────────────────────────────────────┘
-```
-
-### What Happens After Payment Confirmation
+### What Happens After Payment Verified
 
 ```
 ┌──────────────────────────────────────────────┐
-│ AFTER PAYMENT CONFIRMED (UPI or Cash)        │
+│ AFTER PAYMENT VERIFIED (by Admin or Razorpay)│
 │                                              │
 │ 1. ✅ Update Google Sheet:                   │
-│    → Status = "PAID"                         │
-│    → Payment Mode = "UPI" or "CASH"          │
+│    → Status = "VALID"                        │
+│    → Payment Mode = mode (UPI/Cash/Razorpay) │
 │    → Transaction ID = TXN/Receipt ID         │
 │    → Paid Date = today's date                │
 │                                              │
 │ 2. 📝 Log to Payments sheet                  │
 │    → Phone, Name, Month, Amount, Mode, TXN   │
 │                                              │
-│ 3. 📄 Generate Receipt PDF                   │
+│ 3. 📄 Generate Invoice PDF                   │
 │    → StayFlow_Invoice.pdf with PAID status   │
 │                                              │
 │ 4. 📱 Send to Tenant:                        │
-│    → Confirmation message                    │
+│    → ✅ Confirmation message                │
 │    → Receipt PDF attached                    │
 │                                              │
 │ 5. 👑 Notify Owner:                          │
-│    → Payment details message                 │
+│    → Payment verified confirmation           │
 │    → Tenant name, room, amount, TXN          │
 └──────────────────────────────────────────────┘
 ```

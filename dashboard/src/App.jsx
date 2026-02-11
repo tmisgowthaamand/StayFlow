@@ -235,9 +235,10 @@ const App = () => {
   const filteredData = currentLocation === 'All' ? tenants : tenants.filter(t => t.Location === currentLocation);
 
   const activeTenants = filteredData.filter(t => t.Status !== 'VACATED');
-  const paidCount = activeTenants.filter(t => t.Status === 'PAID').length;
-  const pendingCount = activeTenants.length - paidCount;
-  const totalRevenue = filteredData.filter(t => t.Status === 'PAID').reduce((sum, t) => sum + parseFloat(t['Total Amount'] || 0), 0);
+  const paidCount = activeTenants.filter(t => t.Status === 'PAID' || t.Status === 'VALID').length;
+  const pendingCount = activeTenants.filter(t => t.Status === 'PENDING').length;
+  const unpaidCount = activeTenants.filter(t => t.Status === 'ACTIVE' || !t.Status).length;
+  const totalRevenue = filteredData.filter(t => t.Status === 'PAID' || t.Status === 'VALID').reduce((sum, t) => sum + parseFloat(t['Total Amount'] || 0), 0);
 
   const totalBeds = activeTenants.reduce((sum, t) => {
     const type = t['Sharing Type'] || '';
@@ -252,8 +253,9 @@ const App = () => {
   const stats = [
     { label: 'Residents', value: activeTenants.length, icon: Users, color: '#6366f1', bg: 'rgba(99, 102, 241, 0.1)' },
     { label: 'Collection', value: `₹${totalRevenue.toLocaleString()}`, icon: Wallet, color: '#10b981', bg: 'rgba(16, 185, 129, 0.1)' },
-    { label: 'Pending', value: pendingCount, icon: Clock, color: '#f59e0b', bg: 'rgba(245, 158, 11, 0.1)' },
-    { label: 'Vacant Beds', value: vacantBeds > 0 ? vacantBeds : 'Full', icon: MapPin, color: '#f43f5e', bg: 'rgba(244, 63, 94, 0.1)' },
+    { label: 'Pending Verif', value: pendingCount, icon: Clock, color: '#f59e0b', bg: 'rgba(245, 158, 11, 0.1)' },
+    { label: 'Unpaid', value: unpaidCount, icon: Clock, color: '#f43f5e', bg: 'rgba(244, 63, 94, 0.1)' },
+    { label: 'Vacant Beds', value: vacantBeds > 0 ? vacantBeds : 'Full', icon: MapPin, color: '#10b981', bg: 'rgba(16, 185, 129, 0.1)' },
   ];
 
   const chartData = [
@@ -361,7 +363,7 @@ const App = () => {
                     <td>₹{t['Monthly Rent']} / ₹{t['EB Amount']}</td>
                     <td>
                       <span className={`status-badge ${t.Status.toLowerCase()}`}>
-                        {t.Status === 'PAID' ? <CheckCircle size={12} /> : <Clock size={12} />}
+                        {(t.Status === 'PAID' || t.Status === 'VALID') ? <CheckCircle size={12} /> : <Clock size={12} />}
                         {t.Status}
                       </span>
                     </td>
@@ -505,11 +507,11 @@ const App = () => {
                       >
                         <Bell size={14} />
                       </button>
-                      {t.Status !== 'PAID' && (
+                      {t.Status !== 'PAID' && t.Status !== 'VALID' && (
                         <button
-                          className="btn btn-glass btn-small"
+                          className={`btn btn-glass btn-small ${t.Status === 'PENDING' ? 'pulse-border' : ''}`}
                           onClick={() => handleRecordPayment(t)}
-                          title="Mark as Paid"
+                          title={t.Status === 'PENDING' ? "Verify Payment" : "Mark as Paid"}
                           style={{ color: 'var(--secondary)' }}
                         >
                           <CheckCircle size={14} />

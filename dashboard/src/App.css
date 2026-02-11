@@ -296,7 +296,7 @@ header {
   gap: 6px;
 }
 
-.status-badge.paid {
+.status-badge.paid, .status-badge.valid {
   background: rgba(16, 185, 129, 0.1);
   color: var(--secondary);
 }
@@ -311,7 +311,7 @@ header {
   color: var(--primary);
 }
 
-.status-badge.vacated {
+.status-badge.vacated, .status-badge.invalid {
   background: rgba(244, 63, 94, 0.1);
   color: var(--accent);
 }
@@ -541,4 +541,15 @@ header {
     border-radius: 12px;
     font-size: 0.75rem;
     color: white;
+}
+
+/* Custom Animations */
+@keyframes pulse-border {
+  0% { border-color: var(--glass-border); box-shadow: 0 0 0 0 rgba(245, 158, 11, 0); }
+  50% { border-color: #f59e0b; box-shadow: 0 0 10px 0 rgba(245, 158, 11, 0.3); }
+  100% { border-color: var(--glass-border); box-shadow: 0 0 0 0 rgba(245, 158, 11, 0); }
+}
+
+.pulse-border {
+  animation: pulse-border 2s infinite;
 }
