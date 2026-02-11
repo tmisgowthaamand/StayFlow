@@ -188,7 +188,7 @@ app.post('/api/verify-transaction', async (req, res) => {
             console.log(`[VERIFY] Found tenant: ${tenant.get('Name')} | Status: ${sheetStatus} | Sheet TRX: ${sheetTrxId}`);
 
             // If already PAID, and either ID matches or we found them by phone, consider it success
-            if (sheetStatus === 'PAID' || sheetStatus === 'VALID') {
+            if (sheetStatus === 'PAID') {
                 console.log(`[VERIFY] Tenant already marked PAID. Proceeding.`);
                 return res.json({
                     success: true,
@@ -199,6 +199,7 @@ app.post('/api/verify-transaction', async (req, res) => {
         }
 
         // 2. Check Razorpay Webhook Data in MongoDB logs (More flexible match)
+        // Search by TRX ID, Payment ID, or any relevant Razorpay field
         const webhookLog = await Log.findOne({
             action: 'RAZORPAY_WEBHOOK',
             $or: [
@@ -206,7 +207,7 @@ app.post('/api/verify-transaction', async (req, res) => {
                 { 'details.payload.payment_link.entity.id': { $regex: trxId, $options: 'i' } },
                 { 'details.payload.payment.entity.acquirer_data.rrn': trxId },
                 { 'details.payload.payment.entity.acquirer_data.upi_transaction_id': trxId },
-                { 'details.payload.payment.entity.notes.phone': phone } // Try phone match in logs
+                { 'details.payload.payment.entity.notes.phone': phone }
             ]
         }).sort({ timestamp: -1 });
 
@@ -217,14 +218,16 @@ app.post('/api/verify-transaction', async (req, res) => {
             const notes = paymentEntity.notes || {};
             const targetPhone = phone || notes.phone || '';
             const amount = (paymentEntity.amount || 0) / 100;
+            // Use the provided trxId as the one to record if it matched something
+            const finalTrxId = paymentEntity.id || trxId;
 
             if (targetPhone) {
-                await handleRazorpaySuccess(targetPhone, amount, trxId, 'UPI (Razorpay)');
+                await handleRazorpaySuccess(targetPhone, amount, finalTrxId, 'UPI (Razorpay)');
                 return res.json({ success: true, botNumber: '+1 (555) 156-9280' });
             }
         }
 
-        // 3. Direct Razorpay API Lookup (Try both Payment and Payment Link)
+        // 3. Direct Razorpay API Lookup
         if (config.razorpay.key_id && config.razorpay.key_secret) {
             const auth = Buffer.from(`${config.razorpay.key_id}:${config.razorpay.key_secret}`).toString('base64');
             const headers = { 'Authorization': `Basic ${auth}` };
@@ -233,7 +236,7 @@ app.post('/api/verify-transaction', async (req, res) => {
             try {
                 const rzpResponse = await axios.get(`https://api.razorpay.com/v1/payments/${trxId}`, { headers });
                 if (rzpResponse.data && (rzpResponse.data.status === 'captured' || rzpResponse.data.status === 'authorized')) {
-                    console.log(`[VERIFY] Verified TRX ${trxId} as Payment via API`);
+                    console.log(`[VERIFY] Verified via Razorpay Payment API: ${trxId}`);
                     const rzpPayment = rzpResponse.data;
                     const targetPhone = phone || rzpPayment.notes?.phone || '';
                     if (targetPhone) {
@@ -247,7 +250,7 @@ app.post('/api/verify-transaction', async (req, res) => {
             try {
                 const rzpLinkResponse = await axios.get(`https://api.razorpay.com/v1/payment_links/${trxId}`, { headers });
                 if (rzpLinkResponse.data && rzpLinkResponse.data.status === 'paid') {
-                    console.log(`[VERIFY] Verified TRX ${trxId} as Payment Link via API`);
+                    console.log(`[VERIFY] Verified via Razorpay Payment Link API: ${trxId}`);
                     const rzpLink = rzpLinkResponse.data;
                     const targetPhone = phone || rzpLink.notes?.phone || '';
                     if (targetPhone) {
@@ -258,11 +261,12 @@ app.post('/api/verify-transaction', async (req, res) => {
             } catch (lErr) { /* ignore 404 */ }
         }
 
-        // 4. Final Fallback: If tenant was found by phone and we are desperate, check if ID matches partially
-        if (tenant && tenant.get('Transaction ID')?.includes(trxId)) {
-            console.log(`[VERIFY] Partial TRX ID match for tenant: ${tenant.get('Name')}`);
+        // 4. Final Fallback: If we have a tenant for this phone, and they provided A valid-looking ID, 
+        // AND we are in test mode OR just want to be helpful, we can check if it matches the SHEET's Transaction ID
+        if (tenant && tenant.get('Transaction ID') === trxId) {
             return res.json({
                 success: true,
+                message: 'Payment Verified',
                 botNumber: '+1 (555) 156-9280'
             });
         }

@@ -19,6 +19,13 @@ class SheetsService {
         this.notificationsLog = null;
     }
 
+    normalizePhone(phone) {
+        if (!phone) return '';
+        let clean = phone.toString().replace(/\D/g, '');
+        if (clean.length === 10) clean = '91' + clean;
+        return clean;
+    }
+
     async init() {
         if (this.doc && this.sheet) return;
 
