@@ -21,67 +21,9 @@ import { Log, Media, Tenant } from './db.js';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// ==================== SYNC HELPER ====================
-// Ensures Google Sheets and MongoDB are always in sync.
-// Call this after any Google Sheet update to mirror changes to MongoDB.
-async function syncTenantToMongo(phone, name = null) {
-    try {
-        const tenant = await sheetsService.getTenantByPhone(phone, name);
-        if (!tenant) return;
-
-        await Tenant.findOneAndUpdate(
-            { phone: tenant.get('Phone'), name: tenant.get('Name') },
-            {
-                room: tenant.get('Room') || '',
-                bed: tenant.get('Bed') || '',
-                floor: tenant.get('Floor') || '',
-                location: tenant.get('Location') || '',
-                sharingType: tenant.get('Sharing Type') || '',
-                advance: tenant.get('Advance') || '',
-                monthlyRent: tenant.get('Monthly Rent') || '',
-                ebAmount: tenant.get('EB Amount') || '',
-                totalAmount: tenant.get('Total Amount') || '',
-                status: tenant.get('Status') || '',
-                joinDate: tenant.get('Join Date') || '',
-                paidDate: tenant.get('Paid Date') || '',
-                aadhaarImage: tenant.get('Aadhaar Image') || ''
-            },
-            { upsert: true, new: true }
-        );
-        console.log(`[SYNC] MongoDB synced for ${tenant.get('Name')} (${phone})`);
-    } catch (err) {
-        console.error(`[SYNC] MongoDB sync failed for ${phone}:`, err.message);
-    }
-}
-
-// Full sync: Sync ALL tenants from Google Sheets → MongoDB
-async function syncAllTenantsToMongo() {
-    try {
-        const tenants = await sheetsService.getTenantsJSON();
-        let count = 0;
-        for (const t of tenants) {
-            if (!t.Phone) continue;
-            await Tenant.findOneAndUpdate(
-                { phone: t.Phone, name: t.Name },
-                {
-                    room: t.Room || '', bed: t.Bed || '', floor: t.Floor || '',
-                    location: t.Location || '', sharingType: t['Sharing Type'] || '',
-                    advance: t.Advance || '', monthlyRent: t['Monthly Rent'] || '',
-                    ebAmount: t['EB Amount'] || '', totalAmount: t['Total Amount'] || '',
-                    status: t.Status || '', joinDate: t['Join Date'] || '',
-                    paidDate: t['Paid Date'] || '', aadhaarImage: t['Aadhaar Image'] || ''
-                },
-                { upsert: true, new: true }
-            );
-            count++;
-        }
-        console.log(`[SYNC] Full MongoDB sync complete: ${count} tenants`);
-        return count;
-    } catch (err) {
-        console.error('[SYNC] Full MongoDB sync failed:', err.message);
-        return 0;
-    }
-}
+// NOTE: MongoDB sync is now handled automatically inside sheets.js
+// Every call to sheetsService.updateTenant(), addTenant(), verifyPayment(), rejectPayment()
+// auto-syncs to MongoDB. No need for separate sync calls.
 
 const app = express();
 app.use(cors({
@@ -669,14 +611,11 @@ app.post('/api/bulk-update-eb', async (req, res) => {
                 const eb = parseFloat((update.eb || '0').toString().replace(/[^\d.]/g, ''));
                 const total = rent + eb;
 
-                // 1. Update Google Sheets
+                // 1. Update Google Sheets (Auto-syncs to MongoDB)
                 await sheetsService.updateTenant(update.phone, {
                     'EB Amount': eb.toString(),
                     'Total Amount': total.toString()
                 }, update.name);
-
-                // 2. Sync to MongoDB
-                await syncTenantToMongo(update.phone, update.name);
 
                 successCount++;
             } catch (updateErr) {
@@ -938,9 +877,6 @@ app.post('/api/trigger-notifications', async (req, res) => {
                     // Send via WhatsApp
                     await sendMedia(phone, filePath, caption, ["💳 Pay Now UPI", "💵 Pay Cash", "❌ Cancel"]);
 
-                    // Sync this tenant to MongoDB
-                    await syncTenantToMongo(phone, name);
-
                     sentCount++;
                     console.log(`[NOTIFY] Sent to ${name} (${sentCount}/${activeTenants.length})`);
                     await new Promise(r => setTimeout(r, 1000));
@@ -1015,14 +951,11 @@ app.post('/api/update-bill', async (req, res) => {
     try {
         const { phone, name, rent, eb } = req.body;
         const total = parseFloat(rent) + parseFloat(eb);
-        // 1. Update Google Sheets
+        // 1. Update Google Sheets (Auto-syncs to MongoDB)
         const success = await sheetsService.updateTenant(phone, {
             'Monthly Rent': rent.toString(), 'EB Amount': eb.toString(), 'Total Amount': total.toString()
         }, name);
         if (!success) return res.status(404).json({ error: 'Tenant not found' });
-
-        // 2. Sync to MongoDB
-        await syncTenantToMongo(phone, name);
 
         res.json({ success: true });
     } catch (err) {
@@ -1044,14 +977,11 @@ app.post('/api/update-and-notify', async (req, res) => {
             'Sharing Type': sharingType || 'Unknown', 'Location': location || 'Main Branch'
         };
 
-        // 1. Update Google Sheets
+        // 1. Update Google Sheets (Auto-syncs to MongoDB)
         const success = await sheetsService.updateTenant(phoneToUse, updateData, oldName || name);
         if (!success) {
             return res.status(404).json({ error: 'Resident not found.' });
         }
-
-        // 2. Sync to MongoDB (use the new phone/name if changed)
-        await syncTenantToMongo(newPhone || phoneToUse, name || oldName);
 
         res.json({ success: true });
     } catch (err) {
@@ -1062,7 +992,7 @@ app.post('/api/update-and-notify', async (req, res) => {
 app.post('/api/mark-paid', async (req, res) => {
     try {
         const { phone, name, amount, mode } = req.body;
-        // 1. Update Google Sheets
+        // 1. Update Google Sheets (Auto-syncs to MongoDB)
         const success = await sheetsService.updateTenant(phone, {
             'Status': 'VALID', 'Paid Date': new Date().toLocaleDateString(),
             'Transaction ID': `${mode.toUpperCase()}-${Date.now().toString().slice(-4)}`,
@@ -1072,9 +1002,6 @@ app.post('/api/mark-paid', async (req, res) => {
 
         const tenant = await sheetsService.getTenantByPhone(phone, name);
         await sheetsService.logPayment(tenant, amount, mode, 'MANUAL-ENTRY', 'VALID');
-
-        // 2. Sync to MongoDB
-        await syncTenantToMongo(phone, name);
 
         const tenantData = {
             Name: tenant.get('Name'), Phone: tenant.get('Phone'), Room: tenant.get('Room'),
@@ -1135,7 +1062,7 @@ app.post('/api/delete-tenant', async (req, res) => {
 
 app.post('/api/sync-to-mongo', async (req, res) => {
     try {
-        const count = await syncAllTenantsToMongo();
+        const count = await sheetsService.syncAllToMongo();
         res.json({ success: true, count });
     } catch (err) {
         res.status(500).json({ error: err.message });
@@ -1208,12 +1135,10 @@ app.post('/api/eb-bills', async (req, res) => {
             const perPersonEB = Math.round(result.totalEB / active.length);
             for (const t of active) {
                 const rent = parseFloat(t.get('Monthly Rent') || 0);
-                // 1. Update Google Sheets
+                // Update Google Sheets (Auto-syncs to MongoDB)
                 await sheetsService.updateTenant(t.get('Phone'), {
                     'EB Amount': perPersonEB.toString(), 'Total Amount': (rent + perPersonEB).toString()
                 }, t.get('Name'));
-                // 2. Sync to MongoDB
-                await syncTenantToMongo(t.get('Phone'), t.get('Name'));
             }
         }
         res.json({ success: true, totalEB: result.totalEB });

@@ -4,6 +4,7 @@ import fs from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import config from './config.js';
+import { Tenant } from './db.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -298,7 +299,10 @@ class SheetsService {
         tenant.set('Paid Date', pDate);
         await tenant.save();
 
-        // 3. Add to History (if not already there)
+        // 3. Sync to MongoDB
+        await this._syncToMongo(phone);
+
+        // 4. Add to History (if not already there)
         const hRows = await this.historySheet.getRows();
         const exists = hRows.some(r => r.get('TRX_ID') === trxId && trxId !== 'PENDING');
         if (!exists && trxId) {
@@ -345,6 +349,10 @@ class SheetsService {
         // 2. Update Tenant Status
         tenant.set('Status', 'INVALID');
         await tenant.save();
+
+        // 3. Sync to MongoDB
+        await this._syncToMongo(phone);
+
         return true;
     }
 
@@ -427,10 +435,74 @@ class SheetsService {
             // Update location occupancy
             await this.updateLocationOccupancy(tenantData.location || 'Main Branch');
 
+            // Auto-sync new tenant to MongoDB
+            await this._syncToMongo(tenantData.phone, tenantData.name);
+
             return row;
         } catch (err) {
             console.error('Error in addRow:', err.message);
             throw err;
+        }
+    }
+
+    // ==================== MONGODB SYNC HELPER ====================
+    // Auto-syncs a tenant's data from Google Sheets → MongoDB
+    async _syncToMongo(phone, name = null) {
+        try {
+            const tenant = await this.getTenantByPhone(phone, name);
+            if (!tenant) return;
+
+            await Tenant.findOneAndUpdate(
+                { phone: tenant.get('Phone'), name: tenant.get('Name') },
+                {
+                    room: tenant.get('Room') || '',
+                    bed: tenant.get('Bed') || '',
+                    floor: tenant.get('Floor') || '',
+                    location: tenant.get('Location') || '',
+                    sharingType: tenant.get('Sharing Type') || '',
+                    advance: tenant.get('Advance') || '',
+                    monthlyRent: tenant.get('Monthly Rent') || '',
+                    ebAmount: tenant.get('EB Amount') || '',
+                    totalAmount: tenant.get('Total Amount') || '',
+                    status: tenant.get('Status') || '',
+                    joinDate: tenant.get('Join Date') || '',
+                    paidDate: tenant.get('Paid Date') || '',
+                    aadhaarImage: tenant.get('Aadhaar Image') || ''
+                },
+                { upsert: true, new: true }
+            );
+            console.log(`[SHEETS→MONGO] Synced: ${tenant.get('Name')} (${phone})`);
+        } catch (err) {
+            console.error(`[SHEETS→MONGO] Sync failed for ${phone}:`, err.message);
+        }
+    }
+
+    // Full sync: ALL tenants from Sheets → MongoDB
+    async syncAllToMongo() {
+        try {
+            const tenants = await this.getTenantsJSON();
+            let count = 0;
+            for (const t of tenants) {
+                if (!t.Phone) continue;
+                await Tenant.findOneAndUpdate(
+                    { phone: t.Phone, name: t.Name },
+                    {
+                        room: t.Room || '', bed: t.Bed || '', floor: t.Floor || '',
+                        location: t.Location || '', sharingType: t['Sharing Type'] || '',
+                        advance: t.Advance || '', monthlyRent: t['Monthly Rent'] || '',
+                        ebAmount: t['EB Amount'] || '', totalAmount: t['Total Amount'] || '',
+                        status: t.Status || '', joinDate: t['Join Date'] || '',
+                        paidDate: t['Paid Date'] || '', aadhaarImage: t['Aadhaar Image'] || ''
+                    },
+                    { upsert: true, new: true }
+                );
+                count++;
+            }
+            console.log(`[SHEETS→MONGO] Full sync complete: ${count} tenants`);
+            return count;
+        } catch (err) {
+            console.error('[SHEETS→MONGO] Full sync failed:', err.message);
+            return 0;
         }
     }
 
@@ -441,6 +513,10 @@ class SheetsService {
                 row.set(key, updates[key]);
             });
             await row.save();
+
+            // Auto-sync to MongoDB
+            await this._syncToMongo(phone, name);
+
             return true;
         }
         return false;

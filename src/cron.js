@@ -89,7 +89,18 @@ function setupCron() {
         }
     });
 
-    console.log('🕒 Automation System Active: Notifications scheduled for 1st, 3rd, and 5th.');
+    // 4. Full Sync with MongoDB every 6 hours (to catch manual edits in Google Sheet)
+    cron.schedule('0 */6 * * *', async () => {
+        console.log('Running Full MongoDB Sync Cron...');
+        try {
+            const count = await sheetsService.syncAllToMongo();
+            console.log(`[CRON] Auto-sync complete: ${count} tenants synced.`);
+        } catch (err) {
+            console.error('Cron Error (Sync):', err.message);
+        }
+    });
+
+    console.log('🕒 Automation System Active: Notifications scheduled for 1st, 3rd, 5th, and auto-sync every 6h.');
 }
 
 export default setupCron;
