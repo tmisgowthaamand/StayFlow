@@ -359,16 +359,18 @@ app.post('/api/verify-transaction', async (req, res) => {
                 const tRoom = tenant.get('Room') || 'N/A';
                 const tRent = tenant.get('Monthly Rent') || '0';
                 const tEB = tenant.get('EB Amount') || '0';
-                const tTotal = parseFloat(tRent) + parseFloat(tEB);
+                const tTotal = (parseFloat(tRent) + parseFloat(tEB)) || tenant.get('Total Amount') || '0';
                 const tTrxId = tenant.get('Transaction ID') || trxId;
                 const tPaidDate = tenant.get('Paid Date') || new Date().toLocaleDateString();
+                const tVpa = tenant.get('UPI ID') || ''; // Check if we stored it in sheets
                 // Generate invoice URL for download
                 let invoiceUrl = '';
                 try {
                     const invData = {
                         Name: tName, Phone: phone, Room: tRoom,
                         EB_Amount: tEB, Monthly_Rent: tRent, Total_Amount: tTotal.toString(),
-                        Paid_Date: tPaidDate, Transaction_ID: tTrxId, Payment_Mode: 'UPI (Razorpay)'
+                        Paid_Date: tPaidDate, Transaction_ID: tTrxId, Payment_Mode: 'UPI (Razorpay)',
+                        UPI_ID: tVpa
                     };
                     const { fileName } = await pdfService.generateInvoice(invData);
                     invoiceUrl = `/api/uploads/${fileName}`;
@@ -385,7 +387,8 @@ app.post('/api/verify-transaction', async (req, res) => {
                     total: tTotal,
                     trxId: tTrxId,
                     paidDate: tPaidDate,
-                    invoiceUrl: invoiceUrl
+                    invoiceUrl: invoiceUrl,
+                    vpa: tVpa
                 });
             }
         }
@@ -399,6 +402,7 @@ app.post('/api/verify-transaction', async (req, res) => {
                 { 'details.payload.payment_link.entity.id': { $regex: trxId, $options: 'i' } },
                 { 'details.payload.payment.entity.acquirer_data.rrn': trxId },
                 { 'details.payload.payment.entity.acquirer_data.upi_transaction_id': trxId },
+                { 'details.payload.payment.entity.vpa': trxId },
                 { 'details.payload.payment.entity.notes.phone': phone }
             ]
         }).sort({ timestamp: -1 });
@@ -465,7 +469,13 @@ app.post('/api/verify-transaction', async (req, res) => {
                     const targetPhone = phone || rzpPayment.notes?.phone || '';
                     if (targetPhone) {
                         const rzpAmount = rzpPayment.amount / 100;
-                        await handleRazorpaySuccess(targetPhone, rzpAmount, trxId, 'UPI (Razorpay)');
+                        const rzpVpa = rzpPayment.vpa || rzpPayment.acquirer_data?.rrn || '';
+
+                        await handleRazorpaySuccess(targetPhone, rzpAmount, trxId, 'UPI (Razorpay)', {
+                            vpa: rzpVpa,
+                            payment_id: rzpPayment.id,
+                            order_id: rzpPayment.order_id
+                        });
                         const uTenant = await sheetsService.getTenantByPhone(targetPhone);
                         let invoiceUrl = '';
                         if (uTenant) {
@@ -474,7 +484,8 @@ app.post('/api/verify-transaction', async (req, res) => {
                                     Name: uTenant.get('Name'), Phone: targetPhone, Room: uTenant.get('Room') || 'N/A',
                                     EB_Amount: uTenant.get('EB Amount') || '0', Monthly_Rent: uTenant.get('Monthly Rent') || '0',
                                     Total_Amount: rzpAmount.toString(), Paid_Date: new Date().toLocaleDateString(),
-                                    Transaction_ID: trxId, Payment_Mode: 'UPI (Razorpay)'
+                                    Transaction_ID: trxId, Payment_Mode: 'UPI (Razorpay)',
+                                    UPI_ID: rzpVpa, Payment_ID: rzpPayment.id, Order_ID: rzpPayment.order_id
                                 });
                                 invoiceUrl = `/api/uploads/${fileName}`;
                             } catch (e) { }
