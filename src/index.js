@@ -21,6 +21,68 @@ import { Log, Media, Tenant } from './db.js';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+// ==================== SYNC HELPER ====================
+// Ensures Google Sheets and MongoDB are always in sync.
+// Call this after any Google Sheet update to mirror changes to MongoDB.
+async function syncTenantToMongo(phone, name = null) {
+    try {
+        const tenant = await sheetsService.getTenantByPhone(phone, name);
+        if (!tenant) return;
+
+        await Tenant.findOneAndUpdate(
+            { phone: tenant.get('Phone'), name: tenant.get('Name') },
+            {
+                room: tenant.get('Room') || '',
+                bed: tenant.get('Bed') || '',
+                floor: tenant.get('Floor') || '',
+                location: tenant.get('Location') || '',
+                sharingType: tenant.get('Sharing Type') || '',
+                advance: tenant.get('Advance') || '',
+                monthlyRent: tenant.get('Monthly Rent') || '',
+                ebAmount: tenant.get('EB Amount') || '',
+                totalAmount: tenant.get('Total Amount') || '',
+                status: tenant.get('Status') || '',
+                joinDate: tenant.get('Join Date') || '',
+                paidDate: tenant.get('Paid Date') || '',
+                aadhaarImage: tenant.get('Aadhaar Image') || ''
+            },
+            { upsert: true, new: true }
+        );
+        console.log(`[SYNC] MongoDB synced for ${tenant.get('Name')} (${phone})`);
+    } catch (err) {
+        console.error(`[SYNC] MongoDB sync failed for ${phone}:`, err.message);
+    }
+}
+
+// Full sync: Sync ALL tenants from Google Sheets → MongoDB
+async function syncAllTenantsToMongo() {
+    try {
+        const tenants = await sheetsService.getTenantsJSON();
+        let count = 0;
+        for (const t of tenants) {
+            if (!t.Phone) continue;
+            await Tenant.findOneAndUpdate(
+                { phone: t.Phone, name: t.Name },
+                {
+                    room: t.Room || '', bed: t.Bed || '', floor: t.Floor || '',
+                    location: t.Location || '', sharingType: t['Sharing Type'] || '',
+                    advance: t.Advance || '', monthlyRent: t['Monthly Rent'] || '',
+                    ebAmount: t['EB Amount'] || '', totalAmount: t['Total Amount'] || '',
+                    status: t.Status || '', joinDate: t['Join Date'] || '',
+                    paidDate: t['Paid Date'] || '', aadhaarImage: t['Aadhaar Image'] || ''
+                },
+                { upsert: true, new: true }
+            );
+            count++;
+        }
+        console.log(`[SYNC] Full MongoDB sync complete: ${count} tenants`);
+        return count;
+    } catch (err) {
+        console.error('[SYNC] Full MongoDB sync failed:', err.message);
+        return 0;
+    }
+}
+
 const app = express();
 app.use(cors({
     origin: config.allowedOrigins.length > 0 ? config.allowedOrigins : '*',
@@ -607,10 +669,14 @@ app.post('/api/bulk-update-eb', async (req, res) => {
                 const eb = parseFloat((update.eb || '0').toString().replace(/[^\d.]/g, ''));
                 const total = rent + eb;
 
+                // 1. Update Google Sheets
                 await sheetsService.updateTenant(update.phone, {
                     'EB Amount': eb.toString(),
                     'Total Amount': total.toString()
                 }, update.name);
+
+                // 2. Sync to MongoDB
+                await syncTenantToMongo(update.phone, update.name);
 
                 successCount++;
             } catch (updateErr) {
@@ -619,7 +685,7 @@ app.post('/api/bulk-update-eb', async (req, res) => {
             }
         }
 
-        console.log(`[BULK EB] Updated ${successCount}/${updates.length} tenants. Failures: ${failCount}`);
+        console.log(`[BULK EB] Updated ${successCount}/${updates.length} tenants (Sheets + Mongo). Failures: ${failCount}`);
 
         res.json({
             success: true,
@@ -796,6 +862,7 @@ app.get('/api/tenants', async (req, res) => {
 app.post('/api/add-tenant', async (req, res) => {
     try {
         const tenantData = req.body;
+
         const detailedRules = `🏢 *PG House Rules & Regulations*\n━━━━━━━━━━━━━━━━━━━━\n⚖️ *DO's:*\n1. Keep your room and shared areas clean and hygienic.\n2. Maintain silence after 10:00 PM for everyone's comfort.\n3. Pay rent by the 5th and EB bills by the 10th of each month.\n4. Inform the admin 30 days before vacating.\n5. Cooperate with police verification and security checks.\n\n🚫 *DON'Ts:*\n1. Strictly NO smoking, alcohol, or illegal substances.\n2. No overnight visitors allowed without prior permission.\n\n🤖 *Tip:* Type *HI* to see your dashboard!`;
 
         const { fileName: regFile, filePath: regPath } = await pdfService.generateRegistrationForm({
@@ -824,39 +891,62 @@ app.post('/api/add-tenant', async (req, res) => {
 
 app.post('/api/trigger-notifications', async (req, res) => {
     try {
+        // Re-read fresh data from Google Sheets 
         const tenants = await sheetsService.getAllTenants();
-        res.json({ success: true, message: `Notification process started for ${tenants.length} recipients.` });
+        const activeTenants = tenants.filter(t => t.get('Phone') && t.get('Status') !== 'VACATED');
 
+        res.json({ success: true, message: `Notification process started for ${activeTenants.length} recipients.` });
+
+        // Background async - send notifications without blocking response
         (async () => {
             let sentCount = 0;
-            for (const tenant of tenants) {
+            for (const tenant of activeTenants) {
                 const phone = tenant.get('Phone');
                 const name = tenant.get('Name');
-                const status = tenant.get('Status');
-                if (!phone || status === 'VACATED') continue;
 
                 try {
-                    const rent = (tenant.get('Monthly Rent') || '0').toString().replace(/[^\d.]/g, '');
-                    const eb = (tenant.get('EB Amount') || '0').toString().replace(/[^\d.]/g, '');
-                    const total = parseFloat(rent) + parseFloat(eb);
-                    const razorpayLink = await createRazorpayLink(phone, name, total, tenant.get('Room'));
+                    // Read FRESH values from sheet (in case bulk-update-eb just ran)
+                    const freshTenant = await sheetsService.getTenantByPhone(phone, name);
+                    if (!freshTenant) continue;
 
+                    const rent = (freshTenant.get('Monthly Rent') || '0').toString().replace(/[^\d.]/g, '');
+                    const eb = (freshTenant.get('EB Amount') || '0').toString().replace(/[^\d.]/g, '');
+                    const total = parseFloat(rent) + parseFloat(eb);
+
+                    // Update Status to PENDING if not already PAID
+                    const currentStatus = freshTenant.get('Status');
+                    if (currentStatus !== 'PAID' && currentStatus !== 'VALID') {
+                        await sheetsService.updateTenant(phone, { 'Status': 'PENDING' }, name);
+                    }
+
+                    // Generate payment link to website
+                    const razorpayLink = await createRazorpayLink(phone, name, total, freshTenant.get('Room'));
+
+                    // Generate invoice PDF
                     const tenantData = {
-                        Name: name, Phone: phone, Room: tenant.get('Room'),
+                        Name: name, Phone: phone, Room: freshTenant.get('Room'),
                         EB_Amount: eb, Monthly_Rent: rent, Total_Amount: total,
                         Paid_Date: 'PENDING', Transaction_ID: 'PENDING', Payment_Mode: 'PENDING'
                     };
                     const { fileName, filePath } = await pdfService.generateInvoice(tenantData);
 
+                    // Build notification message
                     const currentMonth = new Date().toLocaleString('default', { month: 'long' });
-                    let caption = `🔔 *Bill Reminder*\n\nHi ${name},\nTotal Due: *₹${total}*\n📅 *Due Date: 5th ${currentMonth}*`;
-                    if (razorpayLink) caption += `\n\n💳 *Pay Online (Razorpay):* ${razorpayLink}`;
+                    let caption = `🔔 *Monthly Bill — ${currentMonth}*\n\nHi ${name},\n\n📋 *Breakdown:*\n🏠 Rent: ₹${rent}\n⚡ EB: ₹${eb}\n💰 *Total Due: ₹${total}*\n\n📅 *Due Date: 5th ${currentMonth}*`;
+                    if (razorpayLink) caption += `\n\n💳 *Pay Online:* ${razorpayLink}`;
 
+                    // Send via WhatsApp
                     await sendMedia(phone, filePath, caption, ["💳 Pay Now UPI", "💵 Pay Cash", "❌ Cancel"]);
+
+                    // Sync this tenant to MongoDB
+                    await syncTenantToMongo(phone, name);
+
                     sentCount++;
+                    console.log(`[NOTIFY] Sent to ${name} (${sentCount}/${activeTenants.length})`);
                     await new Promise(r => setTimeout(r, 1000));
                 } catch (e) { console.error(`Failed to notify ${name}:`, e.message); }
             }
+            console.log(`[NOTIFY] Complete: ${sentCount}/${activeTenants.length} notifications sent.`);
         })();
     } catch (err) {
         res.status(500).json({ error: err.message });
@@ -925,11 +1015,16 @@ app.post('/api/update-bill', async (req, res) => {
     try {
         const { phone, name, rent, eb } = req.body;
         const total = parseFloat(rent) + parseFloat(eb);
+        // 1. Update Google Sheets
         const success = await sheetsService.updateTenant(phone, {
             'Monthly Rent': rent.toString(), 'EB Amount': eb.toString(), 'Total Amount': total.toString()
         }, name);
-        if (success) res.json({ success: true });
-        else res.status(404).json({ error: 'Tenant not found' });
+        if (!success) return res.status(404).json({ error: 'Tenant not found' });
+
+        // 2. Sync to MongoDB
+        await syncTenantToMongo(phone, name);
+
+        res.json({ success: true });
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
@@ -949,10 +1044,15 @@ app.post('/api/update-and-notify', async (req, res) => {
             'Sharing Type': sharingType || 'Unknown', 'Location': location || 'Main Branch'
         };
 
+        // 1. Update Google Sheets
         const success = await sheetsService.updateTenant(phoneToUse, updateData, oldName || name);
         if (!success) {
             return res.status(404).json({ error: 'Resident not found.' });
         }
+
+        // 2. Sync to MongoDB (use the new phone/name if changed)
+        await syncTenantToMongo(newPhone || phoneToUse, name || oldName);
+
         res.json({ success: true });
     } catch (err) {
         res.status(500).json({ error: err.message });
@@ -962,6 +1062,7 @@ app.post('/api/update-and-notify', async (req, res) => {
 app.post('/api/mark-paid', async (req, res) => {
     try {
         const { phone, name, amount, mode } = req.body;
+        // 1. Update Google Sheets
         const success = await sheetsService.updateTenant(phone, {
             'Status': 'VALID', 'Paid Date': new Date().toLocaleDateString(),
             'Transaction ID': `${mode.toUpperCase()}-${Date.now().toString().slice(-4)}`,
@@ -971,6 +1072,9 @@ app.post('/api/mark-paid', async (req, res) => {
 
         const tenant = await sheetsService.getTenantByPhone(phone, name);
         await sheetsService.logPayment(tenant, amount, mode, 'MANUAL-ENTRY', 'VALID');
+
+        // 2. Sync to MongoDB
+        await syncTenantToMongo(phone, name);
 
         const tenantData = {
             Name: tenant.get('Name'), Phone: tenant.get('Phone'), Room: tenant.get('Room'),
@@ -1031,34 +1135,8 @@ app.post('/api/delete-tenant', async (req, res) => {
 
 app.post('/api/sync-to-mongo', async (req, res) => {
     try {
-        const tenants = await sheetsService.getTenantsJSON();
-        let syncedCount = 0;
-
-        for (const t of tenants) {
-            // Upsert based on Name and Phone to avoid duplicates
-            await Tenant.findOneAndUpdate(
-                { phone: t.Phone, name: t.Name },
-                {
-                    room: t.Room,
-                    bed: t.Bed,
-                    floor: t.Floor,
-                    location: t.Location,
-                    sharingType: t['Sharing Type'],
-                    advance: t.Advance,
-                    monthlyRent: t['Monthly Rent'],
-                    ebAmount: t['EB Amount'],
-                    totalAmount: t['Total Amount'],
-                    status: t.Status,
-                    joinDate: t['Join Date'],
-                    paidDate: t['Paid Date'],
-                    aadhaarImage: t['Aadhaar Image']
-                },
-                { upsert: true, new: true }
-            );
-            syncedCount++;
-        }
-
-        res.json({ success: true, count: syncedCount });
+        const count = await syncAllTenantsToMongo();
+        res.json({ success: true, count });
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
@@ -1130,9 +1208,12 @@ app.post('/api/eb-bills', async (req, res) => {
             const perPersonEB = Math.round(result.totalEB / active.length);
             for (const t of active) {
                 const rent = parseFloat(t.get('Monthly Rent') || 0);
+                // 1. Update Google Sheets
                 await sheetsService.updateTenant(t.get('Phone'), {
                     'EB Amount': perPersonEB.toString(), 'Total Amount': (rent + perPersonEB).toString()
                 }, t.get('Name'));
+                // 2. Sync to MongoDB
+                await syncTenantToMongo(t.get('Phone'), t.get('Name'));
             }
         }
         res.json({ success: true, totalEB: result.totalEB });
