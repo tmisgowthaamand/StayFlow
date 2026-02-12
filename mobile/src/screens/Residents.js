@@ -64,15 +64,13 @@ const ResidentItem = ({ item, onNotify, onMarkPaid, onDelete, onViewInvoice }) =
                         <FileText size={18} color="#0EA5E9" />
                     </TouchableOpacity>
 
-                    {/* Notify */}
-                    {!isPaid && (
-                        <TouchableOpacity
-                            style={[styles.iconButton, { backgroundColor: '#EEF2FF' }]}
-                            onPress={() => onNotify(item)}
-                        >
-                            <Bell size={18} color="#4F46E5" />
-                        </TouchableOpacity>
-                    )}
+                    {/* Notify — always visible for all residents */}
+                    <TouchableOpacity
+                        style={[styles.iconButton, { backgroundColor: '#EEF2FF' }]}
+                        onPress={() => onNotify(item)}
+                    >
+                        <Bell size={18} color="#4F46E5" />
+                    </TouchableOpacity>
 
                     {/* Mark Paid */}
                     {!isPaid && (
@@ -133,20 +131,36 @@ const Residents = () => {
     };
 
     const handleNotify = async (tenant) => {
-        Alert.alert('Notify Resident', `Send invoice & payment reminder to ${tenant.Name}?`, [
-            { text: 'Cancel', style: 'cancel' },
-            {
-                text: 'Send Invoice',
-                onPress: async () => {
-                    try {
-                        await notifyTenant(tenant.Phone, tenant.Name);
-                        Alert.alert('Success', 'Invoice & reminder sent via WhatsApp');
-                    } catch (error) {
-                        Alert.alert('Error', 'Failed to send notification');
+        const rent = tenant['Monthly Rent'] || '0';
+        const eb = tenant['EB Amount'] || '0';
+        const total = tenant['Total Amount'] || '0';
+
+        Alert.alert(
+            '📩 Send Invoice',
+            `Send invoice to ${tenant.Name}?\n\n` +
+            `🏠 Room: ${tenant.Room}\n` +
+            `💰 Rent: ₹${rent}\n` +
+            `⚡ EB: ₹${eb}\n` +
+            `━━━━━━━━━━━━━\n` +
+            `📊 Total Due: ₹${total}\n\n` +
+            `This will send:\n` +
+            `✅ Invoice PDF via WhatsApp\n` +
+            `✅ Payment link to pay online`,
+            [
+                { text: 'Cancel', style: 'cancel' },
+                {
+                    text: 'Send Invoice',
+                    onPress: async () => {
+                        try {
+                            await notifyTenant(tenant.Phone, tenant.Name);
+                            Alert.alert('✅ Sent!', `Invoice for ₹${total} sent to ${tenant.Name} via WhatsApp`);
+                        } catch (error) {
+                            Alert.alert('Error', 'Failed to send notification: ' + (error?.response?.data?.error || error.message));
+                        }
                     }
                 }
-            }
-        ]);
+            ]
+        );
     };
 
     const handleNotifyAll = () => {
@@ -192,19 +206,28 @@ const Residents = () => {
     };
 
     const handleMarkPaid = (tenant) => {
-        const amount = tenant['Total Amount'] || '0';
+        const rent = tenant['Monthly Rent'] || '0';
+        const eb = tenant['EB Amount'] || '0';
+        const total = tenant['Total Amount'] || '0';
+
         Alert.alert(
-            'Mark As Paid',
-            `Confirm receipt of ₹${amount} from ${tenant.Name}?`,
+            '✅ Verify Payment',
+            `Confirm payment from ${tenant.Name}?\n\n` +
+            `🏠 Room: ${tenant.Room}\n` +
+            `💰 Rent: ₹${rent}\n` +
+            `⚡ EB: ₹${eb}\n` +
+            `━━━━━━━━━━━━━\n` +
+            `📊 Total: ₹${total}\n\n` +
+            `Select payment mode:`,
             [
                 { text: 'Cancel', style: 'cancel' },
                 {
-                    text: 'Received via CASH',
-                    onPress: () => confirmPayment(tenant, amount, 'CASH')
+                    text: '💵 Cash',
+                    onPress: () => confirmPayment(tenant, total, 'CASH')
                 },
                 {
-                    text: 'Received via UPI',
-                    onPress: () => confirmPayment(tenant, amount, 'UPI')
+                    text: '📱 UPI',
+                    onPress: () => confirmPayment(tenant, total, 'UPI')
                 }
             ]
         );
@@ -214,10 +237,41 @@ const Residents = () => {
         try {
             setLoading(true);
             await markPaidManual(tenant.Phone, tenant.Name, amount, mode);
-            Alert.alert('Success', `Marked as PAID via ${mode}`);
-            fetchTenants();
+
+            // After marking paid, ask owner if they want to view the receipt
+            Alert.alert(
+                '✅ Payment Verified!',
+                `${tenant.Name} marked as PAID via ${mode}\n\n` +
+                `💰 Amount: ₹${amount}\n` +
+                `📄 Invoice PDF sent to resident via WhatsApp\n\n` +
+                `Would you like to view the receipt?`,
+                [
+                    {
+                        text: 'Close',
+                        onPress: () => fetchTenants()
+                    },
+                    {
+                        text: '📄 View Receipt',
+                        onPress: async () => {
+                            try {
+                                const result = await generateInvoice(tenant.Phone, tenant.Name);
+                                if (result?.url) {
+                                    const fullUrl = `https://stayflow-hnm3.onrender.com${result.url}`;
+                                    navigation.navigate('PDFViewer', {
+                                        url: fullUrl,
+                                        title: `Receipt: ${tenant.Name}`
+                                    });
+                                }
+                            } catch (e) {
+                                Alert.alert('Error', 'Could not load receipt');
+                            }
+                            fetchTenants();
+                        }
+                    }
+                ]
+            );
         } catch (error) {
-            Alert.alert('Error', 'Failed to update payment status');
+            Alert.alert('Error', 'Failed to update payment: ' + (error?.response?.data?.error || error.message));
             console.error(error);
         } finally {
             setLoading(false);
