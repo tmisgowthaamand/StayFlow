@@ -57,16 +57,16 @@ class PDFService {
         doc.line(lX, lY + 8, lX + 20, lY + 8); // Floor
         doc.rect(lX + 4, lY + 8, 12, 10); // Base
 
-        // Colorful Flow 'S' (using multiple colored lines for 'vibrant' feel)
-        doc.setLineWidth(0.8);
+        // Digital Flow 'S' (using robust straight lines)
+        doc.setLineWidth(1.2);
         doc.setDrawColor(...vSecondary);
-        doc.moveTo(lX + 5, lY + 12);
-        doc.bezierCurveTo(lX + 5, lY + 12, lX + 15, lY + 12, lX + 15, lY + 15);
-        doc.stroke();
+        doc.line(lX + 5, lY + 12, lX + 15, lY + 12);
+        doc.line(lX + 15, lY + 12, lX + 15, lY + 16);
         doc.setDrawColor(...vAccent);
-        doc.moveTo(lX + 15, lY + 15);
-        doc.bezierCurveTo(lX + 15, lY + 18, lX + 5, lY + 18, lX + 5, lY + 21);
-        doc.stroke();
+        doc.line(lX + 15, lY + 16, lX + 5, lY + 16);
+        doc.line(lX + 5, lY + 16, lX + 5, lY + 20);
+        doc.setDrawColor(...vSecondary);
+        doc.line(lX + 5, lY + 20, lX + 15, lY + 20);
 
         doc.setFont('times', 'bold');
         doc.setFontSize(18);
@@ -352,28 +352,45 @@ class PDFService {
         if (typeof doc.setCharSpace === 'function') doc.setCharSpace(0);
         const { name, phone, room, sharingType, advance, monthlyRent } = tenantData;
 
-        // ==================== BRANDING HEADER ====================
-        try {
-            const logoPath = path.join(__dirname, '../assets/stayflow_banner.jpg');
-            if (fs.existsSync(logoPath)) {
-                const logoData = fs.readFileSync(logoPath);
-                doc.addImage(logoData, 'JPEG', 20, 10, 30, 15);
-            }
-        } catch (e) {
-            console.error('Logo loading failed:', e);
-        }
+        // Vibrant Palette for Form
+        const vPrimary = [79, 70, 229];      // Indigo
+        const vSecondary = [6, 182, 212];    // Teal
+        const vAccent = [139, 92, 246];      // Purple
+
+        // ==================== VIBRANT BRANDING HEADER ====================
+        const lX = 20;
+        const lY = 12;
+        doc.setDrawColor(...vPrimary);
+        doc.setLineWidth(1);
+        doc.line(lX, lY + 8, lX + 10, lY);
+        doc.line(lX + 10, lY, lX + 20, lY + 8);
+        doc.line(lX, lY + 8, lX + 20, lY + 8);
+        doc.rect(lX + 4, lY + 8, 12, 10);
+
+        doc.setLineWidth(1.2);
+        doc.setDrawColor(...vSecondary);
+        doc.line(lX + 5, lY + 12, lX + 15, lY + 12);
+        doc.line(lX + 15, lY + 12, lX + 15, lY + 16);
+        doc.setDrawColor(...vAccent);
+        doc.line(lX + 15, lY + 16, lX + 5, lY + 16);
+        doc.setDrawColor(...vSecondary);
+        doc.line(lX + 5, lY + 20, lX + 15, lY + 20);
 
         doc.setFont('times', 'bold');
-        doc.setFontSize(14);
-        doc.setTextColor(107, 114, 87); // olive
-        doc.text(String(config.businessName).toUpperCase(), 52, 20);
+        doc.setFontSize(18);
+        doc.setTextColor(...vPrimary);
+        doc.text("Stay", lX + 25, 20);
+        doc.setTextColor(...vSecondary);
+        doc.text("Flow", lX + 37, 20);
+
+        doc.setFont('times', 'normal');
         doc.setFontSize(8);
         doc.setTextColor(100, 100, 100);
-        doc.text('PREMIUM RESIDENTIAL STAY', 52, 24);
+        doc.text('PREMIUM PG MANAGEMENT', lX + 25, 24);
 
-        // Header
+        // Header Background
         const headerY = 35;
-        doc.setFillColor(44, 62, 80);
+        doc.setFillColor(...vPrimary);
         doc.rect(0, headerY, 210, 40, 'F');
         doc.setTextColor(255, 255, 255);
         doc.setFont('times', 'bold');
