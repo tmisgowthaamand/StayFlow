@@ -674,7 +674,12 @@
                 // Check if already paid
                 if (data.status === 'PAID' || data.status === 'VALID') {
                     paymentStatus.className = 'status-msg info';
-                    paymentStatus.innerHTML = '✅ Your payment for this month is already verified! Check WhatsApp for your invoice.';
+                    paymentStatus.innerHTML = `✅ Your payment for this month is already verified! 
+                        <br><br>
+                        <a href="/confirmation.html?phone=${encodeURIComponent(phone)}&trxId=${encodeURIComponent(data.transactionId || '')}" 
+                           class="btn-primary" style="display:inline-block; margin-top:10px; text-decoration:none; padding:10px 20px;">
+                           View / Download Invoice
+                        </a>`;
                     paymentStatus.style.display = 'block';
                     document.getElementById('payNowBtn').disabled = true;
                     document.getElementById('payNowBtn').innerHTML = '✅ Already Paid';
