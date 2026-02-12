@@ -114,7 +114,7 @@ class PDFService {
         const metaYStart = 49;
 
         // Invoice No row
-        doc.setFillColor(...olive);
+        doc.setFillColor(...vPrimary);
         doc.rect(metaX, metaYStart, metaW / 2, 7, 'F');
         doc.setFont('helvetica', 'bold');
         doc.setFontSize(7);
@@ -129,7 +129,7 @@ class PDFService {
         doc.text(invoiceNo, metaX + metaW / 2 + 2, metaYStart + 5);
 
         // Date row
-        doc.setFillColor(...olive);
+        doc.setFillColor(...vPrimary);
         doc.rect(metaX, metaYStart + 7, metaW / 2, 7, 'F');
         doc.setFont('helvetica', 'bold');
         doc.setFontSize(7);
@@ -144,7 +144,7 @@ class PDFService {
         doc.text(invoiceDate, metaX + metaW / 2 + 2, metaYStart + 12);
 
         // Billing Month row
-        doc.setFillColor(...olive);
+        doc.setFillColor(...vPrimary);
         doc.rect(metaX, metaYStart + 14, metaW / 2, 7, 'F');
         doc.setFont('helvetica', 'bold');
         doc.setFontSize(7);
@@ -159,7 +159,7 @@ class PDFService {
         doc.text(billingMonth, metaX + metaW / 2 + 2, metaYStart + 19);
 
         // Payment Terms row
-        doc.setFillColor(...olive);
+        doc.setFillColor(...vPrimary);
         doc.rect(metaX, metaYStart + 21, metaW / 2, 7, 'F');
         doc.setFont('helvetica', 'bold');
         doc.setFontSize(7);
@@ -177,7 +177,7 @@ class PDFService {
         const sectionY = 85; // Adjusted from 65 to 85 (shifted by 20)
 
         // BILL TO label
-        doc.setFillColor(...olive);
+        doc.setFillColor(...vPrimary);
         doc.rect(margin, sectionY, 30, 6, 'F');
         doc.setFont('helvetica', 'bold');
         doc.setFontSize(7);
@@ -194,7 +194,7 @@ class PDFService {
         doc.text("Phone: " + String(Phone), margin, sectionY + 18);
 
         // PROPERTY label
-        doc.setFillColor(...olive);
+        doc.setFillColor(...vPrimary);
         doc.rect(metaX, sectionY, 35, 6, 'F');
         doc.setFont('helvetica', 'bold');
         doc.setFontSize(7);
@@ -265,7 +265,7 @@ class PDFService {
 
         // Subtotal row
         const subX = margin + 90 + 20; // After description + qty columns
-        doc.setDrawColor(...oliveLight);
+        doc.setDrawColor(...vSecondary);
         doc.setLineWidth(0.3);
         doc.line(subX, tableEndY + 2, pageW - margin, tableEndY + 2);
 
@@ -318,7 +318,7 @@ class PDFService {
         doc.text('THANK YOU', margin, tyY);
 
         // ==================== FOOTER ====================
-        doc.setDrawColor(...oliveLight);
+        doc.setDrawColor(...vSecondary);
         doc.setLineWidth(0.4);
         doc.line(margin, 268, pageW - margin, 268);
 
@@ -330,7 +330,7 @@ class PDFService {
 
         doc.setFont('times', 'normal');
         doc.setFontSize(8);
-        doc.setTextColor(...olive);
+        doc.setTextColor(...textMid);
         doc.text('This is a computer-generated invoice. No signature required.', pageW / 2, 286, { align: 'center' });
 
         // ==================== SAVE ====================
