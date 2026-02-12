@@ -1,12 +1,14 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, TextInput, ActivityIndicator, Alert } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, TextInput, ActivityIndicator, Alert, RefreshControl } from 'react-native';
 import { Colors, Spacing, Shadows } from '../theme/theme';
 import Header from '../components/Header';
-import { getTenants, notifyTenant } from '../api/api';
-import { Search, Bell, Phone, CreditCard } from 'lucide-react-native';
+import { useNavigation } from '@react-navigation/native';
+import { getTenants, notifyTenant, markPaidManual, deleteTenant } from '../api/api';
+import { Search, Bell, Phone, CheckCircle, Trash2, Edit } from 'lucide-react-native';
 
-const ResidentItem = ({ item, onNotify }) => {
+const ResidentItem = ({ item, onNotify, onMarkPaid, onDelete }) => {
     const isPaid = item.Status === 'PAID' || item.Status === 'VALID';
+    const navigation = useNavigation();
 
     return (
         <View style={[styles.card, Shadows.sm]}>
@@ -29,14 +31,40 @@ const ResidentItem = ({ item, onNotify }) => {
                 </View>
 
                 <View style={styles.actionButtons}>
+                    {/* Edit */}
                     <TouchableOpacity
-                        style={[styles.iconButton, { backgroundColor: '#EEF2FF' }]}
-                        onPress={() => onNotify(item)}
+                        style={[styles.iconButton, { backgroundColor: '#F3F4F6' }]}
+                        onPress={() => navigation.navigate('EditTenant', { tenant: item })}
                     >
-                        <Bell size={18} color="#4F46E5" />
+                        <Edit size={18} color="#4B5563" />
                     </TouchableOpacity>
-                    <TouchableOpacity style={[styles.iconButton, { backgroundColor: '#F0FDF4' }]}>
-                        <Phone size={18} color="#16A34A" />
+
+                    {/* Notify */}
+                    {!isPaid && (
+                        <TouchableOpacity
+                            style={[styles.iconButton, { backgroundColor: '#EEF2FF' }]}
+                            onPress={() => onNotify(item)}
+                        >
+                            <Bell size={18} color="#4F46E5" />
+                        </TouchableOpacity>
+                    )}
+
+                    {/* Mark Paid */}
+                    {!isPaid && (
+                        <TouchableOpacity
+                            style={[styles.iconButton, { backgroundColor: '#ECFDF5' }]}
+                            onPress={() => onMarkPaid(item)}
+                        >
+                            <CheckCircle size={18} color="#059669" />
+                        </TouchableOpacity>
+                    )}
+
+                    {/* Vacate / Delete */}
+                    <TouchableOpacity
+                        style={[styles.iconButton, { backgroundColor: '#FEF2F2' }]}
+                        onPress={() => onDelete(item)}
+                    >
+                        <Trash2 size={18} color="#DC2626" />
                     </TouchableOpacity>
                 </View>
             </View>
@@ -78,20 +106,80 @@ const Residents = () => {
     };
 
     const handleNotify = async (tenant) => {
-        try {
-            Alert.alert('Notify Resident', `Send payment reminder to ${tenant.Name}?`, [
-                { text: 'Cancel', style: 'cancel' },
-                {
-                    text: 'Send',
-                    onPress: async () => {
+        Alert.alert('Notify Resident', `Send payment reminder to ${tenant.Name}?`, [
+            { text: 'Cancel', style: 'cancel' },
+            {
+                text: 'Send',
+                onPress: async () => {
+                    try {
                         await notifyTenant(tenant.Phone, tenant.Name);
                         Alert.alert('Success', 'Reminder sent via WhatsApp');
+                    } catch (error) {
+                        Alert.alert('Error', 'Failed to send notification');
                     }
                 }
-            ]);
+            }
+        ]);
+    };
+
+    const handleMarkPaid = (tenant) => {
+        const amount = tenant['Total Amount'] || '0';
+        Alert.alert(
+            'Mark As Paid',
+            `Confirm receipt of ₹${amount} from ${tenant.Name}?`,
+            [
+                { text: 'Cancel', style: 'cancel' },
+                {
+                    text: 'Received via CASH',
+                    onPress: () => confirmPayment(tenant, amount, 'CASH')
+                },
+                {
+                    text: 'Received via UPI',
+                    onPress: () => confirmPayment(tenant, amount, 'UPI')
+                }
+            ]
+        );
+    };
+
+    const confirmPayment = async (tenant, amount, mode) => {
+        try {
+            setLoading(true);
+            await markPaidManual(tenant.Phone, tenant.Name, amount, mode);
+            Alert.alert('Success', `Marked as PAID via ${mode}`);
+            fetchTenants();
         } catch (error) {
-            Alert.alert('Error', 'Failed to send notification');
+            Alert.alert('Error', 'Failed to update payment status');
+            console.error(error);
+        } finally {
+            setLoading(false);
         }
+    };
+
+    const handleDelete = (tenant) => {
+        Alert.alert(
+            'Remove Resident',
+            `Are you sure you want to remove ${tenant.Name} from the PG? This action cannot be undone.`,
+            [
+                { text: 'Cancel', style: 'cancel' },
+                {
+                    text: 'Remove / Vacate',
+                    style: 'destructive',
+                    onPress: async () => {
+                        try {
+                            setLoading(true);
+                            await deleteTenant(tenant.Phone, tenant.Name);
+                            Alert.alert('Success', 'Resident removed successfully');
+                            fetchTenants();
+                        } catch (error) {
+                            Alert.alert('Error', 'Failed to remove resident');
+                            console.error(error);
+                        } finally {
+                            setLoading(false);
+                        }
+                    }
+                }
+            ]
+        );
     };
 
     return (
@@ -116,8 +204,18 @@ const Residents = () => {
                 <FlatList
                     data={filteredTenants}
                     keyExtractor={(item, index) => index.toString()}
-                    renderItem={({ item }) => <ResidentItem item={item} onNotify={handleNotify} />}
+                    renderItem={({ item }) => (
+                        <ResidentItem
+                            item={item}
+                            onNotify={handleNotify}
+                            onMarkPaid={handleMarkPaid}
+                            onDelete={handleDelete}
+                        />
+                    )}
                     contentContainerStyle={styles.listContent}
+                    refreshControl={
+                        <RefreshControl refreshing={loading} onRefresh={fetchTenants} colors={[Colors.primary]} />
+                    }
                     ListEmptyComponent={
                         <Text style={styles.emptyText}>No residents found.</Text>
                     }

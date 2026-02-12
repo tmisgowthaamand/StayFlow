@@ -1015,7 +1015,7 @@ app.post('/api/update-bill', async (req, res) => {
 
 app.post('/api/update-and-notify', async (req, res) => {
     try {
-        const { oldPhone, newPhone, name, rent, eb, sharingType, location, oldName } = req.body;
+        const { oldPhone, newPhone, name, rent, eb, sharingType, location, oldName, status, room } = req.body;
         const phoneToUse = oldPhone || req.body.phone;
         const safeRent = (rent || '0').toString();
         const safeEb = (eb || '0').toString();
@@ -1026,6 +1026,12 @@ app.post('/api/update-and-notify', async (req, res) => {
             'EB Amount': safeEb, 'Total Amount': total.toString(),
             'Sharing Type': sharingType || 'Unknown', 'Location': location || 'Main Branch'
         };
+
+        // Include Room if provided
+        if (room) updateData['Room'] = room.toString();
+
+        // Include Status if provided (PAID, PENDING, VALID, etc.)
+        if (status) updateData['Status'] = status;
 
         // 1. Update Google Sheets (Auto-syncs to MongoDB)
         const success = await sheetsService.updateTenant(phoneToUse, updateData, oldName || name);

@@ -57,4 +57,48 @@ export const markPaidManual = async (phone, name, amount, mode) => {
     }
 };
 
+export const addTenant = async (tenantData) => {
+    try {
+        const response = await api.post('/add-tenant', tenantData);
+        return response.data;
+    } catch (error) {
+        console.error('Add tenant failed:', error.message);
+        throw error;
+    }
+};
+
+export const deleteTenant = async (phone, name) => {
+    try {
+        const response = await api.post('/delete-tenant', { phone, name });
+        return response.data;
+    } catch (error) {
+        console.error('Delete tenant failed:', error.message);
+        throw error;
+    }
+};
+
+export const updateTenant = async (data) => {
+    try {
+        const response = await api.post('/update-and-notify', data);
+        return response.data;
+    } catch (error) {
+        console.error('Update tenant failed:', error.message);
+        throw error;
+    }
+};
+
+export const broadcastMessage = async (data, isMultipart = false) => {
+    try {
+        const config = isMultipart ? { headers: { 'Content-Type': 'multipart/form-data' } } : {};
+        // If not multipart, wrap message in object as backend expects { message: ... }
+        const payload = isMultipart ? data : { message: data };
+
+        const response = await api.post('/broadcast', payload, config);
+        return response.data;
+    } catch (error) {
+        console.error('Broadcast failed:', error.message);
+        throw error;
+    }
+};
+
 export default api;
