@@ -1,8 +1,0 @@
-{
-    "rewrites": [
-        {
-            "source": "/api/(.*)",
-            "destination": "https://stayflow-hnm3.onrender.com/api/$1"
-        }
-    ]
-}

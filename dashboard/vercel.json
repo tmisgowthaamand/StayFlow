@@ -5,11 +5,11 @@
     "rewrites": [
         {
             "source": "/api/(.*)",
-            "destination": "https://stayflow-server.onrender.com/api/$1"
+            "destination": "https://stayflow-hnm3.onrender.com/api/$1"
         },
         {
             "source": "/webhook/(.*)",
-            "destination": "https://stayflow-server.onrender.com/webhook/$1"
+            "destination": "https://stayflow-hnm3.onrender.com/webhook/$1"
         },
         {
             "source": "/payment.html",
