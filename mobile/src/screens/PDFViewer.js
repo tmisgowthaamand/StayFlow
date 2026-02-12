@@ -1,30 +1,30 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { StyleSheet, View, ActivityIndicator, Platform } from 'react-native';
 import { WebView } from 'react-native-webview';
 import { Colors } from '../theme/theme';
 import Header from '../components/Header';
 
-const PDFViewer = ({ route }) => {
+const PDFViewer = ({ route, navigation }) => {
     const { url, title } = route.params;
 
-    // Use Google Docs Viewer for Android, direct for iOS
     const viewerUrl = Platform.OS === 'android'
         ? `https://docs.google.com/viewer?url=${encodeURIComponent(url)}&embedded=true`
         : url;
 
     return (
         <View style={styles.container}>
-            <Header title={title || "Document Viewer"} />
+            <Header title={title || 'Document Viewer'} onBack={() => navigation.goBack()} />
             <WebView
                 source={{ uri: viewerUrl }}
                 style={{ flex: 1 }}
                 startInLoadingState={true}
                 renderLoading={() => (
-                    <ActivityIndicator
-                        color={Colors.primary}
-                        size="large"
-                        style={styles.loading}
-                    />
+                    <View style={styles.loadingContainer}>
+                        <ActivityIndicator
+                            color={Colors.primary}
+                            size="large"
+                        />
+                    </View>
                 )}
             />
         </View>
@@ -33,15 +33,12 @@ const PDFViewer = ({ route }) => {
 
 const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: Colors.background },
-    loading: {
-        position: 'absolute',
-        left: 0,
-        right: 0,
-        top: 0,
-        bottom: 0,
+    loadingContainer: {
+        ...StyleSheet.absoluteFillObject,
+        backgroundColor: Colors.background,
         alignItems: 'center',
-        justifyContent: 'center'
-    }
+        justifyContent: 'center',
+    },
 });
 
 export default PDFViewer;

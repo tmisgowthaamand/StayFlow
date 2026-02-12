@@ -5,12 +5,12 @@
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
-    "userInterfaceStyle": "light",
-    "primaryColor": "#4F46E5",
+    "userInterfaceStyle": "dark",
+    "primaryColor": "#6C63FF",
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#ffffff"
+      "backgroundColor": "#0A0E1A"
     },
     "ios": {
       "supportsTablet": true
@@ -18,8 +18,14 @@
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#ffffff"
-      }
+        "backgroundColor": "#0A0E1A"
+      },
+      "statusBar": {
+        "backgroundColor": "#0A0E1A",
+        "barStyle": "light-content",
+        "translucent": true
+      },
+      "package": "com.stayflow.mobile"
     },
     "web": {
       "favicon": "./assets/favicon.png"

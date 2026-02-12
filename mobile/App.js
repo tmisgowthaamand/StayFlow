@@ -1,8 +1,9 @@
-import React from 'react';
+import React, { useRef, useEffect } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { createStackNavigator } from '@react-navigation/stack';
+import { createStackNavigator, CardStyleInterpolators } from '@react-navigation/stack';
 import { StatusBar } from 'expo-status-bar';
+import { View, StyleSheet, Animated, Easing } from 'react-native';
 import { Colors } from './src/theme/theme';
 import Dashboard from './src/screens/Dashboard';
 import Residents from './src/screens/Residents';
@@ -12,10 +13,86 @@ import Rooms from './src/screens/Rooms';
 import EditTenant from './src/screens/EditTenant';
 import Announcements from './src/screens/Announcements';
 import PDFViewer from './src/screens/PDFViewer';
-import { LayoutDashboard, Users, Zap, Settings, FileText, Map } from 'lucide-react-native';
+import AddTenant from './src/screens/AddTenant';
+import NotificationsScreen from './src/screens/Notifications';
+import { LayoutDashboard, Users, Zap, FileText, Map } from 'lucide-react-native';
+import { requestNotificationPermissions } from './src/utils/notifications';
+import * as Notifications from 'expo-notifications';
+
+// Configure notifications to show even when app is open
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldShowAlert: true,
+    shouldPlaySound: true,
+    shouldSetBadge: false,
+  }),
+});
 
 const Tab = createBottomTabNavigator();
 const Stack = createStackNavigator();
+
+// ─── Animated Tab Icon ─────────────────────────────────────────
+function AnimatedTabIcon({ IconComponent, color, size, focused }) {
+  const scale = useRef(new Animated.Value(1)).current;
+  const translateY = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    if (focused) {
+      Animated.parallel([
+        Animated.spring(scale, {
+          toValue: 1.15,
+          friction: 4,
+          tension: 100,
+          useNativeDriver: true,
+        }),
+        Animated.spring(translateY, {
+          toValue: -2,
+          friction: 4,
+          tension: 100,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    } else {
+      Animated.parallel([
+        Animated.spring(scale, {
+          toValue: 1,
+          friction: 6,
+          tension: 60,
+          useNativeDriver: true,
+        }),
+        Animated.spring(translateY, {
+          toValue: 0,
+          friction: 6,
+          tension: 60,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    }
+  }, [focused]);
+
+  return (
+    <Animated.View
+      style={{
+        transform: [{ scale }, { translateY }],
+        alignItems: 'center',
+        justifyContent: 'center',
+      }}
+    >
+      <IconComponent color={color} size={size} />
+      {focused && (
+        <View
+          style={{
+            width: 5,
+            height: 5,
+            borderRadius: 2.5,
+            backgroundColor: color,
+            marginTop: 4,
+          }}
+        />
+      )}
+    </Animated.View>
+  );
+}
 
 function MainTabs() {
   return (
@@ -23,26 +100,39 @@ function MainTabs() {
       screenOptions={({ route }) => ({
         headerShown: false,
         tabBarActiveTintColor: Colors.primary,
-        tabBarInactiveTintColor: Colors.textSecondary,
+        tabBarInactiveTintColor: Colors.textMuted,
         tabBarStyle: {
-          height: 60,
-          paddingBottom: 10,
-          paddingTop: 5,
-          backgroundColor: Colors.surface,
+          height: 72,
+          paddingBottom: 14,
+          paddingTop: 10,
+          backgroundColor: Colors.tabBarBg,
           borderTopWidth: 1,
-          borderTopColor: Colors.border,
+          borderTopColor: Colors.tabBarBorder,
+          elevation: 0,
+          shadowOpacity: 0,
         },
         tabBarLabelStyle: {
           fontSize: 10,
           fontWeight: '600',
+          letterSpacing: 0.3,
+          marginTop: -2,
         },
-        tabBarIcon: ({ color, size }) => {
-          if (route.name === 'Home') return <LayoutDashboard color={color} size={size} />;
-          if (route.name === 'Rooms') return <Map color={color} size={size} />;
-          if (route.name === 'Residents') return <Users color={color} size={size} />;
-          if (route.name === 'New') return <FileText color={color} size={size} />;
-          if (route.name === 'Billing') return <Zap color={color} size={size} />;
-          return <Settings color={color} size={size} />;
+        tabBarIcon: ({ color, size, focused }) => {
+          const icons = {
+            Home: LayoutDashboard,
+            Rooms: Map,
+            Residents: Users,
+            New: FileText,
+            Billing: Zap,
+          };
+          return (
+            <AnimatedTabIcon
+              IconComponent={icons[route.name]}
+              color={color}
+              size={size}
+              focused={focused}
+            />
+          );
         },
       })}
     >
@@ -56,16 +146,48 @@ function MainTabs() {
 }
 
 export default function App() {
+  useEffect(() => {
+    requestNotificationPermissions();
+  }, []);
+
   return (
-    <NavigationContainer>
-      <StatusBar style="dark" />
-      <Stack.Navigator screenOptions={{ headerShown: false }}>
-        <Stack.Screen name="Main" component={MainTabs} />
-        <Stack.Screen name="EditTenant" component={EditTenant} />
-        <Stack.Screen name="Announcements" component={Announcements} />
-        <Stack.Screen name="PDFViewer" component={PDFViewer} />
-      </Stack.Navigator>
-    </NavigationContainer>
+    <View style={styles.container}>
+      <NavigationContainer>
+        <StatusBar style="light" backgroundColor={Colors.background} />
+        <Stack.Navigator
+          screenOptions={{
+            headerShown: false,
+            cardStyle: { backgroundColor: Colors.background },
+            animationEnabled: true,
+            gestureEnabled: true,
+            cardStyleInterpolator: CardStyleInterpolators.forFadeFromBottomAndroid,
+            transitionSpec: {
+              open: {
+                animation: 'timing',
+                config: { duration: 280, easing: Easing.out(Easing.cubic) },
+              },
+              close: {
+                animation: 'timing',
+                config: { duration: 220, easing: Easing.in(Easing.cubic) },
+              },
+            },
+          }}
+        >
+          <Stack.Screen name="Main" component={MainTabs} />
+          <Stack.Screen name="EditTenant" component={EditTenant} />
+          <Stack.Screen name="Announcements" component={Announcements} />
+          <Stack.Screen name="PDFViewer" component={PDFViewer} />
+          <Stack.Screen name="AddTenant" component={AddTenant} />
+          <Stack.Screen name="Notifications" component={NotificationsScreen} />
+        </Stack.Navigator>
+      </NavigationContainer>
+    </View>
   );
 }
 
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: Colors.background,
+  },
+});
