@@ -15,20 +15,27 @@ import autoTable from 'jspdf-autotable';
 
 class PDFService {
     async generateInvoice(tenantData) {
-        const doc = new jsPDF();
+        const doc = new jsPDF({
+            orientation: 'portrait',
+            unit: 'mm',
+            format: 'a4',
+            putOnlyUsedFonts: true
+        });
+        doc.setCharSpace(0); // Reset character spacing to prevent ghosting
+        // Color palette (Vibrant & Attractive - Modern Blue/Teal/Purple)
+        const vPrimary = [79, 70, 229];      // #4F46E5 - Vibrant Indigo
+        const vSecondary = [6, 182, 212];    // #06B6D4 - Electric Teal
+        const vAccent = [139, 92, 246];      // #8B5CF6 - Soft Purple
+        const textDark = [15, 23, 42];       // Slate Dark
+        const textMid = [71, 85, 105];       // Slate Mid
+        const bgLight = [248, 250, 252];    // Cool Gray light
+        const white = [255, 255, 255];
+
         const { Name, Phone, Room, EB_Amount, Monthly_Rent, Total_Amount, Paid_Date, Transaction_ID, Payment_Mode } = tenantData;
 
         const pageW = 210;
         const margin = 15;
         const contentW = pageW - margin * 2;
-
-        // Color palette (olive/dark green theme matching the reference image)
-        const olive = [107, 114, 87];       // #6B7257 - primary accent
-        const oliveDark = [85, 91, 69];     // #555B45 - darker shade
-        const oliveLight = [142, 149, 126]; // #8E957E - lighter shade
-        const textDark = [40, 40, 40];
-        const textMid = [100, 100, 100];
-        const bgLight = [245, 244, 240];    // light warm gray
 
         const invoiceNo = `SF-${Date.now().toString().slice(-6)}`;
         const invoiceDate = new Date().toLocaleDateString('en-IN');
@@ -36,96 +43,133 @@ class PDFService {
         const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
         const billingMonth = `${monthNames[now.getMonth()]} ${now.getFullYear()}`;
 
-        // ==================== TITLE ====================
-        doc.setFont('helvetica', 'bold');
-        doc.setFontSize(20);
-        doc.setTextColor(...textDark);
-        doc.text('BILLING INVOICE', margin, 22);
+        // ==================== VIBRANT BRANDING HEADER ====================
+        // Vector Logo: House Shape
+        doc.setDrawColor(...vPrimary);
+        doc.setLineWidth(1);
+        doc.setFillColor(...vPrimary);
 
-        // Thin olive line under title
-        doc.setDrawColor(...olive);
+        // Draw House Icon
+        const lX = margin;
+        const lY = 12;
+        doc.lines([[10, -8], [10, 8]], lX, lY + 8, [1, 1], 'S'); // Roof left
+        doc.line(lX, lY + 8, lX + 20, lY + 8); // Floor
+        doc.rect(lX + 4, lY + 8, 12, 10); // Base
+
+        // Colorful Flow 'S' (using multiple colored lines for 'vibrant' feel)
         doc.setLineWidth(0.8);
-        doc.line(margin, 26, pageW - margin, 26);
+        doc.setDrawColor(...vSecondary);
+        doc.bezierCurveTo(lX + 5, lY + 12, lX + 15, lY + 12, lX + 15, lY + 15);
+        doc.setDrawColor(...vAccent);
+        doc.bezierCurveTo(lX + 15, lY + 18, lX + 5, lY + 18, lX + 5, lY + 21);
+
+        doc.setFont('times', 'bold');
+        doc.setFontSize(18);
+        doc.setTextColor(...vPrimary);
+        doc.text("Stay", margin + 25, 20);
+        doc.setTextColor(...vSecondary);
+        doc.text("Flow", margin + 25 + 12, 20);
+
+        doc.setFont('times', 'normal');
+        doc.setFontSize(8);
+        doc.setTextColor(...textMid);
+        doc.text('PREMIUM PG MANAGEMENT', margin + 25, 24);
+
+        // ==================== TITLE ====================
+        doc.setFont('times', 'bold');
+        doc.setFontSize(24);
+        doc.setTextColor(...textDark);
+        doc.text('BILLING INVOICE', margin, 42);
+
+        // Colorful rainbow-like line under title
+        doc.setLineWidth(1.2);
+        doc.setDrawColor(...vPrimary);
+        doc.line(margin, 46, margin + 60, 46);
+        doc.setDrawColor(...vSecondary);
+        doc.line(margin + 60, 46, margin + 120, 46);
+        doc.setDrawColor(...vAccent);
+        doc.line(margin + 120, 46, pageW - margin, 46);
 
         // ==================== COMPANY INFO (left) ====================
-        doc.setFont('helvetica', 'bold');
-        doc.setFontSize(11);
+        doc.setFont('times', 'bold');
+        doc.setFontSize(12);
         doc.setTextColor(...textDark);
-        doc.text(config.businessName, margin, 35);
+        doc.text(String(config.businessName), margin, 55);
 
-        doc.setFont('helvetica', 'normal');
-        doc.setFontSize(8.5);
+        doc.setFont('times', 'normal');
+        doc.setFontSize(9);
         doc.setTextColor(...textMid);
         const ownerPhone = config.ownerPhone || Phone;
-        doc.text(`Phone: ${ownerPhone}`, margin, 40);
-        doc.text(`UPI: ${config.upiId || 'N/A'}`, margin, 45);
+        doc.text(`Phone: ${ownerPhone}`, margin, 60);
+        doc.text(`UPI: ${config.upiId || 'N/A'}`, margin, 65);
 
         // ==================== INVOICE META BOX (right) ====================
         const metaX = 130;
         const metaW = 65;
+        const metaYStart = 49;
 
         // Invoice No row
         doc.setFillColor(...olive);
-        doc.rect(metaX, 29, metaW / 2, 7, 'F');
+        doc.rect(metaX, metaYStart, metaW / 2, 7, 'F');
         doc.setFont('helvetica', 'bold');
         doc.setFontSize(7);
         doc.setTextColor(255, 255, 255);
-        doc.text('INVOICE NO.', metaX + 1.5, 34);
+        doc.text('INVOICE NO.', metaX + 1.5, metaYStart + 5);
 
         doc.setFillColor(...bgLight);
-        doc.rect(metaX + metaW / 2, 29, metaW / 2, 7, 'F');
+        doc.rect(metaX + metaW / 2, metaYStart, metaW / 2, 7, 'F');
         doc.setTextColor(...textDark);
         doc.setFont('helvetica', 'normal');
         doc.setFontSize(8);
-        doc.text(invoiceNo, metaX + metaW / 2 + 2, 34);
+        doc.text(invoiceNo, metaX + metaW / 2 + 2, metaYStart + 5);
 
         // Date row
         doc.setFillColor(...olive);
-        doc.rect(metaX, 36, metaW / 2, 7, 'F');
+        doc.rect(metaX, metaYStart + 7, metaW / 2, 7, 'F');
         doc.setFont('helvetica', 'bold');
         doc.setFontSize(7);
         doc.setTextColor(255, 255, 255);
-        doc.text('DATE', metaX + 1.5, 41);
+        doc.text('DATE', metaX + 1.5, metaYStart + 12);
 
         doc.setFillColor(...bgLight);
-        doc.rect(metaX + metaW / 2, 36, metaW / 2, 7, 'F');
+        doc.rect(metaX + metaW / 2, metaYStart + 7, metaW / 2, 7, 'F');
         doc.setTextColor(...textDark);
         doc.setFont('helvetica', 'normal');
         doc.setFontSize(8);
-        doc.text(invoiceDate, metaX + metaW / 2 + 2, 41);
+        doc.text(invoiceDate, metaX + metaW / 2 + 2, metaYStart + 12);
 
         // Billing Month row
         doc.setFillColor(...olive);
-        doc.rect(metaX, 43, metaW / 2, 7, 'F');
+        doc.rect(metaX, metaYStart + 14, metaW / 2, 7, 'F');
         doc.setFont('helvetica', 'bold');
         doc.setFontSize(7);
         doc.setTextColor(255, 255, 255);
-        doc.text('BILLING MONTH', metaX + 1.5, 48);
+        doc.text('BILLING MONTH', metaX + 1.5, metaYStart + 19);
 
         doc.setFillColor(...bgLight);
-        doc.rect(metaX + metaW / 2, 43, metaW / 2, 7, 'F');
+        doc.rect(metaX + metaW / 2, metaYStart + 14, metaW / 2, 7, 'F');
         doc.setTextColor(...textDark);
         doc.setFont('helvetica', 'normal');
         doc.setFontSize(8);
-        doc.text(billingMonth, metaX + metaW / 2 + 2, 48);
+        doc.text(billingMonth, metaX + metaW / 2 + 2, metaYStart + 19);
 
         // Payment Terms row
         doc.setFillColor(...olive);
-        doc.rect(metaX, 50, metaW / 2, 7, 'F');
+        doc.rect(metaX, metaYStart + 21, metaW / 2, 7, 'F');
         doc.setFont('helvetica', 'bold');
         doc.setFontSize(7);
         doc.setTextColor(255, 255, 255);
-        doc.text('TERMS', metaX + 1.5, 55);
+        doc.text('TERMS', metaX + 1.5, metaYStart + 26);
 
         doc.setFillColor(...bgLight);
-        doc.rect(metaX + metaW / 2, 50, metaW / 2, 7, 'F');
+        doc.rect(metaX + metaW / 2, metaYStart + 21, metaW / 2, 7, 'F');
         doc.setTextColor(...textDark);
         doc.setFont('helvetica', 'normal');
         doc.setFontSize(8);
-        doc.text(`Due by ${config.rentDueDate}th`, metaX + metaW / 2 + 2, 55);
+        doc.text(`Due by ${config.rentDueDate}th`, metaX + metaW / 2 + 2, metaYStart + 26);
 
         // ==================== BILL TO (left) & PROPERTY (right) ====================
-        const sectionY = 65;
+        const sectionY = 85; // Adjusted from 65 to 85 (shifted by 20)
 
         // BILL TO label
         doc.setFillColor(...olive);
@@ -136,13 +180,13 @@ class PDFService {
         doc.text('BILL TO:', margin + 1.5, sectionY + 4.5);
 
         // BILL TO details
-        doc.setFont('helvetica', 'normal');
+        doc.setFont('times', 'normal');
         doc.setFontSize(9);
         doc.setTextColor(...textDark);
-        doc.text(Name, margin, sectionY + 13);
+        doc.text(String(Name), margin, sectionY + 13);
         doc.setTextColor(...textMid);
         doc.setFontSize(8.5);
-        doc.text(`Phone: ${Phone}`, margin, sectionY + 18);
+        doc.text("Phone: " + String(Phone), margin, sectionY + 18);
 
         // PROPERTY label
         doc.setFillColor(...olive);
@@ -182,22 +226,22 @@ class PDFService {
         }
 
         autoTable(doc, {
-            startY: 95,
-            head: [['DESCRIPTION', 'QTY', 'UNIT PRICE', 'AMOUNT']],
+            startY: 105,
+            head: [['DESCRIPTION', 'QTY', 'PRICE', 'AMOUNT']],
             body: tableBody,
             theme: 'plain',
             styles: {
                 fontSize: 8.5,
-                cellPadding: { top: 3, right: 4, bottom: 3, left: 4 },
-                lineColor: [200, 200, 195],
-                lineWidth: 0.3,
+                cellPadding: { top: 4, right: 4, bottom: 4, left: 4 },
+                lineColor: [226, 232, 240],
+                lineWidth: 0.1,
                 textColor: textDark,
             },
             headStyles: {
-                fillColor: olive,
-                textColor: [255, 255, 255],
+                fillColor: vPrimary,
+                textColor: white,
                 fontStyle: 'bold',
-                fontSize: 7.5,
+                fontSize: 8,
                 halign: 'center',
             },
             columnStyles: {
@@ -207,7 +251,7 @@ class PDFService {
                 3: { cellWidth: 35, halign: 'right' },
             },
             alternateRowStyles: {
-                fillColor: [250, 249, 245],
+                fillColor: [241, 245, 249],
             },
         });
 
@@ -226,30 +270,34 @@ class PDFService {
         doc.text('SUBTOTAL', subX + 2, tableEndY + 8);
         doc.text(`Rs. ${total.toFixed(2)}`, pageW - margin - 2, tableEndY + 8, { align: 'right' });
 
-        // Total row with olive background
-        doc.setFillColor(...olive);
-        doc.rect(subX, tableEndY + 12, contentW - 90 - 20, 9, 'F');
-        doc.setFont('helvetica', 'bold');
-        doc.setFontSize(9);
-        doc.setTextColor(255, 255, 255);
-        doc.text('TOTAL', subX + 2, tableEndY + 18);
-        doc.text(`Rs. ${total.toFixed(2)}`, pageW - margin - 2, tableEndY + 18, { align: 'right' });
+        // Total row with vibrant background
+        doc.setFillColor(...vPrimary);
+        doc.rect(subX, tableEndY + 12, contentW - 90 - 20, 10, 'F');
+        doc.setFont('times', 'bold');
+        doc.setFontSize(10);
+        doc.setTextColor(...white);
+        doc.text('TOTAL', subX + 4, tableEndY + 18.5);
+        doc.text(`Rs. ${total.toFixed(2)}`, pageW - margin - 4, tableEndY + 18.5, { align: 'right' });
 
-        // ==================== PAYMENT STATUS BOX ====================
-        const statusY = tableEndY + 28;
+        const statusY = tableEndY + 30;
         if (Paid_Date && Paid_Date !== 'PENDING') {
-            doc.setFillColor(232, 245, 233);
+            doc.setFillColor(236, 253, 245); // Light emerald bg
             doc.roundedRect(margin, statusY, contentW, 20, 2, 2, 'F');
-            doc.setFont('helvetica', 'bold');
-            doc.setFontSize(9);
-            doc.setTextColor(46, 125, 50);
-            doc.text(`✓  PAID on ${Paid_Date}  |  Mode: ${Payment_Mode}`, margin + 5, statusY + 7);
+            doc.setDrawColor(...vSecondary);
+            doc.setLineWidth(0.5);
+            doc.roundedRect(margin, statusY, contentW, 20, 2, 2, 'S');
 
-            doc.setFont('helvetica', 'normal');
-            doc.setFontSize(8);
-            let detailLine = `TXN: ${Transaction_ID}`;
-            if (tenantData.UPI_ID) detailLine += `  |  UPI ID: ${tenantData.UPI_ID}`;
-            if (tenantData.Payment_ID && tenantData.Payment_ID !== Transaction_ID) detailLine += `  |  PAY ID: ${tenantData.Payment_ID}`;
+            doc.setFont('times', 'bold');
+            doc.setFontSize(11);
+            doc.setTextColor(5, 150, 105); // Modern green
+            const statusLine = "PAID on " + Paid_Date + " | Mode: " + Payment_Mode;
+            doc.text(statusLine, margin + 5, statusY + 8);
+
+            doc.setFont('times', 'normal');
+            doc.setFontSize(9);
+            let detailLine = "TXN: " + Transaction_ID;
+            if (tenantData.UPI_ID) detailLine += " | UPI ID: " + tenantData.UPI_ID;
+            if (tenantData.Payment_ID && tenantData.Payment_ID !== Transaction_ID) detailLine += " | PAY ID: " + tenantData.Payment_ID;
             doc.text(detailLine, margin + 5, statusY + 13);
 
             if (tenantData.Order_ID) {
@@ -258,10 +306,10 @@ class PDFService {
         }
 
         // ==================== THANK YOU ====================
-        const tyY = statusY + 25;
-        doc.setFont('helvetica', 'bold');
-        doc.setFontSize(18);
-        doc.setTextColor(...oliveLight);
+        const tyY = statusY + 28;
+        doc.setFont('times', 'bold');
+        doc.setFontSize(20);
+        doc.setTextColor(...vAccent);
         doc.text('THANK YOU', margin, tyY);
 
         // ==================== FOOTER ====================
@@ -269,14 +317,14 @@ class PDFService {
         doc.setLineWidth(0.4);
         doc.line(margin, 268, pageW - margin, 268);
 
-        doc.setFont('helvetica', 'italic');
+        doc.setFont('times', 'italic');
         doc.setFontSize(8);
         doc.setTextColor(...textMid);
         doc.text('For questions concerning this invoice, please contact', pageW / 2, 274, { align: 'center' });
-        doc.text(`${config.businessName}, ${config.ownerPhone || 'N/A'}, UPI: ${config.upiId || 'N/A'}`, pageW / 2, 279, { align: 'center' });
+        doc.text(String(config.businessName) + ", " + String(config.ownerPhone || 'N/A') + ", UPI: " + String(config.upiId || 'N/A'), pageW / 2, 279, { align: 'center' });
 
-        doc.setFont('helvetica', 'normal');
-        doc.setFontSize(7.5);
+        doc.setFont('times', 'normal');
+        doc.setFontSize(8);
         doc.setTextColor(...olive);
         doc.text('This is a computer-generated invoice. No signature required.', pageW / 2, 286, { align: 'center' });
 
@@ -291,25 +339,52 @@ class PDFService {
     }
 
     async generateRegistrationForm(tenantData) {
-        const doc = new jsPDF();
+        const doc = new jsPDF({
+            orientation: 'portrait',
+            unit: 'mm',
+            format: 'a4'
+        });
+        doc.setCharSpace(0);
         const { name, phone, room, sharingType, advance, monthlyRent } = tenantData;
 
+        // ==================== BRANDING HEADER ====================
+        try {
+            const logoPath = path.join(__dirname, '../assets/stayflow_banner.jpg');
+            if (fs.existsSync(logoPath)) {
+                const logoData = fs.readFileSync(logoPath);
+                doc.addImage(logoData, 'JPEG', 20, 10, 30, 15);
+            }
+        } catch (e) {
+            console.error('Logo loading failed:', e);
+        }
+
+        doc.setFont('times', 'bold');
+        doc.setFontSize(14);
+        doc.setTextColor(107, 114, 87); // olive
+        doc.text(String(config.businessName).toUpperCase(), 52, 20);
+        doc.setFontSize(8);
+        doc.setTextColor(100, 100, 100);
+        doc.text('PREMIUM RESIDENTIAL STAY', 52, 24);
+
         // Header
+        const headerY = 35;
         doc.setFillColor(44, 62, 80);
-        doc.rect(0, 0, 210, 45, 'F');
+        doc.rect(0, headerY, 210, 40, 'F');
         doc.setTextColor(255, 255, 255);
-        doc.setFontSize(24);
-        doc.text(config.businessName, 20, 25);
-        doc.setFontSize(12);
-        doc.text('New Resident Registration Form', 20, 35);
+        doc.setFont('times', 'bold');
+        doc.setFontSize(26);
+        doc.text(String(config.businessName), 20, headerY + 18);
+        doc.setFont('times', 'normal');
+        doc.setFontSize(14);
+        doc.text('New Resident Registration Form', 20, headerY + 28);
 
         // Registration Info
         doc.setTextColor(40, 40, 40);
         doc.setFontSize(14);
-        doc.text('Resident Details', 20, 60);
+        doc.text('Resident Details', 20, headerY + 55);
 
         autoTable(doc, {
-            startY: 65,
+            startY: headerY + 60,
             body: [
                 ['Full Name', name],
                 ['Phone Number', phone],
@@ -342,18 +417,21 @@ class PDFService {
         ];
 
         doc.setTextColor(100, 100, 100);
+        doc.setFont('times', 'normal');
         let currentY = rulesY + 10;
         rules.forEach(rule => {
-            doc.text(rule, 25, currentY);
+            doc.text(String(rule), 25, currentY);
             currentY += 7;
         });
 
         // Footer Disclaimer
-        doc.setFontSize(9);
+        doc.setFontSize(10);
         doc.setTextColor(150, 150, 150);
-        doc.text('I hereby agree to abide by the rules and regulations of the PG.', 105, 270, { align: 'center' });
-        doc.text('This is a digital copy for your records.', 105, 275, { align: 'center' });
-        doc.text(config.businessName, 105, 280, { align: 'center' });
+        const footerMsg1 = 'I hereby agree to abide by the rules and regulations of the PG.';
+        const footerMsg2 = 'This is a digital copy for your records.';
+        doc.text(footerMsg1, 105, 270, { align: 'center' });
+        doc.text(footerMsg2, 105, 275, { align: 'center' });
+        doc.text(String(config.businessName), 105, 280, { align: 'center' });
 
         const fileName = `registration_${phone}_${Date.now()}.pdf`;
         const filePath = path.join(__dirname, '../uploads', fileName);

@@ -4,7 +4,8 @@ import {
   Users, Wallet, Clock, Zap, Bell, Megaphone, Settings,
   Search, Edit3, Trash2, CheckCircle, AlertCircle, MapPin,
   ChevronRight, Plus, LogOut, LayoutDashboard, CreditCard,
-  UserPlus, UserMinus, Camera, Send, Save, FileText, RefreshCw
+  UserPlus, UserMinus, Camera, Send, Save, FileText, RefreshCw,
+  Menu, X
 } from 'lucide-react';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
@@ -48,6 +49,7 @@ const App = () => {
   const [bulkEB, setBulkEB] = useState({});  // { phone: newEBValue }
   const [billingLoading, setBillingLoading] = useState(false);
   const [billingProgress, setBillingProgress] = useState({ current: 0, total: 0, status: '' });
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const showToast = (message, type = 'success') => {
     setToast({ message, type });
@@ -1334,21 +1336,38 @@ const App = () => {
   );
 
   return (
-    <div className="dashboard-container">
-      <div className="sidebar">
-        <div className="logo-section">
-          <img src="/logo.svg" alt="StayFlow Logo" style={{ width: 32, height: 32 }} />
-          <span className="logo-text">StayFlow</span>
+    <div className={`dashboard-container ${sidebarOpen ? 'sidebar-open' : ''}`}>
+      <AnimatePresence>
+        {sidebarOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="sidebar-backdrop"
+            onClick={() => setSidebarOpen(false)}
+          />
+        )}
+      </AnimatePresence>
+
+      <div className={`sidebar ${sidebarOpen ? 'open' : ''}`}>
+        <div className="sidebar-header">
+          <div className="logo-section">
+            <img src="/logo.svg" alt="StayFlow Logo" style={{ width: 32, height: 32 }} />
+            <span className="logo-text">StayFlow</span>
+          </div>
+          <button className="sidebar-close" onClick={() => setSidebarOpen(false)}>
+            <X size={24} />
+          </button>
         </div>
         <nav className="nav-links">
-          <div className={`nav-link ${activeTab === 'dashboard' ? 'active' : ''}`} onClick={() => setActiveTab('dashboard')}><LayoutDashboard size={20} /> Dashboard</div>
-          <div className={`nav-link ${activeTab === 'billing' ? 'active' : ''}`} onClick={() => setActiveTab('billing')}><CreditCard size={20} /> Monthly Billing</div>
-          <div className={`nav-link ${activeTab === 'tenants' ? 'active' : ''}`} onClick={() => setActiveTab('tenants')}><Users size={20} /> Members</div>
-          <div className={`nav-link ${activeTab === 'map' ? 'active' : ''}`} onClick={() => setActiveTab('map')}><MapPin size={20} /> Room Map</div>
-          <div className={`nav-link ${activeTab === 'locations' ? 'active' : ''}`} onClick={() => setActiveTab('locations')}><MapPin size={20} /> Locations</div>
-          <div className={`nav-link ${activeTab === 'archive' ? 'active' : ''}`} onClick={() => setActiveTab('archive')}><Settings size={20} /> Archive</div>
-          <div className={`nav-link ${activeTab === 'tools' ? 'active' : ''}`} onClick={() => setActiveTab('tools')}><Zap size={20} /> Auto-Tools</div>
-          <div className={`nav-link ${activeTab === 'settings' ? 'active' : ''}`} onClick={() => setActiveTab('settings')}><Settings size={20} /> App Settings</div>
+          <div className={`nav-link ${activeTab === 'dashboard' ? 'active' : ''}`} onClick={() => { setActiveTab('dashboard'); setSidebarOpen(false); }}><LayoutDashboard size={20} /> Dashboard</div>
+          <div className={`nav-link ${activeTab === 'billing' ? 'active' : ''}`} onClick={() => { setActiveTab('billing'); setSidebarOpen(false); }}><CreditCard size={20} /> Monthly Billing</div>
+          <div className={`nav-link ${activeTab === 'tenants' ? 'active' : ''}`} onClick={() => { setActiveTab('tenants'); setSidebarOpen(false); }}><Users size={20} /> Members</div>
+          <div className={`nav-link ${activeTab === 'map' ? 'active' : ''}`} onClick={() => { setActiveTab('map'); setSidebarOpen(false); }}><MapPin size={20} /> Room Map</div>
+          <div className={`nav-link ${activeTab === 'locations' ? 'active' : ''}`} onClick={() => { setActiveTab('locations'); setSidebarOpen(false); }}><MapPin size={20} /> Locations</div>
+          <div className={`nav-link ${activeTab === 'archive' ? 'active' : ''}`} onClick={() => { setActiveTab('archive'); setSidebarOpen(false); }}><Settings size={20} /> Archive</div>
+          <div className={`nav-link ${activeTab === 'tools' ? 'active' : ''}`} onClick={() => { setActiveTab('tools'); setSidebarOpen(false); }}><Zap size={20} /> Auto-Tools</div>
+          <div className={`nav-link ${activeTab === 'settings' ? 'active' : ''}`} onClick={() => { setActiveTab('settings'); setSidebarOpen(false); }}><Settings size={20} /> App Settings</div>
         </nav>
         <div style={{ marginTop: 'auto', padding: '20px', background: 'rgba(255,255,255,0.02)', borderRadius: 20, border: '1px solid var(--glass-border)' }}>
           <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
@@ -1361,9 +1380,14 @@ const App = () => {
 
       <main className="main-viewport">
         <header>
-          <div className="header-meta">
-            <h1>{activeTab.charAt(0).toUpperCase() + activeTab.slice(1)}</h1>
-            <p>Welcome back, Owner. Here's what's happening at StayFlow.</p>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+            <button className="mobile-menu-btn" onClick={() => setSidebarOpen(true)}>
+              <Menu size={24} />
+            </button>
+            <div className="header-meta">
+              <h1>{activeTab.charAt(0).toUpperCase() + activeTab.slice(1)}</h1>
+              <p>Welcome back, Owner. Here's what's happening at StayFlow.</p>
+            </div>
           </div>
           <div className="header-actions">
             <select
