@@ -5,7 +5,27 @@
     "rewrites": [
         {
             "source": "/api/(.*)",
-            "destination": "https://stayflow-backend.onrender.com/api/$1"
+            "destination": "https://stayflow-server.onrender.com/api/$1"
+        },
+        {
+            "source": "/webhook/(.*)",
+            "destination": "https://stayflow-server.onrender.com/webhook/$1"
+        },
+        {
+            "source": "/payment.html",
+            "destination": "/payment.html"
+        },
+        {
+            "source": "/confirmation.html",
+            "destination": "/confirmation.html"
+        },
+        {
+            "source": "/rules.html",
+            "destination": "/rules.html"
+        },
+        {
+            "source": "/register.html",
+            "destination": "/register.html"
         },
         {
             "source": "/(.*)",

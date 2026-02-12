@@ -282,34 +282,52 @@ Tenant taps: 💳 Pay Now
  receipt     & sent
 ```
 
-### Razorpay → WhatsApp → Auto-Verification Flow
+### Razorpay → Confirmation Page → WhatsApp Invoice Flow
 
 ```
 ┌───────────────────────────────────────────────────────────┐
-│ RAZORPAY PAYMENT → AUTO-VERIFICATION FLOW                 │
+│ RAZORPAY PAYMENT → CONFIRMATION → WHATSAPP INVOICE        │
 │                                                           │
 │ 1. Bot generates Razorpay payment link with:              │
-│    callback_url = "https://wa.me/<phone>?text=PAID BY UPI"│
+│    callback_url = "/confirmation.html?phone=<phone>"      │
 │    notes.phone = tenant's phone number                    │
 │                                                           │
 │ 2. Tenant taps Razorpay link → Opens in browser           │
 │                                                           │
 │ 3. Tenant completes payment on Razorpay                   │
 │                                                           │
-│ 4. Razorpay sends webhook to /webhook/razorpay            │
-│    → event: "payment_link.paid" or "payment.captured"     │
-│    → Contains phone number in payment notes               │
+│ 4. Razorpay redirects to confirmation.html with:          │
+│    ?razorpay_payment_id=pay_xxx&phone=91xxxxxxxxxx        │
 │                                                           │
-│ 5. handleRazorpaySuccess() fires automatically:           │
+│ 5. Confirmation page auto-verifies via /api/verify-txn:   │
+│    → Checks Razorpay webhook logs (MongoDB)               │
+│    → Checks Razorpay API directly                         │
+│    → Checks Google Sheets records                         │
+│                                                           │
+│ 6. On verification SUCCESS, page shows:                   │
+│    → 📄 PAID INVOICE SUMMARY (Name, Room, Rent, EB)      │
+│    → 🔖 Transaction ID + Date                            │
+│    → 📥 Download Invoice PDF button                       │
+│    → Redirects to tenant's WhatsApp phone number          │
+│      with pre-filled paid invoice message                 │
+│                                                           │
+│ 7. handleRazorpaySuccess() fires (webhook or verify):     │
 │    → Status = "PAID"                                      │
 │    → Payment Mode = "UPI (Razorpay)"                      │
-│    → Invoice PDF generated automatically                  │
-│    → Receipt sent to tenant                               │
+│    → Invoice PDF generated & sent to tenant WhatsApp      │
 │    → Owner notified                                       │
 │                                                           │
 │ ⚠️ NO admin verification needed — Razorpay = trusted      │
 └───────────────────────────────────────────────────────────┘
 ```
+
+### Website Payment Page APIs (https://stay-flow-kohl.vercel.app/payment.html)
+
+| API Endpoint | Method | Description |
+|---|---|---|
+| `/api/payment-info?phone=91xxx` | GET | Fetches tenant bill details (name, room, rent, EB, total, status) |
+| `/api/create-order` | POST | Creates a Razorpay Order for embedded checkout (returns orderId, amount, razorpayKeyId) |
+| `/api/verify-razorpay-payment` | POST | Verifies Razorpay payment signature (HMAC SHA256), processes payment, generates invoice |
 
 ### Manual UPI TXN ID Flow (PENDING → Admin Verify)
 

@@ -4,7 +4,7 @@ import {
   Users, Wallet, Clock, Zap, Bell, Megaphone, Settings,
   Search, Edit3, Trash2, CheckCircle, AlertCircle, MapPin,
   ChevronRight, Plus, LogOut, LayoutDashboard, CreditCard,
-  UserPlus, UserMinus, Camera
+  UserPlus, UserMinus, Camera, Send, Save, FileText, RefreshCw
 } from 'lucide-react';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
@@ -45,6 +45,9 @@ const App = () => {
   const [archivedTenants, setArchivedTenants] = useState([]);
   const [syncing, setSyncing] = useState(false);
   const [configData, setConfigData] = useState(null);
+  const [bulkEB, setBulkEB] = useState({});  // { phone: newEBValue }
+  const [billingLoading, setBillingLoading] = useState(false);
+  const [billingProgress, setBillingProgress] = useState({ current: 0, total: 0, status: '' });
 
   const showToast = (message, type = 'success') => {
     setToast({ message, type });
@@ -280,6 +283,79 @@ const App = () => {
         }
       }
     });
+  };
+
+  // ========== MONTHLY BILLING: Save All EB & Notify All ==========
+  const handleBulkSaveAndNotify = () => {
+    const modifiedCount = Object.keys(bulkEB).length;
+    const unpaidTenants = activeTenants.filter(t => t.Status !== 'PAID' && t.Status !== 'VALID' && t.Status !== 'VACATED');
+
+    setActionPanel({
+      type: 'confirm',
+      title: '💡 Save EB & Send Invoices',
+      message: modifiedCount > 0
+        ? `You've updated EB for ${modifiedCount} tenant(s). This will:\n\n1. Save all EB amounts to the sheet\n2. Generate invoices for ALL active tenants\n3. Send WhatsApp notifications with payment links\n\nProceed?`
+        : `No EB changes detected. This will:\n\n1. Generate invoices for ALL active tenants\n2. Send WhatsApp notifications with payment links\n\nProceed?`,
+      onConfirm: async () => {
+        setActionPanel(null);
+        setBillingLoading(true);
+        setBillingProgress({ current: 0, total: 0, status: 'Saving EB bills...' });
+
+        try {
+          // Step 1: Save all modified EB amounts
+          if (modifiedCount > 0) {
+            const updates = Object.entries(bulkEB).map(([phone, eb]) => {
+              const tenant = tenants.find(t => t.Phone === phone);
+              return { phone, name: tenant?.Name, eb: eb.toString() };
+            });
+
+            await axios.post('/api/bulk-update-eb', { updates });
+            setBillingProgress({ current: 0, total: 0, status: `✅ ${modifiedCount} EB bills saved!` });
+            await new Promise(r => setTimeout(r, 800));
+          }
+
+          // Step 2: Trigger notifications for all tenants
+          setBillingProgress({ current: 0, total: 0, status: 'Sending invoices to all tenants...' });
+          await axios.post('/api/trigger-notifications');
+
+          setBillingProgress({ current: 0, total: 0, status: '✅ All invoices sent!' });
+          showToast('EB bills saved & invoices sent to all tenants! 🎉');
+          setBulkEB({});
+          fetchData();
+
+          setTimeout(() => {
+            setBillingLoading(false);
+            setBillingProgress({ current: 0, total: 0, status: '' });
+          }, 2000);
+
+        } catch (err) {
+          setBillingLoading(false);
+          setBillingProgress({ current: 0, total: 0, status: '' });
+          showToast('Failed: ' + (err.response?.data?.error || err.message), 'error');
+        }
+      }
+    });
+  };
+
+  const handleSingleBillNotify = async (tenant) => {
+    try {
+      // Update EB if modified
+      const newEB = bulkEB[tenant.Phone];
+      if (newEB !== undefined) {
+        await axios.post('/api/update-bill', {
+          phone: tenant.Phone,
+          name: tenant.Name,
+          rent: tenant['Monthly Rent'],
+          eb: newEB.toString()
+        });
+      }
+      // Send notification
+      await axios.post('/api/notify-tenant', { phone: tenant.Phone, name: tenant.Name });
+      showToast(`Invoice sent to ${tenant.Name}! ✅`);
+      fetchData();
+    } catch (err) {
+      showToast('Failed to notify ' + tenant.Name, 'error');
+    }
   };
 
   const handleUpdateEB = async () => {
@@ -665,6 +741,274 @@ const App = () => {
     );
   };
 
+  // ========== RENDER MONTHLY BILLING ==========
+  const renderBilling = () => {
+    const billingTenants = filteredData.filter(t => t.Status !== 'VACATED');
+    const modifiedCount = Object.keys(bulkEB).length;
+    const totalExpected = billingTenants.reduce((sum, t) => {
+      const rent = parseFloat((t['Monthly Rent'] || '0').toString().replace(/[^\d.]/g, ''));
+      const eb = bulkEB[t.Phone] !== undefined
+        ? parseFloat(bulkEB[t.Phone] || 0)
+        : parseFloat((t['EB Amount'] || '0').toString().replace(/[^\d.]/g, ''));
+      return sum + rent + eb;
+    }, 0);
+
+    return (
+      <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
+        {/* Summary Cards */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 16, marginBottom: 24 }}>
+          <div className="stat-card">
+            <div className="stat-icon-wrap" style={{ backgroundColor: 'rgba(99, 102, 241, 0.1)', color: '#6366f1' }}>
+              <Users size={22} />
+            </div>
+            <p className="stat-label">Active Tenants</p>
+            <p className="stat-value">{billingTenants.length}</p>
+          </div>
+          <div className="stat-card">
+            <div className="stat-icon-wrap" style={{ backgroundColor: 'rgba(16, 185, 129, 0.1)', color: '#10b981' }}>
+              <Wallet size={22} />
+            </div>
+            <p className="stat-label">Expected Collection</p>
+            <p className="stat-value">₹{totalExpected.toLocaleString()}</p>
+          </div>
+          <div className="stat-card">
+            <div className="stat-icon-wrap" style={{ backgroundColor: 'rgba(245, 158, 11, 0.1)', color: '#f59e0b' }}>
+              <Edit3 size={22} />
+            </div>
+            <p className="stat-label">EB Modified</p>
+            <p className="stat-value">{modifiedCount}</p>
+          </div>
+          <div className="stat-card">
+            <div className="stat-icon-wrap" style={{ backgroundColor: 'rgba(244, 63, 94, 0.1)', color: '#f43f5e' }}>
+              <Clock size={22} />
+            </div>
+            <p className="stat-label">Unpaid</p>
+            <p className="stat-value">{billingTenants.filter(t => t.Status !== 'PAID' && t.Status !== 'VALID').length}</p>
+          </div>
+        </div>
+
+        {/* Progress Bar */}
+        {billingLoading && (
+          <div style={{
+            background: 'rgba(99, 102, 241, 0.08)', border: '1px solid rgba(99, 102, 241, 0.2)',
+            borderRadius: 16, padding: '16px 24px', marginBottom: 24,
+            display: 'flex', alignItems: 'center', gap: 16
+          }}>
+            <div style={{
+              width: 24, height: 24, borderRadius: '50%', border: '3px solid rgba(99,102,241,0.2)',
+              borderTopColor: '#6366f1', animation: 'spin 0.8s linear infinite'
+            }} />
+            <div>
+              <div style={{ fontWeight: 600, fontSize: '0.9rem', color: 'var(--text-main)' }}>{billingProgress.status}</div>
+              <div style={{ fontSize: '0.8rem', color: 'var(--text-dim)', marginTop: 2 }}>Please wait, do not close this page.</div>
+            </div>
+          </div>
+        )}
+
+        {/* Main Billing Panel */}
+        <div className="panel">
+          <div className="panel-header" style={{ flexWrap: 'wrap', gap: 16 }}>
+            <div>
+              <h3 className="panel-title">
+                <Zap size={18} style={{ marginRight: 8 }} />
+                Monthly Billing — {new Date().toLocaleString('default', { month: 'long', year: 'numeric' })}
+              </h3>
+              <p style={{ color: 'var(--text-dim)', fontSize: '0.8rem', marginTop: 4 }}>
+                Update EB amounts below (rent is fixed). Click "Save & Notify All" to send invoices.
+              </p>
+            </div>
+            <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+              {modifiedCount > 0 && (
+                <button
+                  className="btn btn-glass btn-small"
+                  onClick={() => setBulkEB({})}
+                  style={{ color: 'var(--text-dim)' }}
+                >
+                  <RefreshCw size={14} /> Reset Changes
+                </button>
+              )}
+              <button
+                className="btn btn-primary"
+                onClick={handleBulkSaveAndNotify}
+                disabled={billingLoading}
+                style={{
+                  background: 'linear-gradient(135deg, #6366f1, #4f46e5)',
+                  padding: '12px 24px',
+                  fontSize: '0.9rem',
+                  fontWeight: 700,
+                  boxShadow: '0 8px 20px -4px rgba(99, 102, 241, 0.4)'
+                }}
+              >
+                <Send size={16} />
+                {modifiedCount > 0 ? `Save ${modifiedCount} EB & Notify All` : 'Send Invoices to All'}
+              </button>
+            </div>
+          </div>
+
+          <div className="table-scroll">
+            <table className="custom-table">
+              <thead>
+                <tr>
+                  <th style={{ width: '5%' }}>#</th>
+                  <th style={{ width: '18%' }}>Tenant</th>
+                  <th style={{ width: '8%' }}>Room</th>
+                  <th style={{ width: '12%' }}>Rent (₹)</th>
+                  <th style={{ width: '15%' }}>EB Bill (₹)</th>
+                  <th style={{ width: '12%' }}>Total (₹)</th>
+                  <th style={{ width: '10%' }}>Status</th>
+                  <th style={{ width: '20%' }}>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {billingTenants.map((t, i) => {
+                  const rent = parseFloat((t['Monthly Rent'] || '0').toString().replace(/[^\d.]/g, ''));
+                  const currentEB = bulkEB[t.Phone] !== undefined
+                    ? parseFloat(bulkEB[t.Phone] || 0)
+                    : parseFloat((t['EB Amount'] || '0').toString().replace(/[^\d.]/g, ''));
+                  const total = rent + currentEB;
+                  const isModified = bulkEB[t.Phone] !== undefined;
+                  const isPaid = t.Status === 'PAID' || t.Status === 'VALID';
+
+                  return (
+                    <tr key={i} className="table-row" style={{
+                      background: isModified ? 'rgba(245, 158, 11, 0.04)' : 'transparent',
+                      borderLeft: isModified ? '3px solid #f59e0b' : '3px solid transparent'
+                    }}>
+                      <td style={{ color: 'var(--text-dim)', fontSize: '0.8rem' }}>{i + 1}</td>
+                      <td>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                          <div style={{
+                            width: 32, height: 32, borderRadius: 8,
+                            background: isPaid ? 'var(--secondary)' : 'var(--primary)',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            fontWeight: 'bold', fontSize: '0.8rem'
+                          }}>{t.Name?.[0] || 'T'}</div>
+                          <div>
+                            <div style={{ fontWeight: 600, fontSize: '0.85rem' }}>{t.Name}</div>
+                            <div style={{ fontSize: '0.7rem', color: 'var(--text-dim)' }}>{t.Phone?.slice(-10)}</div>
+                          </div>
+                        </div>
+                      </td>
+                      <td>
+                        <span style={{
+                          background: 'rgba(99, 102, 241, 0.1)', color: 'var(--primary)',
+                          padding: '4px 10px', borderRadius: 8, fontSize: '0.8rem', fontWeight: 600
+                        }}>{t.Room}</span>
+                      </td>
+                      <td style={{ fontWeight: 600 }}>₹{rent.toLocaleString()}</td>
+                      <td>
+                        <div style={{ position: 'relative' }}>
+                          <input
+                            type="number"
+                            value={bulkEB[t.Phone] !== undefined ? bulkEB[t.Phone] : (t['EB Amount'] || '0')}
+                            onChange={e => {
+                              const val = e.target.value;
+                              setBulkEB(prev => {
+                                const next = { ...prev };
+                                if (val === (t['EB Amount'] || '0').toString()) {
+                                  delete next[t.Phone];
+                                } else {
+                                  next[t.Phone] = val;
+                                }
+                                return next;
+                              });
+                            }}
+                            style={{
+                              width: '100%', padding: '8px 12px', borderRadius: 10,
+                              border: isModified ? '2px solid #f59e0b' : '1px solid var(--glass-border)',
+                              background: isModified ? 'rgba(245, 158, 11, 0.08)' : 'rgba(255,255,255,0.04)',
+                              color: 'white', fontSize: '0.9rem', fontWeight: 600,
+                              transition: 'all 0.2s'
+                            }}
+                          />
+                          {isModified && (
+                            <div style={{
+                              position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)',
+                              width: 8, height: 8, borderRadius: '50%', background: '#f59e0b'
+                            }} />
+                          )}
+                        </div>
+                      </td>
+                      <td>
+                        <span style={{
+                          fontWeight: 800, fontSize: '1rem',
+                          color: isModified ? '#f59e0b' : 'var(--text-main)'
+                        }}>₹{total.toLocaleString()}</span>
+                      </td>
+                      <td>
+                        <span className={`status-badge ${(t.Status || 'active').toLowerCase()}`}>
+                          {isPaid ? <CheckCircle size={12} /> : <Clock size={12} />}
+                          {t.Status || 'ACTIVE'}
+                        </span>
+                      </td>
+                      <td>
+                        <div style={{ display: 'flex', gap: 6 }}>
+                          <button
+                            className="btn btn-glass btn-small"
+                            onClick={() => handleSingleBillNotify(t)}
+                            title="Send invoice to this tenant"
+                            style={{ color: 'var(--primary)' }}
+                          >
+                            <Send size={13} /> Notify
+                          </button>
+                          <button
+                            className="btn btn-glass btn-small"
+                            onClick={() => handleDownloadReceipt(t)}
+                            title="Preview invoice PDF"
+                            style={{ color: 'var(--text-dim)' }}
+                          >
+                            <FileText size={13} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Bottom action bar */}
+          <div style={{
+            display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+            padding: '20px 24px', borderTop: '1px solid var(--glass-border)',
+            background: 'rgba(255,255,255,0.01)', borderRadius: '0 0 20px 20px'
+          }}>
+            <div style={{ fontSize: '0.85rem', color: 'var(--text-dim)' }}>
+              {modifiedCount > 0 && (
+                <span style={{ color: '#f59e0b' }}>
+                  ⚠️ {modifiedCount} unsaved EB change(s)
+                </span>
+              )}
+            </div>
+            <div style={{ display: 'flex', gap: 12 }}>
+              <button
+                className="btn btn-glass"
+                onClick={handleNotifyAll}
+                style={{ padding: '10px 20px' }}
+              >
+                <Bell size={16} /> Notify Without EB Changes
+              </button>
+              <button
+                className="btn btn-primary"
+                onClick={handleBulkSaveAndNotify}
+                disabled={billingLoading}
+                style={{
+                  padding: '10px 24px',
+                  background: 'linear-gradient(135deg, #10b981, #059669)',
+                  boxShadow: '0 8px 20px -4px rgba(16, 185, 129, 0.4)'
+                }}
+              >
+                <Save size={16} />
+                Save All & Send Invoices
+              </button>
+            </div>
+          </div>
+        </div>
+      </motion.div>
+    );
+  };
+
   const renderTools = () => (
     <div className="content-grid" style={{ gridTemplateColumns: '1fr 1fr' }}>
       <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} className="panel">
@@ -998,6 +1342,7 @@ const App = () => {
         </div>
         <nav className="nav-links">
           <div className={`nav-link ${activeTab === 'dashboard' ? 'active' : ''}`} onClick={() => setActiveTab('dashboard')}><LayoutDashboard size={20} /> Dashboard</div>
+          <div className={`nav-link ${activeTab === 'billing' ? 'active' : ''}`} onClick={() => setActiveTab('billing')}><CreditCard size={20} /> Monthly Billing</div>
           <div className={`nav-link ${activeTab === 'tenants' ? 'active' : ''}`} onClick={() => setActiveTab('tenants')}><Users size={20} /> Members</div>
           <div className={`nav-link ${activeTab === 'map' ? 'active' : ''}`} onClick={() => setActiveTab('map')}><MapPin size={20} /> Room Map</div>
           <div className={`nav-link ${activeTab === 'locations' ? 'active' : ''}`} onClick={() => setActiveTab('locations')}><MapPin size={20} /> Locations</div>
@@ -1060,6 +1405,7 @@ const App = () => {
         ) : (
           <>
             {activeTab === 'dashboard' && renderDashboard()}
+            {activeTab === 'billing' && renderBilling()}
             {activeTab === 'tenants' && renderTenants()}
             {activeTab === 'map' && renderMap()}
             {activeTab === 'locations' && renderLocations()}

@@ -11,6 +11,7 @@ import multer from 'multer';
 import config from './config.js';
 import { handleIncomingMessage, sendMessage, sendMedia, setTenantContext, handleUpdateEB, createRazorpayLink, handleRazorpaySuccess } from './bot.js';
 import crypto from 'crypto';
+import Razorpay from 'razorpay';
 import setupCron from './cron.js';
 import sheetsService from './sheets.js';
 import wweb from './wweb.js';
@@ -52,6 +53,150 @@ app.use('/api/uploads', express.static(uploadsDir));
 app.use(express.static(path.join(__dirname, '../public')));
 
 const port = process.env.PORT || 3000;
+
+// Initialize Razorpay instance for order creation
+let razorpayInstance = null;
+if (config.razorpay.key_id && config.razorpay.key_secret) {
+    razorpayInstance = new Razorpay({
+        key_id: config.razorpay.key_id,
+        key_secret: config.razorpay.key_secret,
+    });
+    console.log('✅ Razorpay initialized for payment orders');
+}
+
+// ==================== PAYMENT PAGE APIs ====================
+
+// GET /api/payment-info — Fetch tenant bill details for the payment page
+app.get('/api/payment-info', async (req, res) => {
+    try {
+        const { phone, name } = req.query;
+        if (!phone) return res.status(400).json({ error: 'Phone number is required' });
+
+        const tenant = await sheetsService.getTenantByPhone(phone, name);
+        if (!tenant) {
+            return res.status(404).json({ error: 'Tenant not found. Please check your phone number or contact admin.' });
+        }
+
+        const tName = tenant.get('Name') || '';
+        const tRoom = tenant.get('Room') || 'N/A';
+        const tRent = parseFloat((tenant.get('Monthly Rent') || '0').toString().replace(/[^\d.]/g, ''));
+        const tEB = parseFloat((tenant.get('EB Amount') || '0').toString().replace(/[^\d.]/g, ''));
+        const tTotal = tRent + tEB;
+        const tStatus = tenant.get('Status') || 'PENDING';
+
+        res.json({
+            name: tName,
+            room: tRoom,
+            rent: tRent,
+            eb: tEB,
+            total: tTotal,
+            status: tStatus,
+            razorpayKeyId: config.razorpay.key_id || ''
+        });
+    } catch (err) {
+        console.error('Payment Info Error:', err.message);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// POST /api/create-order — Create a Razorpay Order for embedded checkout
+app.post('/api/create-order', async (req, res) => {
+    try {
+        const { phone, name, amount, room } = req.body;
+
+        if (!razorpayInstance) {
+            return res.status(503).json({ error: 'Payment gateway not configured. Please contact admin.' });
+        }
+
+        if (!phone || !amount || amount <= 0) {
+            return res.status(400).json({ error: 'Invalid payment details' });
+        }
+
+        const amountInPaise = Math.round(parseFloat(amount) * 100);
+
+        const order = await razorpayInstance.orders.create({
+            amount: amountInPaise,
+            currency: 'INR',
+            receipt: `SF-${phone.slice(-4)}-${Date.now().toString().slice(-6)}`,
+            notes: {
+                phone: phone,
+                tenant_name: name || 'Tenant',
+                room: room || 'N/A'
+            }
+        });
+
+        console.log(`[RAZORPAY ORDER] Created: ${order.id} for ${phone} | ₹${amount}`);
+
+        res.json({
+            orderId: order.id,
+            amount: amountInPaise,
+            currency: 'INR',
+            razorpayKeyId: config.razorpay.key_id
+        });
+    } catch (err) {
+        console.error('Create Order Error:', err.message);
+        res.status(500).json({ error: 'Failed to create payment order: ' + err.message });
+    }
+});
+
+// POST /api/verify-razorpay-payment — Verify Razorpay payment signature & process
+app.post('/api/verify-razorpay-payment', async (req, res) => {
+    try {
+        const { razorpay_order_id, razorpay_payment_id, razorpay_signature, phone } = req.body;
+
+        if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature) {
+            return res.status(400).json({ error: 'Missing payment verification data' });
+        }
+
+        // Verify signature using HMAC SHA256
+        const generatedSignature = crypto
+            .createHmac('sha256', config.razorpay.key_secret)
+            .update(`${razorpay_order_id}|${razorpay_payment_id}`)
+            .digest('hex');
+
+        if (generatedSignature !== razorpay_signature) {
+            console.error(`[VERIFY PAYMENT] Signature mismatch for ${razorpay_payment_id}`);
+            return res.status(400).json({ success: false, error: 'Payment signature verification failed' });
+        }
+
+        console.log(`[VERIFY PAYMENT] ✅ Signature verified: ${razorpay_payment_id}`);
+
+        // Log the verified payment
+        await Log.create({
+            action: 'RAZORPAY_PAYMENT_VERIFIED',
+            phone: phone,
+            details: { razorpay_order_id, razorpay_payment_id, razorpay_signature },
+            timestamp: new Date()
+        });
+
+        // Fetch payment details from Razorpay to get amount
+        let paymentAmount = 0;
+        try {
+            const auth = Buffer.from(`${config.razorpay.key_id}:${config.razorpay.key_secret}`).toString('base64');
+            const rzpRes = await axios.get(`https://api.razorpay.com/v1/payments/${razorpay_payment_id}`, {
+                headers: { 'Authorization': `Basic ${auth}` }
+            });
+            paymentAmount = (rzpRes.data.amount || 0) / 100;
+        } catch (fetchErr) {
+            console.error('Failed to fetch payment amount:', fetchErr.message);
+        }
+
+        // Process the successful payment
+        if (phone) {
+            await handleRazorpaySuccess(phone, paymentAmount, razorpay_payment_id, 'UPI (Razorpay)');
+        }
+
+        res.json({
+            success: true,
+            paymentId: razorpay_payment_id,
+            amount: paymentAmount
+        });
+    } catch (err) {
+        console.error('Verify Payment Error:', err.message);
+        res.status(500).json({ error: err.message });
+    }
+});
+
 
 // Webhook Verification (for setup)
 app.get('/webhook', (req, res) => {
@@ -190,10 +335,37 @@ app.post('/api/verify-transaction', async (req, res) => {
             // If already PAID, and either ID matches or we found them by phone, consider it success
             if (sheetStatus === 'PAID') {
                 console.log(`[VERIFY] Tenant already marked PAID. Proceeding.`);
+                const tName = tenant.get('Name') || '';
+                const tRoom = tenant.get('Room') || 'N/A';
+                const tRent = tenant.get('Monthly Rent') || '0';
+                const tEB = tenant.get('EB Amount') || '0';
+                const tTotal = parseFloat(tRent) + parseFloat(tEB);
+                const tTrxId = tenant.get('Transaction ID') || trxId;
+                const tPaidDate = tenant.get('Paid Date') || new Date().toLocaleDateString();
+                // Generate invoice URL for download
+                let invoiceUrl = '';
+                try {
+                    const invData = {
+                        Name: tName, Phone: phone, Room: tRoom,
+                        EB_Amount: tEB, Monthly_Rent: tRent, Total_Amount: tTotal.toString(),
+                        Paid_Date: tPaidDate, Transaction_ID: tTrxId, Payment_Mode: 'UPI (Razorpay)'
+                    };
+                    const { fileName } = await pdfService.generateInvoice(invData);
+                    invoiceUrl = `/api/uploads/${fileName}`;
+                } catch (pdfErr) { console.error('Invoice gen error:', pdfErr.message); }
                 return res.json({
                     success: true,
                     message: 'Payment Verified',
-                    botNumber: '+1 (555) 156-9280'
+                    botNumber: '+1 (555) 156-9280',
+                    tenantPhone: phone,
+                    tenantName: tName,
+                    room: tRoom,
+                    rent: tRent,
+                    eb: tEB,
+                    total: tTotal,
+                    trxId: tTrxId,
+                    paidDate: tPaidDate,
+                    invoiceUrl: invoiceUrl
                 });
             }
         }
@@ -223,7 +395,30 @@ app.post('/api/verify-transaction', async (req, res) => {
 
             if (targetPhone) {
                 await handleRazorpaySuccess(targetPhone, amount, finalTrxId, 'UPI (Razorpay)');
-                return res.json({ success: true, botNumber: '+1 (555) 156-9280' });
+                // Fetch updated tenant for response details
+                const updatedTenant = await sheetsService.getTenantByPhone(targetPhone);
+                let invoiceUrl = '';
+                let tName = '', tRoom = 'N/A', tRent = '0', tEB = '0';
+                if (updatedTenant) {
+                    tName = updatedTenant.get('Name') || '';
+                    tRoom = updatedTenant.get('Room') || 'N/A';
+                    tRent = updatedTenant.get('Monthly Rent') || '0';
+                    tEB = updatedTenant.get('EB Amount') || '0';
+                    try {
+                        const { fileName } = await pdfService.generateInvoice({
+                            Name: tName, Phone: targetPhone, Room: tRoom,
+                            EB_Amount: tEB, Monthly_Rent: tRent, Total_Amount: amount.toString(),
+                            Paid_Date: new Date().toLocaleDateString(), Transaction_ID: finalTrxId, Payment_Mode: 'UPI (Razorpay)'
+                        });
+                        invoiceUrl = `/api/uploads/${fileName}`;
+                    } catch (e) { }
+                }
+                return res.json({
+                    success: true, botNumber: '+1 (555) 156-9280',
+                    tenantPhone: targetPhone, tenantName: tName, room: tRoom,
+                    rent: tRent, eb: tEB, total: amount, trxId: finalTrxId,
+                    paidDate: new Date().toLocaleDateString(), invoiceUrl
+                });
             }
         }
 
@@ -240,8 +435,28 @@ app.post('/api/verify-transaction', async (req, res) => {
                     const rzpPayment = rzpResponse.data;
                     const targetPhone = phone || rzpPayment.notes?.phone || '';
                     if (targetPhone) {
-                        await handleRazorpaySuccess(targetPhone, rzpPayment.amount / 100, trxId, 'UPI (Razorpay)');
-                        return res.json({ success: true, botNumber: '+1 (555) 156-9280' });
+                        const rzpAmount = rzpPayment.amount / 100;
+                        await handleRazorpaySuccess(targetPhone, rzpAmount, trxId, 'UPI (Razorpay)');
+                        const uTenant = await sheetsService.getTenantByPhone(targetPhone);
+                        let invoiceUrl = '';
+                        if (uTenant) {
+                            try {
+                                const { fileName } = await pdfService.generateInvoice({
+                                    Name: uTenant.get('Name'), Phone: targetPhone, Room: uTenant.get('Room') || 'N/A',
+                                    EB_Amount: uTenant.get('EB Amount') || '0', Monthly_Rent: uTenant.get('Monthly Rent') || '0',
+                                    Total_Amount: rzpAmount.toString(), Paid_Date: new Date().toLocaleDateString(),
+                                    Transaction_ID: trxId, Payment_Mode: 'UPI (Razorpay)'
+                                });
+                                invoiceUrl = `/api/uploads/${fileName}`;
+                            } catch (e) { }
+                        }
+                        return res.json({
+                            success: true, botNumber: '+1 (555) 156-9280',
+                            tenantPhone: targetPhone, tenantName: uTenant?.get('Name') || '',
+                            room: uTenant?.get('Room') || 'N/A', rent: uTenant?.get('Monthly Rent') || '0',
+                            eb: uTenant?.get('EB Amount') || '0', total: rzpAmount, trxId,
+                            paidDate: new Date().toLocaleDateString(), invoiceUrl
+                        });
                     }
                 }
             } catch (pErr) { /* ignore 404 */ }
@@ -254,8 +469,28 @@ app.post('/api/verify-transaction', async (req, res) => {
                     const rzpLink = rzpLinkResponse.data;
                     const targetPhone = phone || rzpLink.notes?.phone || '';
                     if (targetPhone) {
-                        await handleRazorpaySuccess(targetPhone, rzpLink.amount_paid / 100, trxId, 'UPI (Razorpay)');
-                        return res.json({ success: true, botNumber: '+1 (555) 156-9280' });
+                        const linkAmount = rzpLink.amount_paid / 100;
+                        await handleRazorpaySuccess(targetPhone, linkAmount, trxId, 'UPI (Razorpay)');
+                        const lTenant = await sheetsService.getTenantByPhone(targetPhone);
+                        let invoiceUrl = '';
+                        if (lTenant) {
+                            try {
+                                const { fileName } = await pdfService.generateInvoice({
+                                    Name: lTenant.get('Name'), Phone: targetPhone, Room: lTenant.get('Room') || 'N/A',
+                                    EB_Amount: lTenant.get('EB Amount') || '0', Monthly_Rent: lTenant.get('Monthly Rent') || '0',
+                                    Total_Amount: linkAmount.toString(), Paid_Date: new Date().toLocaleDateString(),
+                                    Transaction_ID: trxId, Payment_Mode: 'UPI (Razorpay)'
+                                });
+                                invoiceUrl = `/api/uploads/${fileName}`;
+                            } catch (e) { }
+                        }
+                        return res.json({
+                            success: true, botNumber: '+1 (555) 156-9280',
+                            tenantPhone: targetPhone, tenantName: lTenant?.get('Name') || '',
+                            room: lTenant?.get('Room') || 'N/A', rent: lTenant?.get('Monthly Rent') || '0',
+                            eb: lTenant?.get('EB Amount') || '0', total: linkAmount, trxId,
+                            paidDate: new Date().toLocaleDateString(), invoiceUrl
+                        });
                     }
                 }
             } catch (lErr) { /* ignore 404 */ }
@@ -264,10 +499,18 @@ app.post('/api/verify-transaction', async (req, res) => {
         // 4. Final Fallback: If we have a tenant for this phone, and they provided A valid-looking ID, 
         // AND we are in test mode OR just want to be helpful, we can check if it matches the SHEET's Transaction ID
         if (tenant && tenant.get('Transaction ID') === trxId) {
+            const fbName = tenant.get('Name') || '';
+            const fbRoom = tenant.get('Room') || 'N/A';
+            const fbRent = tenant.get('Monthly Rent') || '0';
+            const fbEB = tenant.get('EB Amount') || '0';
+            const fbTotal = parseFloat(fbRent) + parseFloat(fbEB);
             return res.json({
                 success: true,
                 message: 'Payment Verified',
-                botNumber: '+1 (555) 156-9280'
+                botNumber: '+1 (555) 156-9280',
+                tenantPhone: phone, tenantName: fbName, room: fbRoom,
+                rent: fbRent, eb: fbEB, total: fbTotal, trxId,
+                paidDate: tenant.get('Paid Date') || new Date().toLocaleDateString()
             });
         }
 
@@ -335,6 +578,57 @@ app.post('/api/update-eb', async (req, res) => {
         await handleUpdateEB(config.ownerPhone, room, totalEB);
         res.json({ success: true });
     } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// POST /api/bulk-update-eb — Bulk update EB amounts for multiple tenants (Monthly Billing tab)
+app.post('/api/bulk-update-eb', async (req, res) => {
+    try {
+        const { updates } = req.body;  // [{ phone, name, eb }]
+        if (!updates || !Array.isArray(updates) || updates.length === 0) {
+            return res.status(400).json({ error: 'No updates provided' });
+        }
+
+        let successCount = 0;
+        let failCount = 0;
+        const errors = [];
+
+        for (const update of updates) {
+            try {
+                const tenant = await sheetsService.getTenantByPhone(update.phone, update.name);
+                if (!tenant) {
+                    failCount++;
+                    errors.push(`${update.name || update.phone}: Tenant not found`);
+                    continue;
+                }
+
+                const rent = parseFloat((tenant.get('Monthly Rent') || '0').toString().replace(/[^\d.]/g, ''));
+                const eb = parseFloat((update.eb || '0').toString().replace(/[^\d.]/g, ''));
+                const total = rent + eb;
+
+                await sheetsService.updateTenant(update.phone, {
+                    'EB Amount': eb.toString(),
+                    'Total Amount': total.toString()
+                }, update.name);
+
+                successCount++;
+            } catch (updateErr) {
+                failCount++;
+                errors.push(`${update.name || update.phone}: ${updateErr.message}`);
+            }
+        }
+
+        console.log(`[BULK EB] Updated ${successCount}/${updates.length} tenants. Failures: ${failCount}`);
+
+        res.json({
+            success: true,
+            updated: successCount,
+            failed: failCount,
+            errors: errors.length > 0 ? errors : undefined
+        });
+    } catch (err) {
+        console.error('Bulk EB Update Error:', err.message);
         res.status(500).json({ error: err.message });
     }
 });

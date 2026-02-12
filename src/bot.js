@@ -38,36 +38,39 @@ const userState = {};
 async function createRazorpayLink(phone, name, amount, room = 'N/A') {
     if (!razorpay || amount <= 0) return null;
     try {
-        const baseUrl = config.whatsapp.callbackUrl ? config.whatsapp.callbackUrl.replace('/webhook', '') : 'https://stayflow-server.onrender.com';
-        const confirmationUrl = `${baseUrl}/confirmation.html?phone=${encodeURIComponent(phone)}`;
-
-        const paymentLink = await razorpay.paymentLink.create({
-            amount: Math.round(amount * 100), // Amount in paise
-            currency: "INR",
-            accept_partial: false,
-            description: `StayFlow Rent & EB - ${name} (Room ${room})`,
-            customer: {
-                name: name,
-                contact: phone.toString().slice(-10),
-                email: "tenant@stayflow.com"
-            },
-            notify: {
-                sms: true,
-                email: true
-            },
-            reminder_enable: true,
-            callback_url: confirmationUrl,
-            callback_method: 'get',
-            notes: {
-                room: room,
-                phone: phone,
-                tenant_name: name
-            }
-        });
-        return paymentLink.short_url;
+        // Primary: Point to StayFlow website payment page with embedded Razorpay checkout
+        const websiteUrl = 'https://stay-flow-kohl.vercel.app';
+        const paymentPageUrl = `${websiteUrl}/payment.html?phone=${encodeURIComponent(phone)}&name=${encodeURIComponent(name)}`;
+        return paymentPageUrl;
     } catch (err) {
-        console.error('Razorpay Link Generation Failed:', err.message);
-        return null;
+        console.error('Payment URL Generation Failed:', err.message);
+
+        // Fallback: Create external Razorpay link
+        try {
+            const baseUrl = config.whatsapp.callbackUrl ? config.whatsapp.callbackUrl.replace('/webhook', '') : 'https://stayflow-server.onrender.com';
+            const confirmationUrl = `${baseUrl}/confirmation.html?phone=${encodeURIComponent(phone)}`;
+
+            const paymentLink = await razorpay.paymentLink.create({
+                amount: Math.round(amount * 100),
+                currency: "INR",
+                accept_partial: false,
+                description: `StayFlow Rent & EB - ${name} (Room ${room})`,
+                customer: {
+                    name: name,
+                    contact: phone.toString().slice(-10),
+                    email: "tenant@stayflow.com"
+                },
+                notify: { sms: true, email: true },
+                reminder_enable: true,
+                callback_url: confirmationUrl,
+                callback_method: 'get',
+                notes: { room, phone, tenant_name: name }
+            });
+            return paymentLink.short_url;
+        } catch (fallbackErr) {
+            console.error('Razorpay Fallback Link Failed:', fallbackErr.message);
+            return null;
+        }
     }
 }
 
@@ -569,7 +572,7 @@ async function handleIncomingMessage(phone, body, messageId = null, image = null
 
             const razorpayLink = await createRazorpayLink(phone, tenantForPaid.get('Name'), paidTotal, tenantForPaid.get('Room'));
 
-            let payMsg = `💳 *Pay Online (Razorpay)*\n\n🏠 Rent: ₹${paidRent}\n⚡ EB: ₹${paidEB}\n━━━━━━━━━━━━━━━━━━━━\n💰 *Total: ₹${paidTotal}*\n\n_Redirecting to secure gateway..._`;
+            let payMsg = `💳 *Pay Online (UPI/Card)*\n\n🏠 Rent: ₹${paidRent}\n⚡ EB: ₹${paidEB}\n━━━━━━━━━━━━━━━━━━━━\n💰 *Total: ₹${paidTotal}*\n\n_Pay securely on our website via Razorpay._`;
 
             if (razorpayLink) {
                 await sendCTAButton(phone, payMsg, '💳 Pay Now', razorpayLink, '💳 Secure Payment');
@@ -1159,9 +1162,9 @@ async function handleSmartPayment(phone, body) {
     if (['PAID', 'PAY', 'RENT', 'UPI', 'UPI/APP'].includes(clean) || (clean.includes('PAID') && !clean.match(/[A-Z0-9]{10,}/) && !clean.includes('CASH'))) {
         const razorpayLink = await createRazorpayLink(phone, tenant.get('Name'), total, tenant.get('Room'));
 
-        let msg = `💳 *Pay via Razorpay*\n\n🏠 Rent: ₹${rent}\n⚡ EB: ₹${eb}\n━━━━━━━━━━━━━━━━━━━━\n💰 *Total: ₹${total}*`;
+        let msg = `💳 *Pay via UPI / Card*\n\n🏠 Rent: ₹${rent}\n⚡ EB: ₹${eb}\n━━━━━━━━━━━━━━━━━━━━\n💰 *Total: ₹${total}*`;
         if (razorpayLink) {
-            msg += `\n\n🔗 *Pay Online (UPI/Card/NetBanking):*\n${razorpayLink}\n\n_✅ After paying, you'll be redirected to confirmation page._`;
+            msg += `\n\n🌐 *Pay on our website:*\n${razorpayLink}\n\n_✅ Secure payment via Razorpay on StayFlow._`;
             await sendCTAButton(phone, msg, '💳 Pay Now', razorpayLink, '💳 Secure Payment');
         } else {
             msg += `\n\n❌ Online payment is currently unavailable. Please contact admin.`;

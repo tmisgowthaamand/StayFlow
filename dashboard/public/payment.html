@@ -1,0 +1,829 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pay Rent | StayFlow</title>
+    <meta name="description" content="Pay your PG rent securely via UPI, Card, or NetBanking on StayFlow.">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap"
+        rel="stylesheet">
+    <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+    <style>
+        :root {
+            --primary: #6366f1;
+            --primary-dark: #4f46e5;
+            --primary-light: #818cf8;
+            --success: #22c55e;
+            --success-dark: #16a34a;
+            --warning: #f59e0b;
+            --error: #ef4444;
+            --bg: #0a0e1a;
+            --bg-subtle: #0f172a;
+            --card-bg: #1e293b;
+            --card-inner: rgba(15, 23, 42, 0.6);
+            --text: #f8fafc;
+            --text-muted: #94a3b8;
+            --text-dim: #64748b;
+            --border: rgba(255, 255, 255, 0.08);
+            --border-hover: rgba(255, 255, 255, 0.15);
+            --glow-primary: rgba(99, 102, 241, 0.15);
+            --glow-success: rgba(34, 197, 94, 0.15);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Outfit', sans-serif;
+        }
+
+        body {
+            background: var(--bg);
+            background-image:
+                radial-gradient(ellipse at 30% 0%, rgba(99, 102, 241, 0.12) 0%, transparent 60%),
+                radial-gradient(ellipse at 70% 100%, rgba(34, 197, 94, 0.06) 0%, transparent 50%);
+            color: var(--text);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px;
+        }
+
+        /* ---- Header ---- */
+        .header {
+            text-align: center;
+            padding: 32px 0 8px;
+            animation: fadeDown 0.5s ease-out;
+        }
+
+        @keyframes fadeDown {
+            from {
+                opacity: 0;
+                transform: translateY(-15px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .logo {
+            font-size: 28px;
+            font-weight: 800;
+            background: linear-gradient(135deg, var(--primary-light), var(--primary));
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+            letter-spacing: -0.5px;
+        }
+
+        .logo-sub {
+            font-size: 12px;
+            color: var(--text-dim);
+            letter-spacing: 3px;
+            text-transform: uppercase;
+            margin-top: 4px;
+        }
+
+        /* ---- Main Card ---- */
+        .main-card {
+            width: 100%;
+            max-width: 460px;
+            margin-top: 24px;
+            animation: slideUp 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        @keyframes slideUp {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .card {
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            overflow: hidden;
+        }
+
+        .card-header {
+            background: linear-gradient(135deg, rgba(99, 102, 241, 0.1), rgba(99, 102, 241, 0.03));
+            border-bottom: 1px solid var(--border);
+            padding: 20px 24px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .tenant-info {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+        }
+
+        .avatar {
+            width: 48px;
+            height: 48px;
+            background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+            border-radius: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+            font-weight: 700;
+            color: #fff;
+        }
+
+        .tenant-name {
+            font-size: 18px;
+            font-weight: 700;
+        }
+
+        .tenant-phone {
+            font-size: 13px;
+            color: var(--text-muted);
+            margin-top: 2px;
+        }
+
+        .room-badge {
+            background: rgba(99, 102, 241, 0.12);
+            color: var(--primary-light);
+            padding: 6px 14px;
+            border-radius: 10px;
+            font-size: 13px;
+            font-weight: 600;
+            border: 1px solid rgba(99, 102, 241, 0.15);
+        }
+
+        /* ---- Bill Section ---- */
+        .bill-section {
+            padding: 24px;
+        }
+
+        .bill-title {
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--text-dim);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 16px;
+        }
+
+        .bill-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 16px;
+            border-radius: 12px;
+            margin-bottom: 8px;
+            background: var(--card-inner);
+            border: 1px solid var(--border);
+            transition: border-color 0.2s;
+        }
+
+        .bill-row:hover {
+            border-color: var(--border-hover);
+        }
+
+        .bill-row .label {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 14px;
+            color: var(--text-muted);
+        }
+
+        .bill-row .label .icon {
+            width: 32px;
+            height: 32px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+        }
+
+        .icon-rent {
+            background: rgba(99, 102, 241, 0.1);
+        }
+
+        .icon-eb {
+            background: rgba(245, 158, 11, 0.1);
+        }
+
+        .bill-row .amount {
+            font-size: 16px;
+            font-weight: 700;
+            color: var(--text);
+        }
+
+        .bill-divider {
+            height: 1px;
+            background: linear-gradient(to right, transparent, var(--border), transparent);
+            margin: 12px 0;
+        }
+
+        .bill-total {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 16px;
+            border-radius: 14px;
+            background: linear-gradient(135deg, rgba(34, 197, 94, 0.08), rgba(34, 197, 94, 0.02));
+            border: 1px solid rgba(34, 197, 94, 0.12);
+        }
+
+        .bill-total .label {
+            font-size: 15px;
+            font-weight: 600;
+            color: var(--text);
+        }
+
+        .bill-total .amount {
+            font-size: 24px;
+            font-weight: 800;
+            color: var(--success);
+        }
+
+        .bill-month {
+            text-align: center;
+            margin-top: 12px;
+            font-size: 13px;
+            color: var(--text-dim);
+        }
+
+        /* ---- Payment Actions ---- */
+        .pay-section {
+            padding: 0 24px 24px;
+        }
+
+        .pay-btn {
+            width: 100%;
+            padding: 18px;
+            border: none;
+            border-radius: 16px;
+            font-size: 17px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .pay-btn-primary {
+            background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+            color: #fff;
+            box-shadow: 0 12px 24px -6px rgba(99, 102, 241, 0.4);
+        }
+
+        .pay-btn-primary:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 18px 32px -8px rgba(99, 102, 241, 0.5);
+        }
+
+        .pay-btn-primary:active {
+            transform: translateY(0);
+        }
+
+        .pay-btn-primary:disabled {
+            background: #475569;
+            box-shadow: none;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .pay-btn-primary::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 200%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.1), transparent);
+            transition: left 0.5s;
+        }
+
+        .pay-btn-primary:hover::after {
+            left: 100%;
+        }
+
+        .pay-methods {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 16px;
+            padding: 16px 0 8px;
+        }
+
+        .pay-method {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 12px;
+            color: var(--text-dim);
+        }
+
+        .pay-method .dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: var(--primary);
+        }
+
+        .secure-badge {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            font-size: 12px;
+            color: var(--text-dim);
+            margin-top: 12px;
+        }
+
+        .secure-badge svg {
+            width: 14px;
+            height: 14px;
+            fill: var(--success);
+        }
+
+        /* ---- Loading State ---- */
+        .loading-overlay {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 60px 24px;
+        }
+
+        .spinner {
+            width: 48px;
+            height: 48px;
+            border: 3px solid var(--border);
+            border-top-color: var(--primary);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            margin-bottom: 20px;
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        .loading-text {
+            color: var(--text-muted);
+            font-size: 14px;
+        }
+
+        /* ---- Error State ---- */
+        .error-section {
+            display: none;
+            text-align: center;
+            padding: 40px 24px;
+        }
+
+        .error-icon {
+            font-size: 48px;
+            margin-bottom: 16px;
+        }
+
+        .error-msg {
+            color: var(--error);
+            font-size: 16px;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+
+        .error-detail {
+            color: var(--text-muted);
+            font-size: 14px;
+            margin-bottom: 24px;
+        }
+
+        .retry-btn {
+            background: transparent;
+            border: 1.5px solid var(--border);
+            color: var(--text-muted);
+            padding: 12px 24px;
+            border-radius: 12px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .retry-btn:hover {
+            border-color: var(--primary);
+            color: var(--primary);
+        }
+
+        /* ---- Status Messages ---- */
+        .status-msg {
+            margin-top: 16px;
+            padding: 12px 16px;
+            border-radius: 12px;
+            font-size: 14px;
+            display: none;
+        }
+
+        .status-msg.error {
+            display: block;
+            background: rgba(239, 68, 68, 0.08);
+            color: #ef4444;
+            border: 1px solid rgba(239, 68, 68, 0.12);
+        }
+
+        .status-msg.info {
+            display: block;
+            background: rgba(99, 102, 241, 0.08);
+            color: var(--primary-light);
+            border: 1px solid rgba(99, 102, 241, 0.12);
+        }
+
+        /* ---- Footer ---- */
+        .footer {
+            margin-top: 24px;
+            text-align: center;
+        }
+
+        .footer a {
+            color: var(--text-dim);
+            text-decoration: none;
+            font-size: 13px;
+            transition: color 0.2s;
+        }
+
+        .footer a:hover {
+            color: var(--primary);
+        }
+
+        /* ---- Powered By ---- */
+        .powered-by {
+            margin-top: 20px;
+            text-align: center;
+            font-size: 11px;
+            color: var(--text-dim);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+        }
+
+        /* ---- Responsive ---- */
+        @media (max-width: 480px) {
+            body {
+                padding: 12px;
+            }
+
+            .card-header {
+                flex-direction: column;
+                gap: 12px;
+                align-items: flex-start;
+            }
+
+            .bill-total .amount {
+                font-size: 20px;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="header">
+        <div class="logo">StayFlow</div>
+        <div class="logo-sub">Secure Payment</div>
+    </div>
+
+    <div class="main-card">
+        <div class="card">
+            <!-- Loading State -->
+            <div id="loadingState" class="loading-overlay">
+                <div class="spinner"></div>
+                <div class="loading-text">Loading your bill details...</div>
+            </div>
+
+            <!-- Error State -->
+            <div id="errorState" class="error-section">
+                <div class="error-icon">😔</div>
+                <div class="error-msg" id="errorMsg">Unable to load bill</div>
+                <div class="error-detail" id="errorDetail">
+                    We couldn't find your payment details. Please check the link or contact admin.
+                </div>
+                <button class="retry-btn" onclick="loadPaymentInfo()">Try Again</button>
+            </div>
+
+            <!-- Payment Content -->
+            <div id="paymentContent" style="display: none;">
+                <div class="card-header">
+                    <div class="tenant-info">
+                        <div class="avatar" id="avatarInitial">T</div>
+                        <div>
+                            <div class="tenant-name" id="tenantName">Loading...</div>
+                            <div class="tenant-phone" id="tenantPhone">—</div>
+                        </div>
+                    </div>
+                    <div class="room-badge" id="roomBadge">Room —</div>
+                </div>
+
+                <div class="bill-section">
+                    <div class="bill-title">📋 Bill Breakdown</div>
+
+                    <div class="bill-row">
+                        <div class="label">
+                            <div class="icon icon-rent">🏠</div>
+                            <span>Monthly Rent</span>
+                        </div>
+                        <div class="amount" id="rentAmount">₹0</div>
+                    </div>
+
+                    <div class="bill-row">
+                        <div class="label">
+                            <div class="icon icon-eb">⚡</div>
+                            <span>Electricity (EB)</span>
+                        </div>
+                        <div class="amount" id="ebAmount">₹0</div>
+                    </div>
+
+                    <div class="bill-divider"></div>
+
+                    <div class="bill-total">
+                        <div class="label">💰 Total Due</div>
+                        <div class="amount" id="totalAmount">₹0</div>
+                    </div>
+
+                    <div class="bill-month" id="billMonth">February 2026</div>
+                </div>
+
+                <div class="pay-section">
+                    <button class="pay-btn pay-btn-primary" id="payNowBtn" onclick="initiatePayment()">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <rect x="1" y="4" width="22" height="16" rx="2" ry="2" />
+                            <line x1="1" y1="10" x2="23" y2="10" />
+                        </svg>
+                        Pay ₹<span id="payBtnAmount">0</span> Now
+                    </button>
+
+                    <div class="pay-methods">
+                        <div class="pay-method">
+                            <div class="dot"></div> UPI
+                        </div>
+                        <div class="pay-method">
+                            <div class="dot"></div> Debit Card
+                        </div>
+                        <div class="pay-method">
+                            <div class="dot"></div> NetBanking
+                        </div>
+                        <div class="pay-method">
+                            <div class="dot"></div> Wallet
+                        </div>
+                    </div>
+
+                    <div class="secure-badge">
+                        <svg viewBox="0 0 24 24">
+                            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+                        </svg>
+                        Secured by Razorpay · 256-bit SSL Encryption
+                    </div>
+
+                    <div id="paymentStatus" class="status-msg"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="footer">
+        <a href="#" id="waBackLink">← Return to WhatsApp</a>
+    </div>
+
+    <div class="powered-by">
+        Powered by <strong>StayFlow</strong> × <strong>Razorpay</strong>
+    </div>
+
+    <script>
+        // Backend API base URL
+        // On Vercel: empty string (vercel.json proxies /api/* to Render backend)
+        // On Render: empty string (same origin)
+        const API_BASE = '';
+
+        const urlParams = new URLSearchParams(window.location.search);
+        const phone = urlParams.get('phone') || '';
+        const nameParam = urlParams.get('name') || '';
+
+        // Elements
+        const loadingState = document.getElementById('loadingState');
+        const errorState = document.getElementById('errorState');
+        const paymentContent = document.getElementById('paymentContent');
+        const paymentStatus = document.getElementById('paymentStatus');
+
+        let tenantData = null;
+        let razorpayKeyId = '';
+
+        // Set WhatsApp back link
+        const cleanPhone = phone.replace(/\D/g, '');
+        document.getElementById('waBackLink').href = `https://wa.me/${cleanPhone || '15551569280'}`;
+
+        // ============ LOAD PAYMENT INFO ============
+        async function loadPaymentInfo() {
+            loadingState.style.display = 'flex';
+            errorState.style.display = 'none';
+            paymentContent.style.display = 'none';
+
+            try {
+                const response = await fetch(`${API_BASE}/api/payment-info?phone=${encodeURIComponent(phone)}&name=${encodeURIComponent(nameParam)}`);
+                const data = await response.json();
+
+                if (!response.ok || data.error) {
+                    throw new Error(data.error || 'Failed to load payment info');
+                }
+
+                tenantData = data;
+                razorpayKeyId = data.razorpayKeyId || '';
+
+                // Populate UI
+                document.getElementById('tenantName').textContent = data.name || 'Tenant';
+                document.getElementById('avatarInitial').textContent = (data.name || 'T').charAt(0).toUpperCase();
+                document.getElementById('tenantPhone').textContent = formatPhone(phone);
+                document.getElementById('roomBadge').textContent = `Room ${data.room || 'N/A'}`;
+                document.getElementById('rentAmount').textContent = `₹${data.rent || 0}`;
+                document.getElementById('ebAmount').textContent = `₹${data.eb || 0}`;
+                document.getElementById('totalAmount').textContent = `₹${data.total || 0}`;
+                document.getElementById('payBtnAmount').textContent = data.total || 0;
+
+                // Current month
+                const now = new Date();
+                const monthName = now.toLocaleString('default', { month: 'long', year: 'numeric' });
+                document.getElementById('billMonth').textContent = `📅 ${monthName}`;
+
+                // Check if already paid
+                if (data.status === 'PAID' || data.status === 'VALID') {
+                    paymentStatus.className = 'status-msg info';
+                    paymentStatus.innerHTML = '✅ Your payment for this month is already verified! Check WhatsApp for your invoice.';
+                    paymentStatus.style.display = 'block';
+                    document.getElementById('payNowBtn').disabled = true;
+                    document.getElementById('payNowBtn').innerHTML = '✅ Already Paid';
+                }
+
+                loadingState.style.display = 'none';
+                paymentContent.style.display = 'block';
+
+            } catch (err) {
+                loadingState.style.display = 'none';
+                errorState.style.display = 'block';
+                document.getElementById('errorMsg').textContent = 'Unable to load bill';
+                document.getElementById('errorDetail').textContent = err.message || 'Please check the link or contact admin.';
+            }
+        }
+
+        function formatPhone(p) {
+            const digits = (p || '').replace(/\D/g, '');
+            if (digits.length >= 12) {
+                return `+${digits.slice(0, 2)} ${digits.slice(2, 7)} ${digits.slice(7)}`;
+            }
+            if (digits.length >= 10) {
+                return `+91 ${digits.slice(-10, -5)} ${digits.slice(-5)}`;
+            }
+            return p;
+        }
+
+        // ============ RAZORPAY CHECKOUT ============
+        async function initiatePayment() {
+            if (!tenantData) return;
+
+            const payBtn = document.getElementById('payNowBtn');
+            payBtn.disabled = true;
+            payBtn.innerHTML = '<span class="spinner" style="width:20px;height:20px;border-width:2px;margin:0;"></span> Creating Order...';
+
+            try {
+                // Step 1: Create order on backend
+                const orderRes = await fetch(`${API_BASE}/api/create-order`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        phone: phone,
+                        name: tenantData.name,
+                        amount: tenantData.total,
+                        room: tenantData.room
+                    })
+                });
+
+                const orderData = await orderRes.json();
+
+                if (!orderRes.ok || orderData.error) {
+                    throw new Error(orderData.error || 'Failed to create order');
+                }
+
+                // Step 2: Open Razorpay Checkout
+                const options = {
+                    key: orderData.razorpayKeyId,
+                    amount: orderData.amount,  // in paise
+                    currency: 'INR',
+                    name: 'StayFlow PG',
+                    description: `Rent & EB - ${tenantData.name} (Room ${tenantData.room})`,
+                    order_id: orderData.orderId,
+                    prefill: {
+                        name: tenantData.name,
+                        contact: phone.replace(/\D/g, '').slice(-10)
+                    },
+                    notes: {
+                        phone: phone,
+                        room: tenantData.room,
+                        tenant_name: tenantData.name
+                    },
+                    theme: {
+                        color: '#6366f1',
+                        backdrop_color: 'rgba(10, 14, 26, 0.85)'
+                    },
+                    modal: {
+                        ondismiss: function () {
+                            payBtn.disabled = false;
+                            payBtn.innerHTML = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg> Pay ₹${tenantData.total} Now`;
+                        }
+                    },
+                    handler: async function (response) {
+                        // Payment successful!
+                        payBtn.innerHTML = '✅ Payment Successful! Verifying...';
+
+                        try {
+                            // Step 3: Verify on backend
+                            const verifyRes = await fetch(`${API_BASE}/api/verify-razorpay-payment`, {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({
+                                    razorpay_order_id: response.razorpay_order_id,
+                                    razorpay_payment_id: response.razorpay_payment_id,
+                                    razorpay_signature: response.razorpay_signature,
+                                    phone: phone
+                                })
+                            });
+
+                            const verifyData = await verifyRes.json();
+
+                            if (verifyData.success) {
+                                // Redirect to confirmation page with payment details
+                                const confirmUrl = `/confirmation.html?phone=${encodeURIComponent(phone)}&razorpay_payment_id=${encodeURIComponent(response.razorpay_payment_id)}`;
+                                window.location.href = confirmUrl;
+                            } else {
+                                paymentStatus.className = 'status-msg error';
+                                paymentStatus.innerHTML = '⚠️ Payment received but verification pending. Your invoice will be sent shortly via WhatsApp.';
+                                paymentStatus.style.display = 'block';
+
+                                setTimeout(() => {
+                                    window.location.href = `/confirmation.html?phone=${encodeURIComponent(phone)}&razorpay_payment_id=${encodeURIComponent(response.razorpay_payment_id)}`;
+                                }, 3000);
+                            }
+                        } catch (verifyErr) {
+                            // Even if verify API fails, payment is done. Redirect anyway.
+                            window.location.href = `/confirmation.html?phone=${encodeURIComponent(phone)}&razorpay_payment_id=${encodeURIComponent(response.razorpay_payment_id)}`;
+                        }
+                    }
+                };
+
+                const rzp = new Razorpay(options);
+
+                rzp.on('payment.failed', function (response) {
+                    paymentStatus.className = 'status-msg error';
+                    paymentStatus.innerHTML = `❌ Payment failed: ${response.error.description || 'Please try again.'}`;
+                    paymentStatus.style.display = 'block';
+                    payBtn.disabled = false;
+                    payBtn.innerHTML = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg> Retry Payment ₹${tenantData.total}`;
+                });
+
+                rzp.open();
+
+            } catch (err) {
+                paymentStatus.className = 'status-msg error';
+                paymentStatus.innerHTML = '❌ ' + (err.message || 'Failed to initiate payment. Please try again.');
+                paymentStatus.style.display = 'block';
+                payBtn.disabled = false;
+                payBtn.innerHTML = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg> Pay ₹${tenantData.total} Now`;
+            }
+        }
+
+        // ============ INIT ============
+        if (phone) {
+            loadPaymentInfo();
+        } else {
+            loadingState.style.display = 'none';
+            errorState.style.display = 'block';
+            document.getElementById('errorMsg').textContent = 'Missing phone number';
+            document.getElementById('errorDetail').textContent = 'Payment link is incomplete. Please request a new link from the WhatsApp bot.';
+        }
+    </script>
+</body>
+
+</html>
