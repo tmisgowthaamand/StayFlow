@@ -175,27 +175,35 @@ app.post('/api/verify-razorpay-payment', async (req, res) => {
             timestamp: new Date()
         });
 
-        // Fetch payment details from Razorpay to get amount
+        // Fetch payment details from Razorpay to get amount and UPI ID
         let paymentAmount = 0;
+        let rzpDetails = {};
         try {
             const auth = Buffer.from(`${config.razorpay.key_id}:${config.razorpay.key_secret}`).toString('base64');
             const rzpRes = await axios.get(`https://api.razorpay.com/v1/payments/${razorpay_payment_id}`, {
                 headers: { 'Authorization': `Basic ${auth}` }
             });
             paymentAmount = (rzpRes.data.amount || 0) / 100;
+            rzpDetails = {
+                vpa: rzpRes.data.vpa || rzpRes.data.acquirer_data?.rrn || '',
+                payment_id: razorpay_payment_id,
+                order_id: razorpay_order_id,
+                method: rzpRes.data.method || 'upi'
+            };
         } catch (fetchErr) {
             console.error('Failed to fetch payment amount:', fetchErr.message);
         }
 
         // Process the successful payment
         if (phone) {
-            await handleRazorpaySuccess(phone, paymentAmount, razorpay_payment_id, 'UPI (Razorpay)');
+            await handleRazorpaySuccess(phone, paymentAmount, razorpay_payment_id, 'UPI (Razorpay)', rzpDetails);
         }
 
         res.json({
             success: true,
             paymentId: razorpay_payment_id,
-            amount: paymentAmount
+            amount: paymentAmount,
+            vpa: rzpDetails.vpa
         });
     } catch (err) {
         console.error('Verify Payment Error:', err.message);
@@ -297,10 +305,16 @@ app.post('/webhook/razorpay', async (req, res) => {
             const phone = notes.phone || '';
             const amount = (paymentEntity.amount || 0) / 100; // Convert paise to rupees
             const trxId = paymentEntity.id || `RZP-${Date.now().toString().slice(-6)}`;
+            const vpa = paymentEntity.vpa || paymentEntity.acquirer_data?.rrn || '';
+            const order_id = paymentEntity.order_id || '';
 
             if (phone) {
-                await handleRazorpaySuccess(phone, amount, trxId, 'UPI (Razorpay)');
-                console.log(`Razorpay payment verified for ${phone}: ₹${amount}, TXN: ${trxId}`);
+                await handleRazorpaySuccess(phone, amount, trxId, 'UPI (Razorpay)', {
+                    vpa,
+                    payment_id: trxId,
+                    order_id
+                });
+                console.log(`Razorpay payment verified for ${phone}: ₹${amount}, TXN: ${trxId}, VPA: ${vpa}`);
             } else {
                 console.error('Razorpay webhook: No phone number in payment notes');
             }
@@ -400,7 +414,14 @@ app.post('/api/verify-transaction', async (req, res) => {
             const finalTrxId = paymentEntity.id || trxId;
 
             if (targetPhone) {
-                await handleRazorpaySuccess(targetPhone, amount, finalTrxId, 'UPI (Razorpay)');
+                const vpa = paymentEntity.vpa || paymentEntity.acquirer_data?.rrn || '';
+                const order_id = paymentEntity.order_id || '';
+
+                await handleRazorpaySuccess(targetPhone, amount, finalTrxId, 'UPI (Razorpay)', {
+                    vpa,
+                    payment_id: finalTrxId,
+                    order_id
+                });
                 // Fetch updated tenant for response details
                 const updatedTenant = await sheetsService.getTenantByPhone(targetPhone);
                 let invoiceUrl = '';
@@ -414,7 +435,8 @@ app.post('/api/verify-transaction', async (req, res) => {
                         const { fileName } = await pdfService.generateInvoice({
                             Name: tName, Phone: targetPhone, Room: tRoom,
                             EB_Amount: tEB, Monthly_Rent: tRent, Total_Amount: amount.toString(),
-                            Paid_Date: new Date().toLocaleDateString(), Transaction_ID: finalTrxId, Payment_Mode: 'UPI (Razorpay)'
+                            Paid_Date: new Date().toLocaleDateString(), Transaction_ID: finalTrxId, Payment_Mode: 'UPI (Razorpay)',
+                            UPI_ID: vpa, Payment_ID: finalTrxId, Order_ID: order_id
                         });
                         invoiceUrl = `/api/uploads/${fileName}`;
                     } catch (e) { }
@@ -423,7 +445,8 @@ app.post('/api/verify-transaction', async (req, res) => {
                     success: true, botNumber: config.ownerPhone || '917010905730',
                     tenantPhone: targetPhone, tenantName: tName, room: tRoom,
                     rent: tRent, eb: tEB, total: amount, trxId: finalTrxId,
-                    paidDate: new Date().toLocaleDateString(), invoiceUrl
+                    paidDate: new Date().toLocaleDateString(), invoiceUrl,
+                    vpa, paymentId: finalTrxId, orderId: order_id
                 });
             }
         }
@@ -461,7 +484,10 @@ app.post('/api/verify-transaction', async (req, res) => {
                             tenantPhone: targetPhone, tenantName: uTenant?.get('Name') || '',
                             room: uTenant?.get('Room') || 'N/A', rent: uTenant?.get('Monthly Rent') || '0',
                             eb: uTenant?.get('EB Amount') || '0', total: rzpAmount, trxId,
-                            paidDate: new Date().toLocaleDateString(), invoiceUrl
+                            paidDate: new Date().toLocaleDateString(), invoiceUrl,
+                            vpa: rzpPayment.vpa || rzpPayment.acquirer_data?.rrn || '',
+                            paymentId: rzpPayment.id,
+                            orderId: rzpPayment.order_id
                         });
                     }
                 }
@@ -476,7 +502,16 @@ app.post('/api/verify-transaction', async (req, res) => {
                     const targetPhone = phone || rzpLink.notes?.phone || '';
                     if (targetPhone) {
                         const linkAmount = rzpLink.amount_paid / 100;
-                        await handleRazorpaySuccess(targetPhone, linkAmount, trxId, 'UPI (Razorpay)');
+                        // For payment links, we might need to fetch the actual payment to get the VPA
+                        let linkVpa = '';
+                        try {
+                            const paymentsRes = await axios.get(`https://api.razorpay.com/v1/payment_links/${trxId}/payments`, { headers });
+                            if (paymentsRes.data.items && paymentsRes.data.items.length > 0) {
+                                linkVpa = paymentsRes.data.items[0].vpa || '';
+                            }
+                        } catch (e) { }
+
+                        await handleRazorpaySuccess(targetPhone, linkAmount, trxId, 'UPI (Razorpay)', { vpa: linkVpa, payment_id: trxId, order_id: rzpLink.order_id });
                         const lTenant = await sheetsService.getTenantByPhone(targetPhone);
                         let invoiceUrl = '';
                         if (lTenant) {
@@ -485,7 +520,8 @@ app.post('/api/verify-transaction', async (req, res) => {
                                     Name: lTenant.get('Name'), Phone: targetPhone, Room: lTenant.get('Room') || 'N/A',
                                     EB_Amount: lTenant.get('EB Amount') || '0', Monthly_Rent: lTenant.get('Monthly Rent') || '0',
                                     Total_Amount: linkAmount.toString(), Paid_Date: new Date().toLocaleDateString(),
-                                    Transaction_ID: trxId, Payment_Mode: 'UPI (Razorpay)'
+                                    Transaction_ID: trxId, Payment_Mode: 'UPI (Razorpay)',
+                                    UPI_ID: linkVpa, Payment_ID: trxId, Order_ID: rzpLink.order_id
                                 });
                                 invoiceUrl = `/api/uploads/${fileName}`;
                             } catch (e) { }
@@ -495,7 +531,8 @@ app.post('/api/verify-transaction', async (req, res) => {
                             tenantPhone: targetPhone, tenantName: lTenant?.get('Name') || '',
                             room: lTenant?.get('Room') || 'N/A', rent: lTenant?.get('Monthly Rent') || '0',
                             eb: lTenant?.get('EB Amount') || '0', total: linkAmount, trxId,
-                            paidDate: new Date().toLocaleDateString(), invoiceUrl
+                            paidDate: new Date().toLocaleDateString(), invoiceUrl,
+                            vpa: linkVpa, paymentId: trxId, orderId: rzpLink.order_id
                         });
                     }
                 }

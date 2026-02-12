@@ -1666,7 +1666,7 @@ async function handleRejectPayment(ownerPhone, tenantPhone) {
 // ==================== RAZORPAY PAYMENT VERIFICATION ====================
 
 // Called when Razorpay webhook or confirmation page verifies successful payment
-async function handleRazorpaySuccess(phone, amount, trxId, paymentMode = 'UPI (Razorpay)') {
+async function handleRazorpaySuccess(phone, amount, trxId, paymentMode = 'UPI (Razorpay)', extraDetails = {}) {
     const cleanPhone = normalizePhone(phone);
     const tenant = await sheetsService.getTenantByPhone(cleanPhone);
     if (!tenant) {
@@ -1678,7 +1678,7 @@ async function handleRazorpaySuccess(phone, amount, trxId, paymentMode = 'UPI (R
     const room = tenant.get('Room') || 'N/A';
     const rent = parseFloat(tenant.get('Monthly Rent') || 0);
     const eb = parseFloat(tenant.get('EB Amount') || 0);
-    const total = rent + eb;
+    const total = amount || (rent + eb);
 
     // Check if already marked as PAID to avoid duplicate processing
     if (tenant.get('Status') === 'PAID' && tenant.get('Transaction ID') === trxId) {
@@ -1701,7 +1701,10 @@ async function handleRazorpaySuccess(phone, amount, trxId, paymentMode = 'UPI (R
     const { filePath } = await pdfService.generateInvoice({
         Name: name, Phone: cleanPhone, Room: room,
         EB_Amount: eb.toString(), Monthly_Rent: rent.toString(), Total_Amount: total.toString(),
-        Paid_Date: new Date().toLocaleDateString(), Transaction_ID: trxId, Payment_Mode: paymentMode
+        Paid_Date: new Date().toLocaleDateString(), Transaction_ID: trxId, Payment_Mode: paymentMode,
+        UPI_ID: extraDetails.vpa || '',
+        Payment_ID: extraDetails.payment_id || trxId,
+        Order_ID: extraDetails.order_id || ''
     });
 
     // Send to tenant via WhatsApp

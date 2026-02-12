@@ -239,11 +239,22 @@ class PDFService {
         const statusY = tableEndY + 28;
         if (Paid_Date && Paid_Date !== 'PENDING') {
             doc.setFillColor(232, 245, 233);
-            doc.roundedRect(margin, statusY, contentW, 14, 2, 2, 'F');
+            doc.roundedRect(margin, statusY, contentW, 20, 2, 2, 'F');
             doc.setFont('helvetica', 'bold');
             doc.setFontSize(9);
             doc.setTextColor(46, 125, 50);
-            doc.text(`✓  PAID on ${Paid_Date}  |  Mode: ${Payment_Mode}  |  TXN: ${Transaction_ID}`, margin + 5, statusY + 9);
+            doc.text(`✓  PAID on ${Paid_Date}  |  Mode: ${Payment_Mode}`, margin + 5, statusY + 7);
+
+            doc.setFont('helvetica', 'normal');
+            doc.setFontSize(8);
+            let detailLine = `TXN: ${Transaction_ID}`;
+            if (tenantData.UPI_ID) detailLine += `  |  UPI ID: ${tenantData.UPI_ID}`;
+            if (tenantData.Payment_ID && tenantData.Payment_ID !== Transaction_ID) detailLine += `  |  PAY ID: ${tenantData.Payment_ID}`;
+            doc.text(detailLine, margin + 5, statusY + 13);
+
+            if (tenantData.Order_ID) {
+                doc.text(`ORDER ID: ${tenantData.Order_ID}`, margin + 5, statusY + 17);
+            }
         }
 
         // ==================== THANK YOU ====================

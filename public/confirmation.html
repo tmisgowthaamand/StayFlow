@@ -474,9 +474,21 @@
                         <span class="label">💳 Mode</span>
                         <span class="value">UPI (Razorpay)</span>
                     </div>
-                    <div class="payment-detail-row">
+                    <div class="payment-detail-row" id="rowTrxId">
                         <span class="label">🔖 TXN ID</span>
                         <span class="value" id="invTrxId">—</span>
+                    </div>
+                    <div class="payment-detail-row" id="rowPayId" style="display:none;">
+                        <span class="label">🔑 PAY ID</span>
+                        <span class="value" id="invPayId">—</span>
+                    </div>
+                    <div class="payment-detail-row" id="rowOrderId" style="display:none;">
+                        <span class="label">📦 ORDER ID</span>
+                        <span class="value" id="invOrderId">—</span>
+                    </div>
+                    <div class="payment-detail-row" id="rowUpiId" style="display:none;">
+                        <span class="label">📱 UPI ID (VPA)</span>
+                        <span class="value" id="invUpiId">—</span>
                     </div>
                     <div class="payment-detail-row">
                         <span class="label">📅 Date</span>
@@ -530,17 +542,17 @@
         // Set fallback WhatsApp link
         document.getElementById('waLinkFallback').href = `https://wa.me/${botNumber}`;
 
-        // Build WhatsApp redirect URL with paid invoice message
+        // Build WhatsApp redirect URL to the bot's chat
         function buildWALink(tenantPhone, data) {
-            const cleanPhone = (tenantPhone || botNumber).replace(/\D/g, '');
+            const cleanBotPhone = botNumber.replace(/\D/g, '');
             const msg = `✅ *UPI Payment Verified*\n\n` +
                 `👤 Name: ${data.tenantName || 'Tenant'}\n` +
                 `🏠 Room: ${data.room || 'N/A'}\n` +
                 `💰 Total Paid: ₹${data.total || 0}\n` +
                 `🔖 TXN ID: ${data.trxId || 'N/A'}\n` +
                 `📅 Date: ${data.paidDate || new Date().toLocaleDateString()}\n\n` +
-                `📄 Invoice has been sent to your WhatsApp.`;
-            return `https://wa.me/${cleanPhone}?text=${encodeURIComponent(msg)}`;
+                `📄 My invoice has been generated. Please send it to me.`;
+            return `https://wa.me/${cleanBotPhone}?text=${encodeURIComponent(msg)}`;
         }
 
         // Auto-fill and verify if Razorpay callback has IDs
@@ -562,6 +574,20 @@
             document.getElementById('invTotal').textContent = `₹${data.total || 0}`;
             document.getElementById('invTrxId').textContent = data.trxId || 'N/A';
             document.getElementById('invDate').textContent = data.paidDate || new Date().toLocaleDateString();
+
+            // Populate Additional Details
+            if (data.vpa) {
+                document.getElementById('rowUpiId').style.display = 'flex';
+                document.getElementById('invUpiId').textContent = data.vpa;
+            }
+            if (data.paymentId && data.paymentId !== data.trxId) {
+                document.getElementById('rowPayId').style.display = 'flex';
+                document.getElementById('invPayId').textContent = data.paymentId;
+            }
+            if (data.orderId) {
+                document.getElementById('rowOrderId').style.display = 'flex';
+                document.getElementById('invOrderId').textContent = data.orderId;
+            }
 
             // Set download invoice link
             if (data.invoiceUrl) {
