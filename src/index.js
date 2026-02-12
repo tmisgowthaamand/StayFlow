@@ -27,7 +27,7 @@ const __dirname = path.dirname(__filename);
 
 const app = express();
 app.use(cors({
-    origin: config.allowedOrigins.length > 0 ? config.allowedOrigins : '*',
+    origin: (config.allowedOrigins.length > 0 && config.allowedOrigins[0] !== '') ? config.allowedOrigins : '*',
     methods: ['GET', 'POST', 'PUT', 'DELETE'],
     credentials: true
 }));
