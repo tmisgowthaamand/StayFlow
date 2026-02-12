@@ -21,7 +21,7 @@ class PDFService {
             format: 'a4',
             putOnlyUsedFonts: true
         });
-        doc.setCharSpace(0); // Reset character spacing to prevent ghosting
+        if (typeof doc.setCharSpace === 'function') doc.setCharSpace(0); // Reset character spacing to prevent ghosting
         // Color palette (Vibrant & Attractive - Modern Blue/Teal/Purple)
         const vPrimary = [79, 70, 229];      // #4F46E5 - Vibrant Indigo
         const vSecondary = [6, 182, 212];    // #06B6D4 - Electric Teal
@@ -52,16 +52,21 @@ class PDFService {
         // Draw House Icon
         const lX = margin;
         const lY = 12;
-        doc.lines([[10, -8], [10, 8]], lX, lY + 8, [1, 1], 'S'); // Roof left
+        doc.line(lX, lY + 8, lX + 10, lY);
+        doc.line(lX + 10, lY, lX + 20, lY + 8);
         doc.line(lX, lY + 8, lX + 20, lY + 8); // Floor
         doc.rect(lX + 4, lY + 8, 12, 10); // Base
 
         // Colorful Flow 'S' (using multiple colored lines for 'vibrant' feel)
         doc.setLineWidth(0.8);
         doc.setDrawColor(...vSecondary);
+        doc.moveTo(lX + 5, lY + 12);
         doc.bezierCurveTo(lX + 5, lY + 12, lX + 15, lY + 12, lX + 15, lY + 15);
+        doc.stroke();
         doc.setDrawColor(...vAccent);
+        doc.moveTo(lX + 15, lY + 15);
         doc.bezierCurveTo(lX + 15, lY + 18, lX + 5, lY + 18, lX + 5, lY + 21);
+        doc.stroke();
 
         doc.setFont('times', 'bold');
         doc.setFontSize(18);
@@ -344,7 +349,7 @@ class PDFService {
             unit: 'mm',
             format: 'a4'
         });
-        doc.setCharSpace(0);
+        if (typeof doc.setCharSpace === 'function') doc.setCharSpace(0);
         const { name, phone, room, sharingType, advance, monthlyRent } = tenantData;
 
         // ==================== BRANDING HEADER ====================
