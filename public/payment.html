@@ -681,8 +681,12 @@
                            View / Download Invoice
                         </a>`;
                     paymentStatus.style.display = 'block';
-                    document.getElementById('payNowBtn').disabled = true;
-                    document.getElementById('payNowBtn').innerHTML = '✅ Already Paid';
+
+                    // Add standard Razorpay button back as requested
+                    const payBtn = document.getElementById('payNowBtn');
+                    payBtn.innerHTML = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20M17 5H9.5a4.5 4.5 0 000 9h5a4.5 4.5 0 010 9H6"/></svg> Pay via Razorpay`;
+                    payBtn.disabled = false;
+                    payBtn.classList.remove('btn-secondary'); // Keep original primary styling for visibility
                 }
 
                 loadingState.style.display = 'none';

@@ -703,7 +703,8 @@ async function handleIncomingMessage(phone, body, messageId = null, image = null
                 mainMenuRows.push({ id: 'menu_register', title: '📝 New Register', description: 'Register as a new tenant' });
             }
             mainMenuRows.push(
-                { id: 'menu_rent', title: '🏠 Rent', description: 'View rent details & pay' },
+                { id: 'menu_rent', title: '🏠 Rent', description: 'View rent details & bill' },
+                { id: 'menu_pay', title: '💳 Pay via Razorpay', description: 'Pay your bill securely' },
                 { id: 'menu_eb_bill', title: '⚡ EB Bill', description: 'View electricity bill' },
                 { id: 'menu_statements', title: '📜 Statements', description: 'Monthly payment statements' },
                 { id: 'menu_queries', title: '❓ Queries', description: 'Submit a query or complaint' }
@@ -767,6 +768,31 @@ async function handleIncomingMessage(phone, body, messageId = null, image = null
         case 'MENU_RENT':
         case '🏠 RENT': {
             await handleMenuRent(phone);
+            break;
+        }
+
+        // Pay (from list)
+        case 'MENU_PAY':
+        case '💳 PAY VIA RAZORPAY': {
+            // Trigger the PAID command logic
+            const tenantPay = await sheetsService.getTenantByPhone(phone);
+            if (!tenantPay || tenantPay.get('Status') === 'VACATED') {
+                await sendMessage(phone, "You're not registered. Type *HI* to start.");
+                break;
+            }
+            const rentAmt = parseFloat(tenantPay.get('Monthly Rent') || 0);
+            const ebAmt = parseFloat(tenantPay.get('EB Amount') || 0);
+            const totalAmt = rentAmt + ebAmt;
+
+            const razorpayLink = await createRazorpayLink(phone, tenantPay.get('Name'), totalAmt, tenantPay.get('Room'));
+
+            let payMsg = `💳 *Pay Online (Razorpay)*\n\n🏠 Rent: ₹${rentAmt}\n⚡ EB: ₹${ebAmt}\n━━━━━━━━━━━━━━━━━━━━\n💰 *Total: ₹${totalAmt}*\n\n_Pay securely on our website via Razorpay._`;
+
+            if (razorpayLink) {
+                await sendCTAButton(phone, payMsg, '💳 Pay Now', razorpayLink, '💳 Secure Payment');
+            } else {
+                await sendMessage(phone, `❌ Online payment is currently unavailable. Please contact admin.`);
+            }
             break;
         }
 
@@ -1070,12 +1096,8 @@ async function handleSmartChat(phone, body, cleanBody) {
 
         // Pay query
         if (payKeywords.some(k => cleanBody.includes(k))) {
-            if (status === 'PAID') {
-                await sendMessage(phone, `✅ You've already paid for this month! 🎉\n\nTotal Paid: ₹${total}\nMode: ${tenant.get('Payment Mode') || 'N/A'}\n\nType *RECEIPT* to get your invoice.`);
-            } else {
-                userState[phone] = { step: 'PAYMENT_METHOD', contextName: name };
-                await sendMessage(phone, `💰 *Payment - ${name}*\n\n🏠 Rent: ₹${rent}\n⚡ EB: ₹${eb}\n━━━━━━━━━━━━━━━━━━━━\n💵 *Total Due: ₹${total}*\n\n*How will you pay?*\n\n1️⃣ *UPI* - Online/UPI/Razorpay\n2️⃣ *CASH* - Paid by cash\n\nReply *1* or *2*`);
-            }
+            userState[phone] = { step: 'PAYMENT_METHOD', contextName: name };
+            await sendMessage(phone, `💰 *Payment - ${name}*\n\n🏠 Rent: ₹${rent}\n⚡ EB: ₹${eb}\n━━━━━━━━━━━━━━━━━━━━\n💵 *Total Due: ₹${total}*\n\n*How will you pay?*\n\n1️⃣ *Razorpay* - Secure Online Payment\n2️⃣ *CASH* - Paid by cash\n\nReply *1* or *2*`);
             return;
         }
 
@@ -1300,8 +1322,8 @@ async function handleMenuRent(phone) {
     let rentMsg = `🏠 *Rent Details — ${currentMonth}*\n━━━━━━━━━━━━━━━━━━━━\n\n👤 Name: ${name}\n🚪 Room: ${room}\n\n💰 *Bill Breakdown:*\n┌─────────────────────\n│ 🏠 Rent: ₹${rent}\n│ ⚡ EB: ₹${eb}\n└─────────────────────\n💵 *Total Due: ₹${total}*\n📅 *Due Date: ${dueDate}*\n\n${isVerified ? '✅ *Payment Status: VALID*' : (status === 'PENDING' ? '⏳ *Payment Status: PENDING*' : '❌ *Payment Status: INVALID*')}`;
 
     if (!isVerified) {
-        // Show Pay Now + Cash + Cancel buttons
-        await sendButtons(phone, rentMsg, ['💳 Pay Now UPI', '💵 Pay Cash', '❌ Cancel']);
+        // Show Razorpay + Cash + Cancel buttons
+        await sendButtons(phone, rentMsg, ['💳 Pay via Razorpay', '💵 Pay Cash', '❌ Cancel']);
         userState[phone] = { step: 'PAYMENT_METHOD', contextName: name };
     } else {
         // Already paid — show contact only
@@ -1330,7 +1352,7 @@ async function handleMenuEBBill(phone) {
     const status = tenant.get('Status') || 'PENDING';
     const isVerified = status === 'PAID' || status === 'VALID';
     if (!isVerified) {
-        await sendButtons(phone, ebMsg, ['💳 Pay Now UPI', '💵 Pay Cash', '❌ Cancel']);
+        await sendButtons(phone, ebMsg, ['💳 Pay via Razorpay', '💵 Pay Cash', '❌ Cancel']);
         userState[phone] = { step: 'PAYMENT_METHOD', contextName: name };
     } else {
         await sendButtons(phone, ebMsg, ['📞 Contact']);
@@ -1724,14 +1746,14 @@ async function handleOnboarding(phone, input, image) {
         // ========== PAYMENT FLOW STATES ==========
         case 'PAYMENT_METHOD': {
             const choice = input.trim().toUpperCase();
-            const isUPI = choice.includes('PAY NOW UPI') || choice.includes('UPI');
+            const isRazorpay = choice.includes('PAY VIA RAZORPAY') || choice.includes('RAZORPAY') || choice.includes('PAY NOW UPI') || choice.includes('UPI');
             const isCash = choice.includes('PAY CASH') || (choice.includes('CASH') && !choice.includes('VERIFY'));
             const isCancel = choice.includes('CANCEL');
 
             if (isCancel) {
                 await sendMessage(phone, '❌ Payment cancelled. Type *RENT* anytime to view your bill.');
                 delete userState[phone];
-            } else if (isUPI) {
+            } else if (isRazorpay) {
                 const tenant = await sheetsService.getTenantByPhone(phone, state.contextName);
                 if (!tenant) { await sendMessage(phone, 'Tenant not found.'); delete userState[phone]; return; }
                 const rent = parseFloat(tenant.get('Monthly Rent') || 0);
@@ -1759,7 +1781,7 @@ async function handleOnboarding(phone, input, image) {
 
                 await sendMessage(phone, `💵 *Cash Payment*\n\n🏠 Rent: ₹${rent}\n⚡ EB: ₹${eb}\n━━━━━━━━━━━━━━━━━━━━\n💰 *Total Due (Rent + EB): ₹${total}*\n\nPlease enter the *exact amount paid*.\nExample: *${total}*\n\n⚠️ _Invoice will be generated after admin verification._`);
             } else {
-                await sendButtons(phone, '❌ Please select a payment method:', ["💳 Pay Now UPI", "💵 Pay Cash", "❌ Cancel"]);
+                await sendButtons(phone, '❌ Please select a payment method:', ["💳 Pay via Razorpay", "💵 Pay Cash", "❌ Cancel"]);
             }
             break;
         }
