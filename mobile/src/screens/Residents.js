@@ -3,17 +3,17 @@ import { View, Text, StyleSheet, FlatList, TouchableOpacity, TextInput, Activity
 import { Colors, Spacing, Shadows } from '../theme/theme';
 import Header from '../components/Header';
 import { useNavigation } from '@react-navigation/native';
-import { getTenants, notifyTenant, markPaidManual, deleteTenant } from '../api/api';
-import { Search, Bell, Phone, CheckCircle, Trash2, Edit } from 'lucide-react-native';
+import { getTenants, notifyTenant, markPaidManual, deleteTenant, notifyAll, generateInvoice } from '../api/api';
+import { Search, Bell, Phone, CheckCircle, Trash2, Edit, FileText, Send } from 'lucide-react-native';
 
-const ResidentItem = ({ item, onNotify, onMarkPaid, onDelete }) => {
+const ResidentItem = ({ item, onNotify, onMarkPaid, onDelete, onViewInvoice }) => {
     const isPaid = item.Status === 'PAID' || item.Status === 'VALID';
     const navigation = useNavigation();
 
     return (
         <View style={[styles.card, Shadows.sm]}>
             <View style={styles.cardHeader}>
-                <View>
+                <View style={{ flex: 1 }}>
                     <Text style={styles.nameText}>{item.Name}</Text>
                     <Text style={styles.roomText}>Room {item.Room} • {item.Phone}</Text>
                 </View>
@@ -24,12 +24,29 @@ const ResidentItem = ({ item, onNotify, onMarkPaid, onDelete }) => {
                 </View>
             </View>
 
-            <View style={styles.cardFooter}>
-                <View style={styles.amountContainer}>
-                    <Text style={styles.amountLabel}>Total Due</Text>
-                    <Text style={styles.amountValue}>₹{item['Total Amount'] || '0'}</Text>
+            {/* Rent + EB breakdown */}
+            <View style={styles.breakdownRow}>
+                <View style={styles.breakdownItem}>
+                    <Text style={styles.breakdownLabel}>Rent</Text>
+                    <Text style={styles.breakdownValue}>₹{item['Monthly Rent'] || '0'}</Text>
                 </View>
+                <View style={styles.breakdownItem}>
+                    <Text style={styles.breakdownLabel}>EB</Text>
+                    <Text style={styles.breakdownValue}>₹{item['EB Amount'] || '0'}</Text>
+                </View>
+                <View style={styles.breakdownItem}>
+                    <Text style={styles.breakdownLabel}>Total</Text>
+                    <Text style={[styles.breakdownValue, { color: Colors.primary, fontWeight: 'bold' }]}>₹{item['Total Amount'] || '0'}</Text>
+                </View>
+                {isPaid && (
+                    <View style={styles.breakdownItem}>
+                        <Text style={styles.breakdownLabel}>Mode</Text>
+                        <Text style={[styles.breakdownValue, { color: '#059669' }]}>{item['Payment Mode'] || '-'}</Text>
+                    </View>
+                )}
+            </View>
 
+            <View style={styles.cardFooter}>
                 <View style={styles.actionButtons}>
                     {/* Edit */}
                     <TouchableOpacity
@@ -37,6 +54,14 @@ const ResidentItem = ({ item, onNotify, onMarkPaid, onDelete }) => {
                         onPress={() => navigation.navigate('EditTenant', { tenant: item })}
                     >
                         <Edit size={18} color="#4B5563" />
+                    </TouchableOpacity>
+
+                    {/* View Invoice PDF */}
+                    <TouchableOpacity
+                        style={[styles.iconButton, { backgroundColor: '#F0F9FF' }]}
+                        onPress={() => onViewInvoice(item)}
+                    >
+                        <FileText size={18} color="#0EA5E9" />
                     </TouchableOpacity>
 
                     {/* Notify */}
@@ -77,6 +102,8 @@ const Residents = () => {
     const [filteredTenants, setFilteredTenants] = useState([]);
     const [loading, setLoading] = useState(true);
     const [search, setSearch] = useState('');
+    const [notifyingAll, setNotifyingAll] = useState(false);
+    const navigation = useNavigation();
 
     const fetchTenants = async () => {
         try {
@@ -106,20 +133,62 @@ const Residents = () => {
     };
 
     const handleNotify = async (tenant) => {
-        Alert.alert('Notify Resident', `Send payment reminder to ${tenant.Name}?`, [
+        Alert.alert('Notify Resident', `Send invoice & payment reminder to ${tenant.Name}?`, [
             { text: 'Cancel', style: 'cancel' },
             {
-                text: 'Send',
+                text: 'Send Invoice',
                 onPress: async () => {
                     try {
                         await notifyTenant(tenant.Phone, tenant.Name);
-                        Alert.alert('Success', 'Reminder sent via WhatsApp');
+                        Alert.alert('Success', 'Invoice & reminder sent via WhatsApp');
                     } catch (error) {
                         Alert.alert('Error', 'Failed to send notification');
                     }
                 }
             }
         ]);
+    };
+
+    const handleNotifyAll = () => {
+        const activeCount = tenants.filter(t => t.Status !== 'VACATED').length;
+        Alert.alert(
+            '📢 Notify All Residents',
+            `This will send rent + EB invoice with payment link to ALL ${activeCount} active residents via WhatsApp.\n\nEach resident will receive:\n✅ Updated invoice PDF\n✅ Payment breakdown (Rent + EB)\n✅ Razorpay payment link\n\nProceed?`,
+            [
+                { text: 'Cancel', style: 'cancel' },
+                {
+                    text: 'Send to All',
+                    onPress: async () => {
+                        try {
+                            setNotifyingAll(true);
+                            await notifyAll();
+                            Alert.alert('Success', `Invoices being sent to ${activeCount} residents! WhatsApp notifications are processing in the background.`);
+                        } catch (error) {
+                            Alert.alert('Error', 'Failed to trigger notifications: ' + error.message);
+                        } finally {
+                            setNotifyingAll(false);
+                        }
+                    }
+                }
+            ]
+        );
+    };
+
+    const handleViewInvoice = async (tenant) => {
+        try {
+            const result = await generateInvoice(tenant.Phone, tenant.Name);
+            if (result?.url) {
+                const fullUrl = `https://stayflow-hnm3.onrender.com${result.url}`;
+                navigation.navigate('PDFViewer', {
+                    url: fullUrl,
+                    title: `Invoice: ${tenant.Name}`
+                });
+            } else {
+                Alert.alert('Error', 'Could not generate invoice');
+            }
+        } catch (error) {
+            Alert.alert('Error', 'Failed to generate invoice: ' + (error?.response?.data?.error || error.message));
+        }
     };
 
     const handleMarkPaid = (tenant) => {
@@ -186,16 +255,31 @@ const Residents = () => {
         <View style={styles.container}>
             <Header title="Residents" />
 
-            <View style={styles.searchContainer}>
+            {/* Search + Notify All */}
+            <View style={styles.topBar}>
                 <View style={styles.searchBox}>
                     <Search size={20} color={Colors.textSecondary} />
                     <TextInput
-                        placeholder="Search by name, room or phone..."
+                        placeholder="Search name, room, phone..."
                         style={styles.searchInput}
                         value={search}
                         onChangeText={handleSearch}
                     />
                 </View>
+                <TouchableOpacity
+                    style={styles.notifyAllButton}
+                    onPress={handleNotifyAll}
+                    disabled={notifyingAll}
+                >
+                    {notifyingAll ? (
+                        <ActivityIndicator color="#fff" size="small" />
+                    ) : (
+                        <>
+                            <Send size={16} color="#fff" />
+                            <Text style={styles.notifyAllText}>Notify All</Text>
+                        </>
+                    )}
+                </TouchableOpacity>
             </View>
 
             {loading ? (
@@ -210,6 +294,7 @@ const Residents = () => {
                             onNotify={handleNotify}
                             onMarkPaid={handleMarkPaid}
                             onDelete={handleDelete}
+                            onViewInvoice={handleViewInvoice}
                         />
                     )}
                     contentContainerStyle={styles.listContent}
@@ -230,11 +315,15 @@ const styles = StyleSheet.create({
         flex: 1,
         backgroundColor: Colors.background,
     },
-    searchContainer: {
+    topBar: {
+        flexDirection: 'row',
         paddingHorizontal: Spacing.md,
         marginBottom: Spacing.sm,
+        gap: 8,
+        alignItems: 'center',
     },
     searchBox: {
+        flex: 1,
         flexDirection: 'row',
         alignItems: 'center',
         backgroundColor: Colors.surface,
@@ -249,6 +338,20 @@ const styles = StyleSheet.create({
         marginLeft: Spacing.sm,
         fontSize: 14,
         color: Colors.text,
+    },
+    notifyAllButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+        backgroundColor: '#4F46E5',
+        paddingHorizontal: 14,
+        height: 48,
+        borderRadius: 12,
+    },
+    notifyAllText: {
+        color: '#fff',
+        fontSize: 12,
+        fontWeight: 'bold',
     },
     listContent: {
         padding: Spacing.md,
@@ -265,7 +368,7 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'flex-start',
-        marginBottom: Spacing.md,
+        marginBottom: 8,
     },
     nameText: {
         fontSize: 16,
@@ -287,27 +390,38 @@ const styles = StyleSheet.create({
         fontWeight: 'bold',
         textTransform: 'uppercase',
     },
-    cardFooter: {
+    breakdownRow: {
         flexDirection: 'row',
-        justifyContent: 'space-between',
+        backgroundColor: '#F9FAFB',
+        borderRadius: 8,
+        padding: 10,
+        marginBottom: 8,
+        gap: 4,
+    },
+    breakdownItem: {
+        flex: 1,
         alignItems: 'center',
+    },
+    breakdownLabel: {
+        fontSize: 10,
+        color: Colors.textSecondary,
+        textTransform: 'uppercase',
+        marginBottom: 2,
+    },
+    breakdownValue: {
+        fontSize: 13,
+        fontWeight: '600',
+        color: Colors.text,
+    },
+    cardFooter: {
         paddingTop: Spacing.sm,
         borderTopWidth: 1,
         borderTopColor: Colors.border,
     },
-    amountLabel: {
-        fontSize: 10,
-        color: Colors.textSecondary,
-        textTransform: 'uppercase',
-    },
-    amountValue: {
-        fontSize: 18,
-        fontWeight: 'bold',
-        color: Colors.text,
-    },
     actionButtons: {
         flexDirection: 'row',
-        gap: 8,
+        justifyContent: 'center',
+        gap: 10,
     },
     iconButton: {
         width: 36,

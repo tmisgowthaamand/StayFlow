@@ -11,6 +11,7 @@ import Registrations from './src/screens/Registrations';
 import Rooms from './src/screens/Rooms';
 import EditTenant from './src/screens/EditTenant';
 import Announcements from './src/screens/Announcements';
+import PDFViewer from './src/screens/PDFViewer';
 import { LayoutDashboard, Users, Zap, Settings, FileText, Map } from 'lucide-react-native';
 
 const Tab = createBottomTabNavigator();
@@ -62,7 +63,9 @@ export default function App() {
         <Stack.Screen name="Main" component={MainTabs} />
         <Stack.Screen name="EditTenant" component={EditTenant} />
         <Stack.Screen name="Announcements" component={Announcements} />
+        <Stack.Screen name="PDFViewer" component={PDFViewer} />
       </Stack.Navigator>
     </NavigationContainer>
   );
 }
+

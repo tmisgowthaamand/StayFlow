@@ -101,4 +101,25 @@ export const broadcastMessage = async (data, isMultipart = false) => {
     }
 };
 
+export const notifyAll = async () => {
+    try {
+        const response = await api.post('/trigger-notifications');
+        return response.data;
+    } catch (error) {
+        console.error('Notify all failed:', error.message);
+        throw error;
+    }
+};
+
+export const generateInvoice = async (phone, name) => {
+    try {
+        const response = await api.post('/generate-invoice', { phone, name });
+        return response.data;
+    } catch (error) {
+        console.error('Generate invoice failed:', error.message);
+        throw error;
+    }
+};
+
 export default api;
+
