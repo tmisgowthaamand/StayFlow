@@ -58,6 +58,8 @@ const translations = {
         remove_resident: "Remove Resident",
         remove_resident: "Remove Resident",
         confirm_delete: "Confirm Delete",
+        notify_all: "Notify All Bill",
+        notify_all_confirm: "Are you sure you want to send rent & EB bill reminders to all active residents?",
         preview_invoice: "Preview Invoice",
 
         // Rooms
@@ -176,7 +178,9 @@ const translations = {
         to: "To",
         type_message: "Type your message here...",
         message_sent: "Message sent successfully!",
-        message_failed: "Failed to send message: "
+        message_failed: "Failed to send message: ",
+        reminder_sent: "Reminder sent successfully!",
+        send: "Send"
     },
     'ta': {
         // Auth

@@ -952,6 +952,18 @@ app.post('/api/trigger-notifications', async (req, res) => {
 
         res.json({ success: true, message: `Notification process started for ${activeTenants.length} recipients.` });
 
+        // 🔔 Create In-App Notification
+        try {
+            await Notification.create({
+                type: 'broadcast',
+                title: '🔔 Bulk Bill Reminders',
+                body: `Sending rent & EB reminders to ${activeTenants.length} residents...`,
+                meta: { count: activeTenants.length }
+            });
+        } catch (e) {
+            console.error('Failed to create in-app notification:', e.message);
+        }
+
         // Background async - send notifications without blocking response
         (async () => {
             let sentCount = 0;

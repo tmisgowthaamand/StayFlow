@@ -10,7 +10,7 @@ import { Search, Bell, Phone, CheckCircle, Trash2, Edit, FileText, Send, Zap, Mo
 import { usePressAnimation, SkeletonCard, AnimatedListItem } from '../utils/animations';
 
 // ─── Premium Resident Card ─────────────────────────────────────
-const ResidentItem = memo(({ item, index, onMenuPress }) => {
+const ResidentItem = memo(({ item, index, onMenuPress, onRemind }) => {
     const isPaid = item.Status === 'PAID' || item.Status === 'VALID';
     const navigation = useNavigation();
     const { t } = useLanguage();
@@ -60,7 +60,7 @@ const ResidentItem = memo(({ item, index, onMenuPress }) => {
                         <Text style={styles.btnTextSecondary}>{t('edit')}</Text>
                     </TouchableOpacity>
 
-                    <TouchableOpacity style={[styles.btn, styles.primaryBtn]}>
+                    <TouchableOpacity style={[styles.btn, styles.primaryBtn]} onPress={() => onRemind(item)}>
                         <LinearGradient colors={Gradients.cool} style={StyleSheet.absoluteFill} />
                         <Send size={16} color="#fff" />
                         <Text style={styles.btnTextPrimary}>{t('remind')}</Text>
@@ -255,6 +255,18 @@ const Residents = ({ route }) => {
         }
     };
 
+    const handleRemind = async (tenant) => {
+        try {
+            setLoading(true);
+            await notifyTenant(tenant.Phone, tenant.Name);
+            Alert.alert(t('success'), t('reminder_sent') || "Reminder sent successfully.");
+        } catch (e) {
+            Alert.alert(t('error'), e.message);
+        } finally {
+            setLoading(false);
+        }
+    };
+
     return (
         <View style={styles.container}>
             <Header
@@ -265,13 +277,52 @@ const Residents = ({ route }) => {
                 initialSearchValue={searchQuery}
             />
 
+            {!loading && (
+                <View style={styles.topActions}>
+                    <TouchableOpacity
+                        style={styles.notifyAllBtn}
+                        onPress={() => {
+                            Alert.alert(
+                                t('notify_all'),
+                                t('notify_all_confirm'),
+                                [
+                                    { text: t('cancel'), style: 'cancel' },
+                                    {
+                                        text: t('send'), onPress: async () => {
+                                            try {
+                                                setLoading(true);
+                                                await notifyAll();
+                                                Alert.alert(t('success'), t('announcement_sent')); // Re-using translation
+                                            } catch (e) {
+                                                Alert.alert(t('error'), e.message);
+                                            } finally {
+                                                setLoading(false);
+                                            }
+                                        }
+                                    }
+                                ]
+                            );
+                        }}
+                    >
+                        <LinearGradient
+                            colors={Gradients.cool}
+                            start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+                            style={styles.notifyGradient}
+                        >
+                            <Bell size={18} color="#fff" />
+                            <Text style={styles.notifyBtnText}>{t('notify_all')}</Text>
+                        </LinearGradient>
+                    </TouchableOpacity>
+                </View>
+            )}
+
             {loading ? (
                 <View style={styles.listArea}><SkeletonCard /><SkeletonCard /></View>
             ) : (
                 <FlatList
                     data={filteredTenants}
                     keyExtractor={(it, idx) => (it._id || idx).toString()}
-                    renderItem={({ item, index }) => <ResidentItem item={item} index={index} onMenuPress={() => setSelectedTenant(item)} />}
+                    renderItem={({ item, index }) => <ResidentItem item={item} index={index} onMenuPress={() => setSelectedTenant(item)} onRemind={handleRemind} />}
                     contentContainerStyle={styles.listArea}
                     refreshControl={<RefreshControl refreshing={loading} onRefresh={fetchTenants} tintColor={Colors.primary} />}
                     showsVerticalScrollIndicator={false}
@@ -340,6 +391,30 @@ const styles = StyleSheet.create({
         borderColor: Colors.border
     },
     searchInput: { flex: 1, marginLeft: 12, ...Typography.body, color: Colors.text },
+
+    // Top Actions
+    topActions: {
+        paddingHorizontal: Spacing.md,
+        paddingBottom: Spacing.sm,
+    },
+    notifyAllBtn: {
+        borderRadius: BorderRadius.md,
+        overflow: 'hidden',
+        ...Shadows.sm,
+    },
+    notifyGradient: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingVertical: 12,
+        gap: 8,
+    },
+    notifyBtnText: {
+        ...Typography.bodyBold,
+        color: '#fff',
+        fontSize: 14,
+        letterSpacing: 0.5,
+    },
 
     // List
     listArea: { paddingHorizontal: Spacing.md, paddingBottom: 100 },
