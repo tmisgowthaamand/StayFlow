@@ -120,9 +120,15 @@ const Residents = ({ route }) => {
 
         try {
             setLoading(true);
-            if (action === 'PAID') {
-                await markPaidManual(selectedTenant._id); // Assuming ID is _id
-                Alert.alert("Success", "Marked as Paid manually.");
+            if (action === 'REMIND') {
+                setSelectedTenant(null);
+                await notifyTenant(selectedTenant.Phone, selectedTenant.Name);
+                Alert.alert(t('success'), t('reminder_sent'));
+            } else if (action === 'PAID') {
+                setSelectedTenant(null);
+                const amount = parseFloat(selectedTenant['Total Amount'] || selectedTenant['Monthly Rent'] || '0');
+                await markPaidManual(selectedTenant.Phone, selectedTenant.Name, amount, 'CASH');
+                Alert.alert("Success", "Marked as Paid via CASH.");
             } else if (action === 'PREVIEW') {
                 setSelectedTenant(null); // Close the menu
                 try {
@@ -238,7 +244,7 @@ const Residents = ({ route }) => {
                     { text: "Cancel", style: "cancel" },
                     {
                         text: "Delete", style: "destructive", onPress: async () => {
-                            await deleteTenant(selectedTenant._id);
+                            await deleteTenant(selectedTenant.Phone, selectedTenant.Name);
                             setSelectedTenant(null);
                             fetchTenants();
                         }
@@ -259,7 +265,7 @@ const Residents = ({ route }) => {
         try {
             setLoading(true);
             await notifyTenant(tenant.Phone, tenant.Name);
-            Alert.alert(t('success'), t('reminder_sent') || "Reminder sent successfully.");
+            Alert.alert(t('success'), t('reminder_sent'));
         } catch (e) {
             Alert.alert(t('error'), e.message);
         } finally {
@@ -347,6 +353,11 @@ const Residents = ({ route }) => {
                         <TouchableOpacity style={styles.menuItem} onPress={() => handleAction('PAID')}>
                             <CheckCircle size={20} color={Colors.secondary} />
                             <Text style={styles.menuText}>{t('mark_paid')}</Text>
+                        </TouchableOpacity>
+
+                        <TouchableOpacity style={styles.menuItem} onPress={() => handleAction('REMIND')}>
+                            <Bell size={20} color={Colors.warning} />
+                            <Text style={styles.menuText}>{t('remind')}</Text>
                         </TouchableOpacity>
 
                         <TouchableOpacity style={styles.menuItem} onPress={() => {
