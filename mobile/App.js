@@ -3,8 +3,16 @@ import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createStackNavigator, CardStyleInterpolators } from '@react-navigation/stack';
 import { StatusBar } from 'expo-status-bar';
-import { View, StyleSheet, Animated, Easing } from 'react-native';
+import { View, StyleSheet, Animated, Easing, LogBox } from 'react-native';
 import { Colors } from './src/theme/theme';
+
+// Suppress common Expo Go / Firebase / Notification warnings that often clutter development
+LogBox.ignoreLogs([
+  'expo-notifications: Android Push notifications',
+  'Remote notifications are removed',
+  'Request failed with status code 404',
+  'Firebase'
+]);
 import Dashboard from './src/screens/Dashboard';
 import Residents from './src/screens/Residents';
 import Billing from './src/screens/Billing';

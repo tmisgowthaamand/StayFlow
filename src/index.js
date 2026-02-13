@@ -16,7 +16,7 @@ import setupCron from './cron.js';
 import sheetsService from './sheets.js';
 import wweb from './wweb.js';
 import pdfService from './pdfService.js';
-import { Log, Media, Tenant } from './db.js';
+import { Log, Media, Tenant, Notification } from './db.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -580,6 +580,48 @@ app.post('/api/verify-transaction', async (req, res) => {
     }
 });
 
+// ==================== NOTIFICATION APIs ====================
+app.get('/api/notifications', async (req, res) => {
+    try {
+        const notifications = await Notification.find().sort({ timestamp: -1 }).limit(100);
+        res.json(notifications);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.get('/api/notifications/unread-count', async (req, res) => {
+    try {
+        const count = await Notification.countDocuments({ read: false });
+        res.json({ count });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.post('/api/notifications/mark-read', async (req, res) => {
+    try {
+        const { id } = req.body;
+        if (id) {
+            await Notification.findByIdAndUpdate(id, { read: true });
+        } else {
+            await Notification.updateMany({ read: false }, { read: true });
+        }
+        res.json({ success: true });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.delete('/api/notifications', async (req, res) => {
+    try {
+        await Notification.deleteMany({});
+        res.json({ success: true });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
 // Initialize WWeb for Free Automation
 wweb.init();
 
@@ -740,6 +782,18 @@ app.post('/api/submit-query', async (req, res) => {
             await sendMessage(config.ownerPhone, `\ud83c\udd98 *New Query Received*\n\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\n\ud83d\udc64 Name: ${name}\n\ud83d\udcde Phone: ${phone}\n\ud83d\udeaa Room: ${room || 'N/A'}\n\ud83d\udccb Category: ${category || 'General'}\n\ud83d\udcdd Query: ${description}\n\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\n_Reply to ${phone} directly to respond._`);
         }
 
+        // 🔔 Create In-App Notification
+        try {
+            await Notification.create({
+                type: 'issue_submitted',
+                title: `New Issue: ${category || 'General'}`,
+                body: `${name} (Room ${room || 'N/A'}): ${description.slice(0, 50)}${description.length > 50 ? '...' : ''}`,
+                meta: { tenantName: name, room, category, issue: description, phone }
+            });
+        } catch (e) {
+            console.error('Failed to create in-app notification:', e.message);
+        }
+
         res.json({ success: true });
     } catch (err) {
         console.error('Query submit error:', err);
@@ -872,6 +926,18 @@ app.post('/api/add-tenant', async (req, res) => {
             await sendMedia(config.ownerPhone, regPath, `📝 Registration copy: ${tenantData.name}`, null, 'StayFlow_Registration.pdf');
         }
 
+        // 🔔 Create In-App Notification
+        try {
+            await Notification.create({
+                type: 'new_registration',
+                title: `New Resident: ${tenantData.name}`,
+                body: `Registered in Room ${tenantData.room} • ${tenantData.phone}`,
+                meta: { tenantName: tenantData.name, room: tenantData.room, phone: tenantData.phone }
+            });
+        } catch (e) {
+            console.error('Failed to create in-app notification:', e.message);
+        }
+
         res.json({ success: true });
     } catch (err) {
         res.status(500).json({ error: err.message });
@@ -933,6 +999,18 @@ app.post('/api/trigger-notifications', async (req, res) => {
                 } catch (e) { console.error(`Failed to notify ${name}:`, e.message); }
             }
             console.log(`[NOTIFY] Complete: ${sentCount}/${activeTenants.length} notifications sent.`);
+
+            // 🔔 Create In-App Notification (Summary)
+            try {
+                await Notification.create({
+                    type: 'bulk_notify',
+                    title: `Bulk Invoices Sent`,
+                    body: `Invoices sent to ${sentCount} residents`,
+                    meta: { count: sentCount, timestamp: new Date().toISOString() }
+                });
+            } catch (e) {
+                console.error('Failed to create in-app notification:', e.message);
+            }
         })();
     } catch (err) {
         res.status(500).json({ error: err.message });
@@ -990,6 +1068,18 @@ app.post('/api/notify-tenant', async (req, res) => {
 
         if (filePath) await sendMedia(phone, filePath, caption, ["💳 Pay Now UPI", "💵 Pay Cash", "❌ Cancel"]);
         else await sendMessage(phone, caption);
+
+        // 🔔 Create In-App Notification
+        try {
+            await Notification.create({
+                type: 'invoice_sent',
+                title: `Invoice sent to ${name}`,
+                body: `₹${total} invoice sent for Room ${tenant.get('Room')}`,
+                meta: { tenantName: name, room: tenant.get('Room'), amount: total }
+            });
+        } catch (e) {
+            console.error('Failed to create in-app notification:', e.message);
+        }
 
         res.json({ success: true });
     } catch (err) {
@@ -1076,6 +1166,19 @@ app.post('/api/mark-paid', async (req, res) => {
         if (config.ownerPhone) {
             await sendMessage(config.ownerPhone, `💰 *Money In*\nTenant: ${name}\nRoom: ${tenant.get('Room')}\nRent: ₹${rent} | EB: ₹${eb}\nTotal: ₹${amount}\nMode: ${mode}`);
         }
+
+        // 🔔 Create In-App Notification
+        try {
+            await Notification.create({
+                type: 'payment_received',
+                title: `Payment Recorded: ${name}`,
+                body: `₹${amount} recorded via ${mode} — Room ${tenant.get('Room')}`,
+                meta: { tenantName: name, room: tenant.get('Room'), amount, mode }
+            });
+        } catch (e) {
+            console.error('Failed to create in-app notification:', e.message);
+        }
+
         res.json({ success: true });
     } catch (err) {
         res.status(500).json({ error: err.message });
@@ -1156,6 +1259,47 @@ app.post('/api/broadcast', upload.single('file'), async (req, res) => {
             }
         }
         res.json({ success: true, count: active.length });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.get('/api/notifications', async (req, res) => {
+    try {
+        const notifications = await Notification.find().sort({ timestamp: -1 }).limit(100);
+        res.json(notifications);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.get('/api/notifications/unread-count', async (req, res) => {
+    try {
+        const count = await Notification.countDocuments({ read: false });
+        res.json({ count });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.post('/api/notifications/mark-read', async (req, res) => {
+    try {
+        const { id } = req.body;
+        if (id) {
+            await Notification.findByIdAndUpdate(id, { read: true });
+        } else {
+            await Notification.updateMany({ read: false }, { read: true });
+        }
+        res.json({ success: true });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.delete('/api/notifications', async (req, res) => {
+    try {
+        await Notification.deleteMany({});
+        res.json({ success: true });
     } catch (err) {
         res.status(500).json({ error: err.message });
     }

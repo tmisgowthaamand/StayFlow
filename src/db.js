@@ -39,8 +39,18 @@ const tenantSchema = new mongoose.Schema({
     archivedAt: { type: Date, default: Date.now }
 });
 
+const notificationSchema = new mongoose.Schema({
+    type: String, // 'invoice_sent', 'payment_received', 'issue_submitted', etc.
+    title: String,
+    body: String,
+    meta: mongoose.Schema.Types.Mixed,
+    read: { type: Boolean, default: false },
+    timestamp: { type: Date, default: Date.now }
+});
+
 const Log = mongoose.model('Log', logSchema);
 const Media = mongoose.model('Media', mediaSchema);
 const Tenant = mongoose.model('Tenant', tenantSchema);
+const Notification = mongoose.model('Notification', notificationSchema);
 
-export { Log, Media, Tenant };
+export { Log, Media, Tenant, Notification };

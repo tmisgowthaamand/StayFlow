@@ -121,5 +121,46 @@ export const generateInvoice = async (phone, name) => {
     }
 };
 
+export const getNotifications = async () => {
+    try {
+        const response = await api.get('/notifications');
+        return response.data;
+    } catch (error) {
+        if (error.response?.status === 404) return []; // Silent fail for local testing
+        console.warn('Fetch notifications failed:', error.message);
+        return [];
+    }
+};
+
+export const getUnreadNotificationCount = async () => {
+    try {
+        const response = await api.get('/notifications/unread-count');
+        return response.data;
+    } catch (error) {
+        if (error.response?.status === 404) return { count: 0 }; // Silent fail for local testing
+        return { count: 0 };
+    }
+};
+
+export const markNotificationsAsRead = async (id) => {
+    try {
+        const response = await api.post('/notifications/mark-read', { id });
+        return response.data;
+    } catch (error) {
+        console.error('Mark read failed:', error.message);
+        throw error;
+    }
+};
+
+export const clearAllNotifications = async () => {
+    try {
+        const response = await api.delete('/notifications');
+        return response.data;
+    } catch (error) {
+        console.error('Clear notifications failed:', error.message);
+        throw error;
+    }
+};
+
 export default api;
 

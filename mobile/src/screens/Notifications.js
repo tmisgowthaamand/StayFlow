@@ -10,12 +10,12 @@ import {
 } from '../utils/notifications';
 import {
     FileText, CheckCircle, UserPlus, Send, Zap, Bell,
-    BellOff, Trash2, CheckCheck, Clock, X
+    BellOff, Trash2, CheckCheck, Clock, X, AlertCircle
 } from 'lucide-react-native';
 
 // ─── Icon Map ──────────────────────────────────────────────────
 const ICON_MAP = {
-    FileText, CheckCircle, UserPlus, Send, Zap,
+    FileText, CheckCircle, UserPlus, Send, Zap, AlertCircle
 };
 
 const getTypeConfig = (type) => {
@@ -25,6 +25,13 @@ const getTypeConfig = (type) => {
         new_registration: NOTIFICATION_TYPES.NEW_REGISTRATION,
         bulk_notify: NOTIFICATION_TYPES.BULK_NOTIFY,
         eb_split: NOTIFICATION_TYPES.EB_SPLIT,
+        issue_submitted: {
+            key: 'issue_submitted',
+            label: 'Issue Submitted',
+            icon: 'AlertCircle',
+            gradient: ['#F87171', '#DC2626'],
+            color: '#F87171',
+        }
     };
     return configs[type] || NOTIFICATION_TYPES.INVOICE_SENT;
 };
@@ -201,9 +208,10 @@ const Notifications = ({ navigation }) => {
     }, []);
 
     const handleRead = useCallback(async (id) => {
-        await markAsRead(id);
+        const item = notifications.find(n => n.id === id);
+        await markAsRead(id, item?.isServer);
         setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
-    }, []);
+    }, [notifications]);
 
     const handleDelete = useCallback(async (id) => {
         await deleteNotification(id);

@@ -37,6 +37,7 @@ const AddTenant = ({ navigation }) => {
         try {
             setLoading(true);
             await addTenant({ ...formData, monthlyRent: formData.rent });
+            // Trigger local system notification
             await notifyNewRegistration(formData.name, formData.room, formData.phone);
             Alert.alert('Success', 'Resident added!', [{ text: 'OK', onPress: () => { setFormData({ name: '', phone: '', room: '', sharingType: '3', advance: '0', rent: '0' }); navigation.navigate('Residents'); } }]);
         } catch (e) { Alert.alert('Error', 'Failed to add resident.'); console.error(e); }

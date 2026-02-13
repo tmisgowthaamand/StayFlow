@@ -43,24 +43,29 @@ const Header = memo(({ title, onMenuPress, onBack, subtitle = 'StayFlow PG Manag
         }).start();
     }, []);
 
-    // Load unread count on focus
+    // Load unread count on focus + polling
     useFocusEffect(
         useCallback(() => {
             const loadCount = async () => {
-                const count = await getUnreadCount();
-                setUnreadCount(count);
-                if (count > 0) {
-                    Animated.spring(badgeScale, {
-                        toValue: 1,
-                        friction: 4,
-                        tension: 80,
-                        useNativeDriver: true,
-                    }).start();
-                } else {
-                    badgeScale.setValue(0);
-                }
+                try {
+                    const count = await getUnreadCount();
+                    setUnreadCount(count);
+                    if (count > 0) {
+                        Animated.spring(badgeScale, {
+                            toValue: 1,
+                            friction: 4,
+                            tension: 80,
+                            useNativeDriver: true,
+                        }).start();
+                    } else {
+                        badgeScale.setValue(0);
+                    }
+                } catch (e) { }
             };
+
             loadCount();
+            const interval = setInterval(loadCount, 30000); // Poll every 30s
+            return () => clearInterval(interval);
         }, [])
     );
 

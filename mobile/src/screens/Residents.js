@@ -191,6 +191,7 @@ const Residents = () => {
                 text: 'Send Invoice', onPress: async () => {
                     try {
                         await notifyTenant(tenant.Phone, tenant.Name);
+                        // Trigger local system notification
                         await notifyInvoiceSent(tenant.Name, tenant.Room, total);
                         Alert.alert('✅ Sent!', `Invoice for ₹${total} sent to ${tenant.Name}`);
                     }
@@ -209,6 +210,7 @@ const Residents = () => {
                     try {
                         setNotifyingAll(true);
                         await notifyAll();
+                        // Trigger local system notification
                         await notifyBulkInvoice(activeCount);
                         Alert.alert('Success', `Sending to ${activeCount} residents!`);
                     }
@@ -241,6 +243,7 @@ const Residents = () => {
         try {
             setLoading(true);
             await markPaidManual(tenant.Phone, tenant.Name, amount, mode);
+            // Trigger local system notification
             await notifyPaymentReceived(tenant.Name, tenant.Room, amount, mode);
             Alert.alert('✅ Payment Verified!', `${tenant.Name} marked PAID via ${mode}\n💰 ₹${amount}`, [
                 { text: 'Close', onPress: () => fetchTenants() },

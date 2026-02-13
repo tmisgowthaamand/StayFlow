@@ -106,15 +106,43 @@ export const formatFullDateTime = (timestamp) => {
     });
 };
 
+import { getNotifications as fetchServerNotifications, markNotificationsAsRead, clearAllNotifications as clearServerNotifications, getUnreadNotificationCount } from '../api/api';
+
 // ─── Core CRUD ─────────────────────────────────────────────────
 
 /**
- * Get all notifications from storage
+ * Get all notifications (Merged Server + Local)
  */
 export const getNotifications = async () => {
     try {
+        // 1. Get server notifications
+        let serverNotifications = [];
+        try {
+            const data = await fetchServerNotifications();
+            serverNotifications = data.map(n => ({
+                id: n._id || n.id,
+                type: n.type,
+                title: n.title,
+                body: n.body,
+                meta: n.meta,
+                timestamp: n.timestamp,
+                read: n.read,
+                isServer: true
+            }));
+        } catch (err) {
+            console.warn('Could not fetch server notifications:', err.message);
+        }
+
+        // 2. Get local notifications
         const raw = await AsyncStorage.getItem(STORAGE_KEY);
-        return raw ? JSON.parse(raw) : [];
+        const localNotifications = raw ? JSON.parse(raw) : [];
+
+        // 3. Merge and sort (newest first)
+        const combined = [...serverNotifications, ...localNotifications].sort((a, b) =>
+            new Date(b.timestamp) - new Date(a.timestamp)
+        );
+
+        return combined.slice(0, MAX_NOTIFICATIONS);
     } catch (e) {
         console.error('Failed to read notifications:', e);
         return [];
@@ -166,30 +194,58 @@ export const addNotification = async (type, title, body, meta = {}) => {
  * Request permissions (call on app start)
  */
 export const requestNotificationPermissions = async () => {
-    // Basic check for physical device (Expo Go limitations for SDK 54+)
+    // Expo Go SDK 53+ on Android has removed remote push support, 
+    // but local notifications still work. We check Device.isDevice 
+    // to avoid some unnecessary warnings on emulators.
     if (Platform.OS === 'android' && !Device.isDevice) {
-        console.log('Skipping push notification permission request on Android Emulator/Expo Go');
         return false;
     }
 
-    const { status } = await Notifications.getPermissionsAsync();
-    if (status !== 'granted') {
-        const { status: newStatus } = await Notifications.requestPermissionsAsync();
-        return newStatus === 'granted';
+    try {
+        const { status: existingStatus } = await Notifications.getPermissionsAsync();
+        let finalStatus = existingStatus;
+
+        if (existingStatus !== 'granted') {
+            const { status } = await Notifications.requestPermissionsAsync();
+            finalStatus = status;
+        }
+
+        if (finalStatus !== 'granted') {
+            console.warn('Notification permissions not granted');
+            return false;
+        }
+
+        // Only on Android: Set up notification channel for local notifications
+        if (Platform.OS === 'android') {
+            await Notifications.setNotificationChannelAsync('default', {
+                name: 'default',
+                importance: Notifications.AndroidImportance.MAX,
+                vibrationPattern: [0, 250, 250, 250],
+                lightColor: '#6C63FF',
+            });
+        }
+
+        return true;
+    } catch (error) {
+        console.error('Error requesting notification permissions:', error.message);
+        return false;
     }
-    return true;
 };
 
 /**
  * Mark a single notification as read
  */
-export const markAsRead = async (notificationId) => {
+export const markAsRead = async (notificationId, isServer = false) => {
     try {
-        const notifications = await getNotifications();
-        const updated = notifications.map(n =>
-            n.id === notificationId ? { ...n, read: true } : n
-        );
-        await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+        if (isServer) {
+            await markNotificationsAsRead(notificationId);
+        } else {
+            const notifications = await getNotifications();
+            const updated = notifications.map(n =>
+                n.id === notificationId ? { ...n, read: true } : n
+            );
+            await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updated.filter(n => !n.isServer)));
+        }
     } catch (e) {
         console.error('Failed to mark read:', e);
     }
@@ -200,9 +256,15 @@ export const markAsRead = async (notificationId) => {
  */
 export const markAllAsRead = async () => {
     try {
-        const notifications = await getNotifications();
-        const updated = notifications.map(n => ({ ...n, read: true }));
-        await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+        // Mark server ones
+        await markNotificationsAsRead();
+        // Mark local ones
+        const raw = await AsyncStorage.getItem(STORAGE_KEY);
+        if (raw) {
+            const notifications = JSON.parse(raw);
+            const updated = notifications.map(n => ({ ...n, read: true }));
+            await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+        }
     } catch (e) {
         console.error('Failed to mark all read:', e);
     }
@@ -226,6 +288,7 @@ export const deleteNotification = async (notificationId) => {
  */
 export const clearAllNotifications = async () => {
     try {
+        await clearServerNotifications();
         await AsyncStorage.removeItem(STORAGE_KEY);
     } catch (e) {
         console.error('Failed to clear notifications:', e);
@@ -233,11 +296,24 @@ export const clearAllNotifications = async () => {
 };
 
 /**
- * Get unread count
+ * Get unread count (Server + Local)
  */
 export const getUnreadCount = async () => {
-    const notifications = await getNotifications();
-    return notifications.filter(n => !n.read).length;
+    try {
+        let serverCount = 0;
+        try {
+            const data = await getUnreadNotificationCount();
+            serverCount = data.count || 0;
+        } catch (e) { }
+
+        const raw = await AsyncStorage.getItem(STORAGE_KEY);
+        const localNotifications = raw ? JSON.parse(raw) : [];
+        const localCount = localNotifications.filter(n => !n.read).length;
+
+        return serverCount + localCount;
+    } catch (e) {
+        return 0;
+    }
 };
 
 // ─── Helper: Create specific notifications ─────────────────────

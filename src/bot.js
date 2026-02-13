@@ -8,7 +8,7 @@ import { fileURLToPath } from 'url';
 import config from './config.js';
 import sheetsService from './sheets.js';
 import pdfService from './pdfService.js';
-import { Log, Media } from './db.js';
+import { Log, Media, Notification } from './db.js';
 // We'll use dynamic import for wweb to avoid circular dependency issues at top level
 // import wweb from './wweb.js';
 
@@ -1660,6 +1660,18 @@ async function handleVerifyPayment(ownerPhone, tenantPhone) {
 
     // Confirm to owner
     await sendMessage(ownerPhone, `✅ *Payment Verified*\nTenant: ${name}\nRoom: ${room}\nMode: ${paymentMode}\nAmount: ₹${amount}\nTXN: ${trxId}\n\nStatus: VALID\n📄 Invoice sent to tenant.`);
+
+    // 🔔 Create In-App Notification
+    try {
+        await Notification.create({
+            type: 'payment_received',
+            title: `Payment Verified: ${name}`,
+            body: `₹${amount} verified via ${paymentMode} — Room ${room}`,
+            meta: { tenantName: name, room, amount, mode: paymentMode, trxId }
+        });
+    } catch (e) {
+        console.error('Failed to create in-app notification:', e.message);
+    }
 }
 
 // Admin rejects a payment → Mark as INVALID, notify tenant
@@ -1736,6 +1748,18 @@ async function handleRazorpaySuccess(phone, amount, trxId, paymentMode = 'UPI (R
     // Notify owner
     if (config.ownerPhone) {
         await sendMessage(config.ownerPhone, `✅ *UPI Payment — Verified*\nTenant: ${name}\nRoom: ${room}\nAmount: ₹${total}\nTXN: ${trxId}\nStatus: PAID\n\n📄 Invoice sent automatically.`);
+    }
+
+    // 🔔 Create In-App Notification
+    try {
+        await Notification.create({
+            type: 'payment_received',
+            title: `Payment from ${name}`,
+            body: `₹${total} received via UPI — Room ${room}`,
+            meta: { tenantName: name, room, amount: total, mode: paymentMode, trxId }
+        });
+    } catch (e) {
+        console.error('Failed to create in-app notification:', e.message);
     }
 }
 
@@ -1840,6 +1864,19 @@ async function handleOnboarding(phone, input, image) {
             if (config.ownerPhone) {
                 await sendMessage(config.ownerPhone, `🆘 *Help Request Received*\n━━━━━━━━━━━━━━━━━━━━\n👤 From: ${tenantName}\n📞 Phone: ${phone}\n🚪 Room: ${tenantRoom}\n📌 Category: ${helpCategory}\n📝 Issue: ${input}\n━━━━━━━━━━━━━━━━━━━━\n_Reply to ${phone} directly to respond._`);
             }
+
+            // 🔔 Create In-App Notification
+            try {
+                await Notification.create({
+                    type: 'issue_submitted',
+                    title: `New Issue: ${helpCategory}`,
+                    body: `${tenantName} (Room ${tenantRoom}): ${input.slice(0, 50)}${input.length > 50 ? '...' : ''}`,
+                    meta: { tenantName, room: tenantRoom, category: helpCategory, issue: input, phone }
+                });
+            } catch (e) {
+                console.error('Failed to create in-app notification:', e.message);
+            }
+
             delete userState[phone];
             break;
         }
