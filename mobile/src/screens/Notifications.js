@@ -194,13 +194,23 @@ const Notifications = ({ navigation }) => {
 
     useEffect(() => { loadNotifications(); }, []);
 
+    // Poll for updates while screen is in focus
+    useEffect(() => {
+        const interval = setInterval(() => {
+            if (navigation.isFocused()) {
+                loadNotifications();
+            }
+        }, 10000); // 10s polling for list
+        return () => clearInterval(interval);
+    }, [navigation, loadNotifications]);
+
     // Reload when screen comes into focus
     useEffect(() => {
         const unsubscribe = navigation.addListener('focus', () => {
             loadNotifications();
         });
         return unsubscribe;
-    }, [navigation]);
+    }, [navigation, loadNotifications]);
 
     const onRefresh = useCallback(() => {
         setRefreshing(true);

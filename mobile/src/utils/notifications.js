@@ -156,9 +156,8 @@ export const getNotifications = async () => {
  * @param {string} body - Description text
  * @param {object} meta - Extra metadata (tenantName, room, amount, etc.)
  */
-export const addNotification = async (type, title, body, meta = {}) => {
+export const addNotification = async (type, title, body, meta = {}, bannerOnly = false) => {
     try {
-        const notifications = await getNotifications();
         const newNotification = {
             id: generateId(),
             type,
@@ -169,9 +168,15 @@ export const addNotification = async (type, title, body, meta = {}) => {
             read: false,
         };
 
-        // Prepend (newest first) and cap at MAX
-        const updated = [newNotification, ...notifications].slice(0, MAX_NOTIFICATIONS);
-        await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+        if (!bannerOnly) {
+            // Get ONLY local notifications for saving
+            const raw = await AsyncStorage.getItem(STORAGE_KEY);
+            const localNotifications = raw ? JSON.parse(raw) : [];
+
+            // Prepend (newest first) and cap at MAX
+            const updated = [newNotification, ...localNotifications].slice(0, MAX_NOTIFICATIONS);
+            await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+        }
 
         // 🔔 Trigger System Notification
         await Notifications.scheduleNotificationAsync({
@@ -318,12 +323,17 @@ export const getUnreadCount = async () => {
 
 // ─── Helper: Create specific notifications ─────────────────────
 
+// Note: many of these are now also created on the server.
+// We use bannerOnly: true to trigger the top-level system notification 
+// immediately without duplicating the entry in the bell panel (which comes from server).
+
 export const notifyInvoiceSent = (tenantName, room, amount) =>
     addNotification(
         'invoice_sent',
         `Invoice sent to ${tenantName}`,
         `₹${amount} invoice sent for Room ${room}`,
-        { tenantName, room, amount }
+        { tenantName, room, amount },
+        true // bannerOnly
     );
 
 export const notifyPaymentReceived = (tenantName, room, amount, mode) =>
@@ -331,7 +341,8 @@ export const notifyPaymentReceived = (tenantName, room, amount, mode) =>
         'payment_received',
         `Payment from ${tenantName}`,
         `₹${amount} received via ${mode} — Room ${room}`,
-        { tenantName, room, amount, mode }
+        { tenantName, room, amount, mode },
+        true // bannerOnly
     );
 
 export const notifyNewRegistration = (tenantName, room, phone) =>
@@ -339,7 +350,8 @@ export const notifyNewRegistration = (tenantName, room, phone) =>
         'new_registration',
         `New resident: ${tenantName}`,
         `Registered in Room ${room} • ${phone}`,
-        { tenantName, room, phone }
+        { tenantName, room, phone },
+        true // bannerOnly
     );
 
 export const notifyBulkInvoice = (count) =>
@@ -347,7 +359,17 @@ export const notifyBulkInvoice = (count) =>
         'bulk_notify',
         `Bulk invoices sent`,
         `Invoices sent to ${count} residents`,
-        { count }
+        { count },
+        true // bannerOnly
+    );
+
+export const notifyIssueSubmitted = (category, name, room, issue) =>
+    addNotification(
+        'issue_submitted',
+        `New Issue: ${category}`,
+        `${name} (Room ${room}): ${issue}`,
+        { tenantName: name, room, category, issue },
+        false // This might come from server, but good to have local fallback
     );
 
 export const notifyEBSplit = (room, perPerson, count) =>
@@ -355,5 +377,6 @@ export const notifyEBSplit = (room, perPerson, count) =>
         'eb_split',
         `EB bill split — Room ${room}`,
         `₹${perPerson}/person for ${count} residents`,
-        { room, perPerson, count }
+        { room, perPerson, count },
+        true // bannerOnly
     );

@@ -1561,6 +1561,18 @@ async function handleUpdateEB(ownerPhone, room, units) {
         await sendMessage(t.get('Phone'), `⚡ *EB Update*\nRoom ${room} used ${units} units. Your share: *₹${perPersonEB}*.\nTotal due: *₹${rent + perPersonEB}*.\nType RENT to pay.`);
     }
     await sendMessage(ownerPhone, `Updated EB for ${roomTenants.length} tenants in room ${room}. Each: ₹${perPersonEB}`);
+
+    // 🔔 Create In-App Notification
+    try {
+        await Notification.create({
+            type: 'eb_split',
+            title: `EB Split — Room ${room}`,
+            body: `₹${perPersonEB}/person for ${roomTenants.length} residents`,
+            meta: { room, perPerson: perPersonEB, count: roomTenants.length }
+        });
+    } catch (e) {
+        console.error('Failed to create in-app notification:', e.message);
+    }
 }
 
 async function handleVacate(ownerPhone, room) {
@@ -1842,6 +1854,19 @@ async function handleOnboarding(phone, input, image) {
             if (config.ownerPhone) {
                 await sendMessage(config.ownerPhone, `💵 *Cash Payment — Needs Verification*\nTenant: ${tenant.get('Name')}\nPhone: ${phone}\nRoom: ${tenant.get('Room')}\nRent: ₹${rent} | EB: ₹${eb}\nAmount: ₹${state.amountPaid}\nRef: ${trxId}\nDate: ${pDate}\n\n✅ Reply: *VERIFY CASH ${phone}*`);
             }
+
+            // 🔔 Create In-App Notification
+            try {
+                await Notification.create({
+                    type: 'payment_received',
+                    title: `Cash Recorded: ${tenant.get('Name')}`,
+                    body: `₹${state.amountPaid} recorded (Cash) — Room ${tenant.get('Room')}`,
+                    meta: { tenantName: tenant.get('Name'), room: tenant.get('Room'), amount: state.amountPaid, mode: 'CASH', trxId }
+                });
+            } catch (e) {
+                console.error('Failed to create in-app notification:', e.message);
+            }
+
             delete userState[phone];
             break;
         }
