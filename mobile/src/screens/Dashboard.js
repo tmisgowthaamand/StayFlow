@@ -4,7 +4,7 @@ import { Colors, Spacing, Shadows, Typography, BorderRadius, Gradients } from '.
 import { LinearGradient } from 'expo-linear-gradient';
 import Header from '../components/Header';
 import StatCard from '../components/StatCard';
-import { getDashboardStats, getTenants } from '../api/api';
+import { getDashboardStats, getTenants, notifyAll } from '../api/api';
 import {
     Wallet, Users, Home, TrendingUp, Zap,
     ArrowUpRight, Plus, Activity, LayoutGrid,
@@ -122,6 +122,30 @@ const Dashboard = () => {
         }).start();
     };
 
+    const handleNotifyAll = async () => {
+        Alert.alert(
+            t('notify_all'),
+            t('notify_all_confirm'),
+            [
+                { text: t('cancel'), style: 'cancel' },
+                {
+                    text: t('send'), onPress: async () => {
+                        try {
+                            setLoading(true);
+                            await notifyAll();
+                            Alert.alert(t('success'), t('announcement_sent'));
+                        } catch (e) {
+                            Alert.alert(t('error'), e.message);
+                        } finally {
+                            setLoading(false);
+                            onRefresh();
+                        }
+                    }
+                }
+            ]
+        );
+    };
+
     const closeMenu = () => {
         Animated.timing(menuAnim, {
             toValue: -Dimensions.get('window').width,
@@ -235,13 +259,19 @@ const Dashboard = () => {
                 <View style={styles.actionRow}>
                     <TouchableOpacity style={styles.actionBtn} onPress={() => navigation.navigate('Announcements')}>
                         <LinearGradient colors={['rgba(124, 58, 237, 0.1)', 'rgba(124, 58, 237, 0.02)']} style={styles.actionBtnGradient}>
-                            <Megaphone size={20} color={Colors.primary} />
+                            <Megaphone size={18} color={Colors.primary} />
                             <Text style={styles.actionBtnText}>{t('announcements')}</Text>
                         </LinearGradient>
                     </TouchableOpacity>
-                    <TouchableOpacity style={styles.actionBtn} onPress={() => navigation.navigate('Rooms')}>
+                    <TouchableOpacity style={styles.actionBtn} onPress={handleNotifyAll}>
+                        <LinearGradient colors={['rgba(16, 185, 129, 0.1)', 'rgba(16, 185, 129, 0.02)']} style={styles.actionBtnGradient}>
+                            <Bell size={18} color={Colors.secondary} />
+                            <Text style={styles.actionBtnText}>{t('notify_all')}</Text>
+                        </LinearGradient>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={[styles.actionBtn, { flex: 0.8 }]} onPress={() => navigation.navigate('Rooms')}>
                         <LinearGradient colors={['rgba(37, 99, 235, 0.1)', 'rgba(37, 99, 235, 0.02)']} style={styles.actionBtnGradient}>
-                            <LayoutGrid size={20} color={Colors.accentAlt} />
+                            <LayoutGrid size={18} color={Colors.accentAlt} />
                             <Text style={styles.actionBtnText}>{t('rooms')}</Text>
                         </LinearGradient>
                     </TouchableOpacity>
@@ -407,8 +437,8 @@ const styles = StyleSheet.create({
     // Actions
     actionRow: { flexDirection: 'row', gap: 12, marginBottom: Spacing.md },
     actionBtn: { flex: 1, borderRadius: BorderRadius.md, overflow: 'hidden', borderWidth: 1, borderColor: Colors.border },
-    actionBtnGradient: { height: 60, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10 },
-    actionBtnText: { ...Typography.bodyBold, color: Colors.text },
+    actionBtnGradient: { height: 54, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
+    actionBtnText: { ...Typography.tiny, fontWeight: '700', color: Colors.text, fontSize: 10, letterSpacing: 0.5 },
 
     // Activity Items - Modern Glass List
     activityRow: {

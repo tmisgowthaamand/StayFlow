@@ -933,19 +933,25 @@ app.post('/api/trigger-notifications', async (req, res) => {
                 const name = tenant.get('Name');
 
                 try {
-                    // Read FRESH values from sheet (in case bulk-update-eb just ran)
+                    // Read FRESH values from sheet
                     const freshTenant = await sheetsService.getTenantByPhone(phone, name);
                     if (!freshTenant) continue;
+
+                    const currentStatus = freshTenant.get('Status');
+                    // 🚨 SKIP IF ALREADY PAID
+                    if (currentStatus === 'PAID' || currentStatus === 'VALID') {
+                        console.log(`[NOTIFY] Skipping ${name} - Already PAID.`);
+                        continue;
+                    }
 
                     const rent = (freshTenant.get('Monthly Rent') || '0').toString().replace(/[^\d.]/g, '');
                     const eb = (freshTenant.get('EB Amount') || '0').toString().replace(/[^\d.]/g, '');
                     const total = parseFloat(rent) + parseFloat(eb);
 
-                    // Update Status to PENDING if not already PAID
-                    const currentStatus = freshTenant.get('Status');
-                    if (currentStatus !== 'PAID' && currentStatus !== 'VALID') {
-                        await sheetsService.updateTenant(phone, { 'Status': 'PENDING' }, name);
-                    }
+                    if (total <= 0) continue;
+
+                    // Update Status to PENDING
+                    await sheetsService.updateTenant(phone, { 'Status': 'PENDING' }, name);
 
                     // Generate payment link to website
                     const razorpayLink = await createRazorpayLink(phone, name, total, freshTenant.get('Room'));
@@ -960,18 +966,20 @@ app.post('/api/trigger-notifications', async (req, res) => {
 
                     // Build notification message
                     const currentMonth = new Date().toLocaleString('default', { month: 'long' });
-                    let caption = `🔔 *Monthly Bill — ${currentMonth}*\n\nHi ${name},\n\n📋 *Breakdown:*\n🏠 Rent: ₹${rent}\n⚡ EB: ₹${eb}\n💰 *Total Due: ₹${total}*\n\n📅 *Due Date: 5th ${currentMonth}*`;
-                    if (razorpayLink) caption += `\n\n💳 *Pay Online:* ${razorpayLink}`;
+                    let caption = `🛡️ *StayFlow Rental Payment — ${currentMonth}*\n\nHi ${name},\n\nYour monthly bill has been generated and is ready for payment. Please find your invoice attached below.\n\n📋 *Payment Summary:*\n🏠 Current Rent: ₹${rent}\n⚡ EB Charges: ₹${eb}\n💰 *TOTAL DUE: ₹${total}*\n\n📅 *Due Date:* 5th ${currentMonth}\n\nKindly clear your dues via the link below or by cash at the office.`;
+
+                    if (razorpayLink) caption += `\n\n💳 *Pay Fast & Securely:* \n${razorpayLink}`;
+                    caption += `\n\n_If you have already paid, please share the transaction receipt._`;
 
                     // Send via WhatsApp
-                    await sendMedia(phone, filePath, caption, ["💳 Pay Now UPI", "💵 Pay Cash", "❌ Cancel"]);
+                    await sendMedia(phone, filePath, caption, ["💳 Pay Now", "💵 Pay Cash", "❌ Cancel"]);
 
                     sentCount++;
                     console.log(`[NOTIFY] Sent to ${name} (${sentCount}/${activeTenants.length})`);
-                    await new Promise(r => setTimeout(r, 1000));
+                    await new Promise(r => setTimeout(r, 1200)); // Slight delay to avoid throttle
                 } catch (e) { console.error(`Failed to notify ${name}:`, e.message); }
             }
-            console.log(`[NOTIFY] Complete: ${sentCount}/${activeTenants.length} notifications sent.`);
+            console.log(`[NOTIFY] Complete: ${sentCount} notifications sent.`);
 
             // 🔔 Create In-App Notification (Summary)
             try {
