@@ -1,417 +1,405 @@
-import React, { useEffect, useState, useCallback, memo } from 'react';
-import { View, ScrollView, StyleSheet, RefreshControl, Text, TouchableOpacity, Animated, Easing } from 'react-native';
+import React, { useEffect, useState, useCallback, memo, useRef, useMemo } from 'react';
+import { View, ScrollView, StyleSheet, RefreshControl, Text, TouchableOpacity, Animated, Dimensions, Alert, Modal, Platform } from 'react-native';
 import { Colors, Spacing, Shadows, Typography, BorderRadius, Gradients } from '../theme/theme';
 import { LinearGradient } from 'expo-linear-gradient';
 import Header from '../components/Header';
 import StatCard from '../components/StatCard';
 import { getDashboardStats, getTenants } from '../api/api';
-import { IndianRupee, Users, Home, Zap, Megaphone, Clock, Wallet, MapPin, CheckCircle, AlertCircle, TrendingUp, ArrowRight } from 'lucide-react-native';
+import {
+    Wallet, Users, Home, TrendingUp, Zap,
+    ArrowUpRight, Plus, Activity, LayoutGrid,
+    Calendar, Bell, Menu, Search, ChevronRight,
+    Settings, LogOut, Info, ShieldCheck, User, X,
+    CreditCard, Megaphone
+} from 'lucide-react-native';
 import { useNavigation } from '@react-navigation/native';
-import { useFadeSlideIn, usePressAnimation, AnimatedListItem, SkeletonCard, SkeletonLoader, usePulse } from '../utils/animations';
-
-// ─── Animated Activity Row ─────────────────────────────────────
-const ActivityRow = memo(({ item, index }) => {
+import {
+    useFadeSlideIn, usePressAnimation, AnimatedListItem,
+    SkeletonCard, useMeshFloat, useGlowPulse, DecryptedText, SplitText
+} from '../utils/animations';
+// ─── Main Dashboard ─────────────────────────────────────────────
+const ActivityItem = memo(({ item, index }) => {
     const isPaid = item.Status === 'PAID' || item.Status === 'VALID';
-    const anim = useFadeSlideIn(index * 70, 400, 18);
+    const anim = useFadeSlideIn(400 + index * 60, 600, 15);
 
     return (
-        <Animated.View style={[styles.activityCard, anim]}>
-            <View style={styles.activityLeft}>
-                <LinearGradient
-                    colors={isPaid ? Gradients.secondary : Gradients.danger}
-                    style={styles.avatar}
-                >
-                    <Text style={styles.avatarText}>{item.Name?.[0] || '?'}</Text>
+        <Animated.View style={[styles.activityRow, anim]}>
+            <View style={styles.activityAvatar}>
+                <LinearGradient colors={isPaid ? Gradients.secondary : Gradients.primary} style={styles.avatarInner}>
+                    <Text style={styles.avatarLetter}>{item.Name?.[0]}</Text>
                 </LinearGradient>
-                <View style={styles.activityInfo}>
-                    <Text style={styles.activityName}>{item.Name}</Text>
-                    <Text style={styles.activityMeta}>
-                        Room {item.Room} • ₹{item['Monthly Rent'] || '0'} / ₹{item['EB Amount'] || '0'}
-                    </Text>
-                </View>
             </View>
-            <View style={[
-                styles.statusBadge,
-                {
-                    backgroundColor: isPaid
-                        ? Colors.successBg
-                        : item.Status === 'PENDING' ? Colors.warningBg : Colors.dangerBg
-                }
-            ]}>
-                {isPaid
-                    ? <CheckCircle size={12} color={Colors.success} />
-                    : <Clock size={12} color={item.Status === 'PENDING' ? Colors.warning : Colors.danger} />
-                }
-                <Text style={[
-                    styles.statusBadgeText,
-                    {
-                        color: isPaid
-                            ? Colors.success
-                            : item.Status === 'PENDING' ? Colors.warning : Colors.danger
-                    }
-                ]}>
-                    {item.Status || 'ACTIVE'}
+            <View style={styles.activityMain}>
+                <Text style={styles.activityName}>{item.Name}</Text>
+                <Text style={styles.activitySub}>Room {item.Room} • {isPaid ? 'Payment Confirmed' : 'Payment Overdue'}</Text>
+            </View>
+            <View style={styles.activityPrice}>
+                <Text style={[styles.priceText, { color: isPaid ? Colors.success : Colors.accent }]}>
+                    {isPaid ? '✓' : '₹' + item['Monthly Rent']}
                 </Text>
             </View>
         </Animated.View>
     );
 });
 
-// ─── Loading Skeleton ──────────────────────────────────────────
-const DashboardSkeleton = memo(() => (
-    <View style={styles.scrollContent}>
-        <SkeletonLoader width="100%" height={70} borderRadius={16} style={{ marginBottom: 20 }} />
-        <View style={styles.row}>
-            <View style={{ flex: 1, marginRight: 4 }}>
-                <SkeletonLoader width="100%" height={128} borderRadius={20} />
-            </View>
-            <View style={{ flex: 1, marginLeft: 4 }}>
-                <SkeletonLoader width="100%" height={128} borderRadius={20} />
-            </View>
-        </View>
-        <View style={[styles.row, { marginTop: 8 }]}>
-            <View style={{ flex: 1, marginRight: 4 }}>
-                <SkeletonLoader width="100%" height={128} borderRadius={20} />
-            </View>
-            <View style={{ flex: 1, marginLeft: 4 }}>
-                <SkeletonLoader width="100%" height={128} borderRadius={20} />
-            </View>
-        </View>
-        <SkeletonLoader width="100%" height={100} borderRadius={16} style={{ marginTop: 20 }} />
-        <SkeletonCard lines={2} />
-        <SkeletonCard lines={2} />
-        <SkeletonCard lines={2} />
-    </View>
-));
-
-// ─── Main Dashboard ────────────────────────────────────────────
 const Dashboard = () => {
     const [stats, setStats] = useState(null);
     const [tenants, setTenants] = useState([]);
+    const [isAdmin, setIsAdmin] = useState(true);
+    const [isMenuVisible, setIsMenuVisible] = useState(false);
+    const menuAnim = useRef(new Animated.Value(-Dimensions.get('window').width)).current;
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
+    const [searchQuery, setSearchQuery] = useState('');
     const navigation = useNavigation();
 
-    // Section animations
-    const bannerAnim = useFadeSlideIn(100, 500, 30);
-    const statsAnim = useFadeSlideIn(200, 500, 24);
-    const progressAnim = useFadeSlideIn(500, 500, 20);
-    const activityAnim = useFadeSlideIn(700, 500, 20);
-    const bannerPulse = usePulse(0.99, 1.01, 3000);
-    const { scaleStyle: bannerPress, onPressIn, onPressOut } = usePressAnimation(0.97);
-
-    const fetchData = useCallback(async () => {
+    const fetchAllData = useCallback(async () => {
         try {
-            const [statsData, tenantsData] = await Promise.all([
-                getDashboardStats(),
-                getTenants()
-            ]);
-            setStats(statsData);
-            setTenants(Array.isArray(tenantsData) ? tenantsData : []);
-        } catch (error) {
-            console.error(error);
-        } finally {
-            setLoading(false);
-            setRefreshing(false);
-        }
+            const [s, t] = await Promise.all([getDashboardStats(), getTenants()]);
+            setStats(s);
+            setTenants(Array.isArray(t) ? t : []);
+        } catch (e) { console.error(e); }
+        finally { setLoading(false); setRefreshing(false); }
     }, []);
 
-    useEffect(() => {
-        fetchData();
-    }, []);
+    useEffect(() => { fetchAllData(); }, []);
 
-    const onRefresh = useCallback(() => {
-        setRefreshing(true);
-        fetchData();
-    }, [fetchData]);
+    const onRefresh = () => { setRefreshing(true); fetchAllData(); };
 
-    // Compute stats
-    const activeTenants = tenants.filter(t => t.Status !== 'VACATED');
-    const paidCount = activeTenants.filter(t => t.Status === 'PAID' || t.Status === 'VALID').length;
-    const pendingCount = activeTenants.filter(t => t.Status === 'PENDING').length;
-    const unpaidCount = activeTenants.filter(t => t.Status === 'ACTIVE' || !t.Status).length;
-    const vacatedCount = tenants.filter(t => t.Status === 'VACATED').length;
+    const active = tenants.filter(t => t.Status !== 'VACATED');
 
-    const totalRevenue = tenants
-        .filter(t => t.Status === 'PAID' || t.Status === 'VALID')
+    // ─── StayFlow Smart AI Search (Gemini-Inspired) ────────────────
+    const filteredActivity = useMemo(() => {
+        if (!searchQuery.trim()) return active.slice(0, 6);
+
+        const query = searchQuery.toLowerCase().trim();
+        return active.filter(t => {
+            const name = (t.Name || '').toLowerCase();
+            const room = (t.Room || '').toString().toLowerCase();
+            const phone = (t.Phone || '').toString();
+            const status = (t.Status || '').toLowerCase();
+            const rent = (t['Monthly Rent'] || '0').toString();
+
+            // AI Intent Parsing (Keywords)
+            const matchesStatus = query === 'paid' || query === 'valid' ? (status === 'paid' || status === 'valid') :
+                query === 'pending' || query === 'unpaid' ? (status === 'pending') : false;
+
+            const matchesRoom = query.startsWith('room ') ? room === query.replace('room ', '') : room.includes(query);
+
+            return name.includes(query) ||
+                matchesRoom ||
+                phone.includes(query) ||
+                matchesStatus ||
+                (query.includes('rent') && rent.includes(query.replace(/\D/g, '')));
+        });
+    }, [searchQuery, active]);
+
+    const totalColl = active.filter(t => t.Status === 'PAID' || t.Status === 'VALID')
         .reduce((sum, t) => sum + parseFloat((t['Total Amount'] || '0').toString().replace(/[^\d.]/g, '')), 0);
+    const expected = active.reduce((sum, t) => sum + parseFloat((t['Total Amount'] || '0').toString().replace(/[^\d.]/g, '')), 0);
+    const pending = active.filter(t => t.Status === 'PENDING').length;
 
-    const expectedRevenue = activeTenants.reduce((sum, t) => sum + parseFloat((t['Total Amount'] || '0').toString().replace(/[^\d.]/g, '')), 0);
-    const collectionPct = expectedRevenue > 0 ? Math.round((totalRevenue / expectedRevenue) * 100) : 0;
+    const handleMenuPress = () => {
+        setIsMenuVisible(true);
+        Animated.timing(menuAnim, {
+            toValue: 0,
+            duration: 300,
+            useNativeDriver: true,
+        }).start();
+    };
 
-    const totalBeds = activeTenants.reduce((sum, t) => {
-        const type = (t['Sharing Type'] || '').toString();
-        if (type.includes('One') || type === '1') return sum + 1;
-        if (type.includes('Two') || type === '2') return sum + 2;
-        if (type.includes('Three') || type === '3') return sum + 3;
-        if (type.includes('Four') || type === '4') return sum + 4;
-        return sum + 1;
-    }, 0);
-    const vacantBeds = totalBeds - activeTenants.length;
-    const recentTenants = activeTenants.slice(0, 6);
+    const closeMenu = () => {
+        Animated.timing(menuAnim, {
+            toValue: -Dimensions.get('window').width,
+            duration: 250,
+            useNativeDriver: true,
+        }).start(() => setIsMenuVisible(false));
+    };
 
     return (
         <View style={styles.container}>
-            <Header title="Dashboard" />
+            <Header
+                title="StayFlow"
+                onSearchChange={setSearchQuery}
+                onMenuPress={handleMenuPress}
+                placeholder="Ask StayFlow AI (Name, Room, Paid...)"
+            />
 
-            {loading && !refreshing ? (
-                <ScrollView showsVerticalScrollIndicator={false}>
-                    <DashboardSkeleton />
-                </ScrollView>
-            ) : (
-                <ScrollView
-                    contentContainerStyle={styles.scrollContent}
-                    refreshControl={
-                        <RefreshControl
-                            refreshing={refreshing}
-                            onRefresh={onRefresh}
-                            colors={[Colors.primary]}
-                            tintColor={Colors.primary}
-                            progressBackgroundColor={Colors.surface}
-                        />
-                    }
-                    showsVerticalScrollIndicator={false}
-                >
-                    {/* Broadcast Banner — animated entrance + subtle pulse + press */}
-                    <Animated.View style={[bannerAnim, bannerPulse, bannerPress]}>
-                        <TouchableOpacity
-                            style={styles.broadcastBanner}
-                            onPress={() => navigation.navigate('Announcements')}
-                            onPressIn={onPressIn}
-                            onPressOut={onPressOut}
-                            activeOpacity={1}
-                        >
-                            <LinearGradient
-                                colors={Gradients.cool}
-                                start={{ x: 0, y: 0 }}
-                                end={{ x: 1, y: 1 }}
-                                style={styles.broadcastGradient}
-                            >
-                                <View style={styles.broadcastDecoCircle} />
-                                <View style={styles.broadcastContent}>
-                                    <View style={styles.broadcastIconBg}>
-                                        <Megaphone size={20} color="#fff" />
+            <ScrollView
+                contentContainerStyle={styles.scrollArea}
+                showsVerticalScrollIndicator={false}
+                refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Colors.primary} />}
+            >
+                {/* 1. Ultra-Premium Revenue Hero */}
+                <AnimatedListItem index={1}>
+                    <View style={styles.heroWrapper}>
+                        <LinearGradient colors={Gradients.ocean} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.heroCard}>
+                            <View style={styles.heroContent}>
+                                <View style={styles.heroHeader}>
+                                    <View>
+                                        <Text style={styles.heroLabel}>TOTAL COLLECTED</Text>
+                                        <Text style={styles.heroValue}>₹{totalColl.toLocaleString()}</Text>
                                     </View>
-                                    <View style={styles.broadcastTextContainer}>
-                                        <Text style={styles.broadcastTitle}>Make Announcement</Text>
-                                        <Text style={styles.broadcastSubtitle}>Send updates to all residents</Text>
-                                    </View>
-                                    <View style={styles.broadcastArrow}>
-                                        <ArrowRight size={18} color="rgba(255,255,255,0.7)" />
+                                    <View style={styles.heroIconBubble}>
+                                        <TrendingUp color="#fff" size={24} />
                                     </View>
                                 </View>
-                            </LinearGradient>
-                        </TouchableOpacity>
-                    </Animated.View>
 
-                    {/* Stats Grid — staggered entrance */}
-                    <Animated.View style={[styles.statsGrid, statsAnim]}>
-                        <View style={styles.row}>
-                            <StatCard
-                                title="Residents"
-                                value={activeTenants.length.toString()}
-                                icon={Users}
-                                color="#6C63FF"
-                                subtitle={`${vacatedCount} Vacated`}
-                                index={0}
-                            />
-                            <StatCard
-                                title="Collection"
-                                value={`₹${totalRevenue.toLocaleString()}`}
-                                icon={Wallet}
-                                color="#10B981"
-                                subtitle={`Expected: ₹${expectedRevenue.toLocaleString()}`}
-                                index={1}
-                            />
-                        </View>
-                        <View style={styles.row}>
-                            <StatCard
-                                title="Pending"
-                                value={pendingCount.toString()}
-                                icon={Clock}
-                                color="#F59E0B"
-                                subtitle={`${unpaidCount} Unpaid`}
-                                index={2}
-                            />
-                            <StatCard
-                                title="Vacant Beds"
-                                value={vacantBeds > 0 ? vacantBeds.toString() : 'Full'}
-                                icon={MapPin}
-                                color="#FF6B9D"
-                                subtitle={vacantBeds > 0 ? 'Available' : 'No vacancies'}
-                                index={3}
-                            />
-                        </View>
-                    </Animated.View>
+                                <View style={styles.heroDivider} />
 
-                    {/* Collection Progress — animated progress bar */}
-                    <Animated.View style={progressAnim}>
-                        <View style={styles.sectionHeader}>
-                            <TrendingUp size={18} color={Colors.primary} />
-                            <Text style={styles.sectionTitle}>Collection Status</Text>
-                        </View>
-                        <View style={styles.progressCard}>
-                            <View style={styles.progressLabelRow}>
-                                <Text style={styles.progressLabel}>
-                                    Collected <Text style={styles.progressPct}>{collectionPct}%</Text>
-                                </Text>
-                                <Text style={styles.progressValue}>
-                                    ₹{totalRevenue.toLocaleString()} / ₹{expectedRevenue.toLocaleString()}
-                                </Text>
-                            </View>
-                            <View style={styles.progressBarBg}>
-                                <LinearGradient
-                                    colors={Gradients.secondary}
-                                    start={{ x: 0, y: 0 }}
-                                    end={{ x: 1, y: 0 }}
-                                    style={[styles.progressBarFill, { width: `${Math.min(collectionPct, 100)}%` }]}
-                                />
-                            </View>
-                            <View style={styles.legendRow}>
-                                <View style={styles.legendItem}>
-                                    <View style={[styles.dot, { backgroundColor: Colors.success }]} />
-                                    <Text style={styles.legendText}>Paid ({paidCount})</Text>
-                                </View>
-                                <View style={styles.legendItem}>
-                                    <View style={[styles.dot, { backgroundColor: Colors.warning }]} />
-                                    <Text style={styles.legendText}>Pending ({pendingCount})</Text>
-                                </View>
-                                <View style={styles.legendItem}>
-                                    <View style={[styles.dot, { backgroundColor: Colors.accent }]} />
-                                    <Text style={styles.legendText}>Unpaid ({unpaidCount})</Text>
-                                </View>
-                            </View>
-                        </View>
-                    </Animated.View>
-
-                    {/* Recent Activity — staggered items */}
-                    <Animated.View style={activityAnim}>
-                        <View style={styles.sectionHeader}>
-                            <Users size={18} color={Colors.secondary} />
-                            <Text style={styles.sectionTitle}>Recent Activity</Text>
-                        </View>
-                        {recentTenants.length > 0 ? (
-                            recentTenants.map((t, index) => (
-                                <ActivityRow key={index} item={t} index={index} />
-                            ))
-                        ) : (
-                            <View style={styles.emptyCard}>
-                                <Text style={styles.emptyText}>No active residents found.</Text>
-                            </View>
-                        )}
-                    </Animated.View>
-
-                    {/* Recent Payments */}
-                    {stats?.recentPayments?.length > 0 && (
-                        <Animated.View style={activityAnim}>
-                            <View style={[styles.sectionHeader, { marginTop: Spacing.lg }]}>
-                                <Wallet size={18} color={Colors.accentAlt} />
-                                <Text style={styles.sectionTitle}>Recent Payments</Text>
-                            </View>
-                            {stats.recentPayments.map((payment, index) => (
-                                <AnimatedListItem key={index} index={index}>
-                                    <View style={styles.paymentCard}>
-                                        <View style={styles.paymentLeft}>
-                                            <View style={styles.paymentIcon}>
-                                                <IndianRupee size={16} color={Colors.success} />
-                                            </View>
-                                            <View style={styles.paymentInfo}>
-                                                <Text style={styles.paymentName}>{payment.name}</Text>
-                                                <Text style={styles.paymentDate}>{payment.date} • {payment.mode}</Text>
-                                            </View>
-                                        </View>
-                                        <Text style={styles.paymentAmount}>+₹{payment.amount}</Text>
+                                <View style={styles.heroStatsRow}>
+                                    <View style={styles.heroStatItem}>
+                                        <Text style={styles.heroStatVal}>{Math.round((totalColl / expected) * 100) || 0}%</Text>
+                                        <Text style={styles.heroStatLab}>Collected</Text>
                                     </View>
-                                </AnimatedListItem>
-                            ))}
-                        </Animated.View>
+                                    <View style={styles.heroStatDivider} />
+                                    <View style={styles.heroStatItem}>
+                                        <Text style={styles.heroStatVal}>{active.length}</Text>
+                                        <Text style={styles.heroStatLab}>Residents</Text>
+                                    </View>
+                                </View>
+                            </View>
+                        </LinearGradient>
+                    </View>
+                </AnimatedListItem>
+
+                {/* 2. Grid Overview */}
+                <View style={styles.sectionHeader}>
+                    <LayoutGrid size={18} color={Colors.primary} />
+                    <Text style={styles.sectionTitle}>INSIGHTS</Text>
+                </View>
+
+                <View style={styles.bentoGrid}>
+                    <View style={styles.bentoRow}>
+                        <StatCard title="Rooms" value="14/16" icon={Home} color={Colors.accentAlt} index={2} size="large" subtitle="Occupied" />
+                        <View style={styles.bentoCol}>
+                            <StatCard title="Pending" value={pending.toString()} icon={Users} color={Colors.accent} index={3} size="small" />
+                            <StatCard title="Capacity" value="88%" icon={Activity} color={Colors.secondary} index={4} size="small" />
+                        </View>
+                    </View>
+                </View>
+
+                {/* 3. Modern Actions */}
+                <View style={styles.actionRow}>
+                    <TouchableOpacity style={styles.actionBtn} onPress={() => navigation.navigate('Announcements')}>
+                        <LinearGradient colors={['rgba(124, 58, 237, 0.1)', 'rgba(124, 58, 237, 0.02)']} style={styles.actionBtnGradient}>
+                            <Zap size={20} color={Colors.primary} />
+                            <Text style={styles.actionBtnText}>Broadcast</Text>
+                        </LinearGradient>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={styles.actionBtn} onPress={() => navigation.navigate('AddTenant')}>
+                        <LinearGradient colors={['rgba(16, 185, 129, 0.1)', 'rgba(16, 185, 129, 0.02)']} style={styles.actionBtnGradient}>
+                            <Plus size={20} color={Colors.secondary} />
+                            <Text style={styles.actionBtnText}>Register</Text>
+                        </LinearGradient>
+                    </TouchableOpacity>
+                </View>
+
+                {/* 4. Activity Section */}
+                <View style={styles.sectionHeader}>
+                    <Activity size={18} color={Colors.primary} />
+                    <Text style={styles.sectionTitle}>{searchQuery ? 'AI SEARCH RESULTS' : 'RECENT ACTIVITY'}</Text>
+                    {searchQuery && (
+                        <View style={styles.aiBadge}>
+                            <Zap size={10} color={Colors.secondary} fill={Colors.secondary} />
+                            <Text style={styles.aiBadgeText}>AI ACTIVE</Text>
+                        </View>
                     )}
+                </View>
 
-                    <View style={{ height: 30 }} />
-                </ScrollView>
-            )}
+                {loading ? <SkeletonCard lines={2} /> : filteredActivity.map((item, idx) => <ActivityItem key={idx} item={item} index={idx} />)}
+
+                <View style={{ height: 120 }} />
+            </ScrollView>
+            {/* ─── Premium Side Menu Modal ────────────────────────────────── */}
+            <Modal
+                transparent={true}
+                visible={isMenuVisible}
+                onRequestClose={closeMenu}
+                animationType="none"
+            >
+                <View style={styles.menuOverlay}>
+                    <TouchableOpacity
+                        activeOpacity={1}
+                        style={styles.menuBackdrop}
+                        onPress={closeMenu}
+                    />
+                    <Animated.View style={[styles.menuContainer, { transform: [{ translateX: menuAnim }] }]}>
+                        <LinearGradient
+                            colors={[Colors.backgroundAlt, Colors.background]}
+                            style={styles.menuGradient}
+                        >
+                            <View style={styles.menuHeader}>
+                                <View style={styles.menuUserSection}>
+                                    <View style={styles.menuAvatar}>
+                                        <LinearGradient
+                                            colors={Gradients.primary}
+                                            style={styles.avatarInner}
+                                        >
+                                            <User size={24} color="#fff" />
+                                        </LinearGradient>
+                                    </View>
+                                    <View>
+                                        <Text style={styles.menuUserName}>Admin User</Text>
+                                        <Text style={styles.menuUserRole}>System Administrator</Text>
+                                    </View>
+                                </View>
+                                <TouchableOpacity onPress={closeMenu} style={styles.menuCloseBtn}>
+                                    <X size={20} color={Colors.textMuted} />
+                                </TouchableOpacity>
+                            </View>
+
+                            <View style={styles.menuDivider} />
+
+                            <View style={styles.menuBody}>
+                                <ScrollView showsVerticalScrollIndicator={false}>
+                                    <Text style={styles.menuSectionTitle}>NAVIGATION</Text>
+
+                                    <TouchableOpacity style={styles.menuItem} onPress={() => { closeMenu(); navigation.navigate('Residents'); }}>
+                                        <View style={styles.menuIconBox}><Users size={20} color={Colors.text} /></View>
+                                        <Text style={styles.menuItemText}>Residents</Text>
+                                    </TouchableOpacity>
+
+                                    <TouchableOpacity style={styles.menuItem} onPress={() => { closeMenu(); navigation.navigate('Billing'); }}>
+                                        <View style={styles.menuIconBox}><CreditCard size={20} color={Colors.text} /></View>
+                                        <Text style={styles.menuItemText}>Billing & Finance</Text>
+                                    </TouchableOpacity>
+
+                                    <TouchableOpacity style={styles.menuItem} onPress={() => { closeMenu(); navigation.navigate('Rooms'); }}>
+                                        <View style={styles.menuIconBox}><LayoutGrid size={20} color={Colors.text} /></View>
+                                        <Text style={styles.menuItemText}>Room Status</Text>
+                                    </TouchableOpacity>
+
+                                    <TouchableOpacity style={styles.menuItem} onPress={() => { closeMenu(); navigation.navigate('Announcements'); }}>
+                                        <View style={styles.menuIconBox}><Megaphone size={20} color={Colors.text} /></View>
+                                        <Text style={styles.menuItemText}>Announcements</Text>
+                                    </TouchableOpacity>
+
+                                    <TouchableOpacity style={styles.menuItem} onPress={() => { closeMenu(); navigation.navigate('Notifications'); }}>
+                                        <View style={styles.menuIconBox}><Bell size={20} color={Colors.text} /></View>
+                                        <Text style={styles.menuItemText}>Notifications</Text>
+                                    </TouchableOpacity>
+
+                                    <View style={styles.menuDivider} />
+                                    <Text style={styles.menuSectionTitle}>SYSTEM</Text>
+
+                                    <TouchableOpacity style={styles.menuItem} onPress={() => Alert.alert("Settings", "Coming Soon!")}>
+                                        <View style={styles.menuIconBox}><Settings size={20} color={Colors.text} /></View>
+                                        <Text style={styles.menuItemText}>General Settings</Text>
+                                    </TouchableOpacity>
+
+                                    <TouchableOpacity style={styles.menuItem} onPress={() => Alert.alert("About", "StayFlow Mobile v1.0.4")}>
+                                        <View style={styles.menuIconBox}><Info size={20} color={Colors.text} /></View>
+                                        <View>
+                                            <Text style={styles.menuItemText}>App Information</Text>
+                                            <Text style={styles.menuItemSub}>Version 1.0.4</Text>
+                                        </View>
+                                    </TouchableOpacity>
+                                </ScrollView>
+
+                                <View style={styles.menuFooter}>
+                                    <TouchableOpacity style={styles.logoutBtn} onPress={closeMenu}>
+                                        <LogOut size={18} color={Colors.accent} />
+                                        <Text style={styles.logoutText}>Sign Out</Text>
+                                    </TouchableOpacity>
+                                    <Text style={styles.versionTag}>Build: 2024.02.R1</Text>
+                                </View>
+                            </View>
+
+                        </LinearGradient>
+                    </Animated.View>
+                </View>
+            </Modal>
         </View>
     );
 };
 
 const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: Colors.background },
-    scrollContent: { padding: Spacing.md },
-    statsGrid: { marginBottom: Spacing.md },
-    row: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: Spacing.xs },
+    scrollArea: { padding: Spacing.md },
 
-    sectionHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: Spacing.md, gap: 8 },
-    sectionTitle: { ...Typography.h3, color: Colors.text },
+    // Hero Card Refined
+    heroWrapper: { marginBottom: Spacing.lg, borderRadius: BorderRadius.xl, ...Shadows.glow(Colors.accentAlt, 0.2) },
+    heroCard: { borderRadius: BorderRadius.xl, padding: Spacing.lg, height: 210, overflow: 'hidden' },
+    heroContent: { flex: 1, justifyContent: 'space-between' },
+    heroHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
+    heroLabel: { ...Typography.tiny, color: 'rgba(255,255,255,0.7)', marginBottom: 4 },
+    heroValue: { ...Typography.h1, color: '#fff', fontSize: 38 },
+    heroIconBubble: { width: 52, height: 52, borderRadius: 16, backgroundColor: 'rgba(255,255,255,0.15)', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)' },
+    heroDivider: { height: 1, backgroundColor: 'rgba(255,255,255,0.1)', marginVertical: 12 },
+    heroStatsRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.15)', borderRadius: BorderRadius.md, padding: 12 },
+    heroStatItem: { flex: 1, alignItems: 'center' },
+    heroStatVal: { ...Typography.h3, color: '#fff', fontSize: 20 },
+    heroStatLab: { ...Typography.tiny, color: 'rgba(255,255,255,0.5)', marginTop: 2 },
+    heroStatDivider: { width: 1, height: 24, backgroundColor: 'rgba(255,255,255,0.1)' },
 
-    progressCard: {
-        backgroundColor: Colors.surface,
-        padding: Spacing.md,
-        borderRadius: BorderRadius.lg,
-        borderWidth: 1,
-        borderColor: Colors.border,
-        marginBottom: Spacing.lg,
-    },
-    progressLabelRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 10 },
-    progressLabel: { ...Typography.bodyBold, color: Colors.text },
-    progressPct: { color: Colors.secondary },
-    progressValue: { ...Typography.caption, color: Colors.textSecondary },
-    progressBarBg: { height: 8, backgroundColor: 'rgba(148,163,184,0.1)', borderRadius: 4, overflow: 'hidden', marginBottom: 14 },
-    progressBarFill: { height: '100%', borderRadius: 4 },
-    legendRow: { flexDirection: 'row', gap: 16 },
-    legendItem: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-    dot: { width: 8, height: 8, borderRadius: 4 },
-    legendText: { ...Typography.tiny, color: Colors.textSecondary },
-
-    activityCard: {
-        backgroundColor: Colors.surface,
+    // Sections
+    sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: 10, marginVertical: Spacing.md },
+    sectionTitle: { ...Typography.caption, color: Colors.textSecondary, letterSpacing: 1.5 },
+    aiBadge: {
         flexDirection: 'row',
-        justifyContent: 'space-between',
         alignItems: 'center',
-        padding: Spacing.md,
-        borderRadius: BorderRadius.lg,
-        marginBottom: Spacing.sm,
+        backgroundColor: 'rgba(16, 185, 129, 0.1)',
+        paddingHorizontal: 8,
+        paddingVertical: 4,
+        borderRadius: 8,
+        gap: 4,
         borderWidth: 1,
-        borderColor: Colors.border,
+        borderColor: 'rgba(16, 185, 129, 0.2)'
     },
-    activityLeft: { flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1 },
-    avatar: { width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
-    avatarText: { fontSize: 16, fontWeight: 'bold', color: '#fff' },
-    activityInfo: { flex: 1, gap: 2 },
-    activityName: { ...Typography.h4, color: Colors.text },
-    activityMeta: { ...Typography.caption, color: Colors.textSecondary },
-    statusBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8 },
-    statusBadgeText: { ...Typography.tiny },
+    aiBadgeText: { ...Typography.tiny, color: Colors.secondary, fontWeight: '900', fontSize: 10 },
+    bentoGrid: { marginBottom: Spacing.md },
+    bentoRow: { flexDirection: 'row', gap: Spacing.sm },
+    bentoCol: { flex: 1, gap: Spacing.sm },
 
-    paymentCard: {
-        backgroundColor: Colors.surface,
+    // Actions
+    actionRow: { flexDirection: 'row', gap: 12, marginBottom: Spacing.md },
+    actionBtn: { flex: 1, borderRadius: BorderRadius.md, overflow: 'hidden', borderWidth: 1, borderColor: Colors.border },
+    actionBtnGradient: { height: 60, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10 },
+    actionBtnText: { ...Typography.bodyBold, color: Colors.text },
+
+    // Activity Items - Modern Glass List
+    activityRow: {
         flexDirection: 'row',
-        justifyContent: 'space-between',
         alignItems: 'center',
-        padding: Spacing.md,
-        borderRadius: BorderRadius.lg,
-        marginBottom: Spacing.sm,
+        padding: 14,
+        backgroundColor: Colors.backgroundAlt,
+        borderRadius: BorderRadius.md,
+        marginBottom: 10,
         borderWidth: 1,
-        borderColor: Colors.border,
+        borderColor: Colors.border
     },
-    paymentLeft: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-    paymentIcon: { width: 36, height: 36, borderRadius: 10, backgroundColor: Colors.successBg, alignItems: 'center', justifyContent: 'center' },
-    paymentInfo: { gap: 3 },
-    paymentName: { ...Typography.h4, color: Colors.text },
-    paymentDate: { ...Typography.caption, color: Colors.textSecondary },
-    paymentAmount: { ...Typography.h3, color: Colors.success },
+    activityAvatar: { width: 44, height: 44, marginRight: 14 },
+    avatarInner: { flex: 1, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+    avatarLetter: { color: '#fff', fontWeight: '900', fontSize: 18 },
+    activityMain: { flex: 1 },
+    activityName: { ...Typography.bodyBold, color: Colors.text },
+    activitySub: { ...Typography.bodySmall, color: Colors.textMuted, marginTop: 2 },
+    activityPrice: { paddingHorizontal: 10, alignItems: 'flex-end' },
+    priceText: { ...Typography.bodyBold, fontSize: 16 },
 
-    broadcastBanner: { borderRadius: BorderRadius.xl, overflow: 'hidden', marginBottom: Spacing.lg, ...Shadows.md },
-    broadcastGradient: { padding: Spacing.lg, position: 'relative', overflow: 'hidden' },
-    broadcastDecoCircle: { position: 'absolute', width: 120, height: 120, borderRadius: 60, backgroundColor: 'rgba(255,255,255,0.06)', top: -40, right: -20 },
-    broadcastContent: { flexDirection: 'row', alignItems: 'center', gap: 14 },
-    broadcastIconBg: { backgroundColor: 'rgba(255,255,255,0.18)', width: 44, height: 44, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
-    broadcastTextContainer: { flex: 1 },
-    broadcastTitle: { ...Typography.h4, color: '#fff' },
-    broadcastSubtitle: { ...Typography.caption, color: 'rgba(255,255,255,0.75)', marginTop: 2 },
-    broadcastArrow: { width: 32, height: 32, borderRadius: 10, backgroundColor: 'rgba(255,255,255,0.12)', alignItems: 'center', justifyContent: 'center' },
-
-    emptyCard: { backgroundColor: Colors.surface, padding: Spacing.lg, borderRadius: BorderRadius.lg, borderWidth: 1, borderColor: Colors.border, alignItems: 'center' },
-    emptyText: { ...Typography.body, color: Colors.textSecondary },
+    // Side Menu Styles
+    menuOverlay: { flex: 1, flexDirection: 'row' },
+    menuBackdrop: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.7)' },
+    menuContainer: { width: '80%', height: '100%', backgroundColor: Colors.background },
+    menuGradient: { flex: 1, padding: Spacing.xl },
+    menuHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginTop: Platform.OS === 'ios' ? 40 : 20, marginBottom: Spacing.xl },
+    menuUserSection: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+    menuAvatar: { width: 50, height: 50, borderRadius: 15, overflow: 'hidden' },
+    menuUserName: { ...Typography.h3, color: Colors.text },
+    menuUserRole: { ...Typography.tiny, color: Colors.textMuted },
+    menuCloseBtn: { padding: 8, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.05)' },
+    menuDivider: { height: 1, backgroundColor: Colors.border, marginVertical: Spacing.md },
+    menuSectionTitle: { ...Typography.tiny, color: Colors.textMuted, letterSpacing: 2, marginBottom: 10, marginTop: 10 },
+    menuBody: { flex: 1, marginTop: Spacing.lg },
+    menuItem: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, gap: 16 },
+    menuIconBox: { width: 40, height: 40, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.05)', alignItems: 'center', justifyContent: 'center' },
+    menuItemText: { ...Typography.bodyBold, color: Colors.text },
+    menuItemSub: { ...Typography.tiny, color: Colors.textMuted, marginTop: 2 },
+    menuFooter: { position: 'absolute', bottom: 40, left: 0, right: 0, gap: 15 },
+    logoutBtn: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 12, borderRadius: 12, backgroundColor: 'rgba(255, 68, 68, 0.1)' },
+    logoutText: { ...Typography.bodyBold, color: Colors.accent },
+    versionTag: { ...Typography.tiny, color: Colors.textMuted, textAlign: 'center', opacity: 0.5 },
 });
 
 export default Dashboard;

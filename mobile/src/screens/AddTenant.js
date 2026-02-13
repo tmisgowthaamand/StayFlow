@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, Alert, ActivityIndicator, KeyboardAvoidingView, Platform, Animated, Easing } from 'react-native';
+import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, Alert, ActivityIndicator, KeyboardAvoidingView, Platform, Animated, Easing as RNEasing } from 'react-native';
 import { Colors, Spacing, Shadows, Typography, BorderRadius, Gradients } from '../theme/theme';
 import { LinearGradient } from 'expo-linear-gradient';
 import Header from '../components/Header';
@@ -16,78 +16,83 @@ const AddTenant = ({ navigation }) => {
     const cardAnim = useFadeSlideIn(80, 500, 28);
     const { scaleStyle: submitPress, onPressIn: submitIn, onPressOut: submitOut } = usePressAnimation(0.95);
 
-    // Cascading field animations
-    const fieldAnims = useRef(Array.from({ length: 6 }, () => new Animated.Value(0))).current;
-    const fieldSlides = useRef(Array.from({ length: 6 }, () => new Animated.Value(18))).current;
-    useEffect(() => {
-        fieldAnims.forEach((anim, i) => {
-            setTimeout(() => {
-                Animated.parallel([
-                    Animated.timing(anim, { toValue: 1, duration: 350, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
-                    Animated.timing(fieldSlides[i], { toValue: 0, duration: 350, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
-                ]).start();
-            }, 200 + i * 70);
-        });
-    }, []);
-
     const handleChange = (key, value) => setFormData(prev => ({ ...prev, [key]: value }));
 
     const handleSubmit = async () => {
-        if (!formData.name || !formData.phone || !formData.room || !formData.rent) { Alert.alert('Error', 'Please fill all required fields'); return; }
+        if (!formData.name || !formData.phone || !formData.room || !formData.rent) {
+            Alert.alert('Incomplete Form', 'Kindly provide all mandatory resident information.');
+            return;
+        }
         try {
             setLoading(true);
             await addTenant({ ...formData, monthlyRent: formData.rent });
-            // Trigger local system notification
             await notifyNewRegistration(formData.name, formData.room, formData.phone);
-            Alert.alert('Success', 'Resident added!', [{ text: 'OK', onPress: () => { setFormData({ name: '', phone: '', room: '', sharingType: '3', advance: '0', rent: '0' }); navigation.navigate('Residents'); } }]);
-        } catch (e) { Alert.alert('Error', 'Failed to add resident.'); console.error(e); }
-        finally { setLoading(false); }
+            Alert.alert('Registration Successful', `${formData.name} has been added to Room ${formData.room}`, [
+                { text: 'View Residents', onPress: () => navigation.navigate('Residents') }
+            ]);
+        } catch (e) {
+            Alert.alert('Error', 'Failed to register resident.');
+        } finally { setLoading(false); }
     };
 
-    const renderField = (label, key, fieldIndex, options = {}) => (
-        <Animated.View style={[styles.formGroup, options.halfWidth && { flex: 1 }, { opacity: fieldAnims[fieldIndex], transform: [{ translateY: fieldSlides[fieldIndex] }] }]}>
-            <Text style={styles.label}>{label}</Text>
-            <View style={styles.inputWrapper}>
-                {options.icon && <View style={styles.inputIcon}>{options.icon}</View>}
-                <TextInput style={[styles.input, options.icon && { paddingLeft: 40 }]} placeholder={options.placeholder} placeholderTextColor={Colors.textMuted} keyboardType={options.keyboard || 'default'} value={formData[key]} onChangeText={(t) => handleChange(key, t)} maxLength={options.maxLength} />
+    const renderField = (label, key, options = {}) => (
+        <View style={[styles.fieldGroup, options.halfWidth && { flex: 1 }]}>
+            <Text style={styles.fieldLabel}>{label}</Text>
+            <View style={styles.inputContainer}>
+                {options.icon && <View style={styles.fieldIcon}>{options.icon}</View>}
+                <TextInput
+                    style={[styles.textInput, options.icon && { paddingLeft: 44 }]}
+                    placeholder={options.placeholder}
+                    placeholderTextColor={Colors.textMuted}
+                    keyboardType={options.keyboard || 'default'}
+                    value={formData[key]}
+                    onChangeText={(t) => handleChange(key, t)}
+                    maxLength={options.maxLength}
+                />
             </View>
-        </Animated.View>
+        </View>
     );
 
     return (
         <View style={styles.container}>
-            <Header title="Add Resident" />
+            <Header title="New Resident" />
             <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
-                <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-                    <Animated.View style={[styles.card, Shadows.md, cardAnim]}>
-                        <View style={styles.headerRow}>
-                            <LinearGradient colors={Gradients.secondary} style={styles.headerIconBg}>
-                                <UserPlus color="#fff" size={20} />
+                <ScrollView contentContainerStyle={styles.scrollArea} showsVerticalScrollIndicator={false}>
+                    <Animated.View style={[styles.formCard, cardAnim]}>
+                        <View style={styles.cardHeader}>
+                            <LinearGradient colors={Gradients.secondary} style={styles.iconBox}>
+                                <UserPlus color="#fff" size={22} />
                             </LinearGradient>
                             <View>
-                                <Text style={styles.cardTitle}>New Resident</Text>
-                                <Text style={styles.cardSubtitle}>Fill in the details below</Text>
+                                <Text style={styles.cardTitle}>Registration</Text>
+                                <Text style={styles.cardInfo}>Onboard a new resident to the system</Text>
                             </View>
                         </View>
 
-                        {renderField('Full Name *', 'name', 0, { icon: <User size={16} color={Colors.textMuted} />, placeholder: 'e.g. John Doe' })}
-                        {renderField('Phone Number *', 'phone', 1, { keyboard: 'phone-pad', maxLength: 10, icon: <Phone size={16} color={Colors.textMuted} />, placeholder: 'e.g. 9876543210' })}
+                        {renderField('FULL NAME', 'name', { icon: <User size={16} color={Colors.primary} />, placeholder: 'Resident name' })}
+                        {renderField('WHATSAPP NUMBER', 'phone', { keyboard: 'phone-pad', maxLength: 10, icon: <Phone size={16} color={Colors.primary} />, placeholder: 'Phone including country code' })}
 
-                        <View style={styles.row}>
-                            {renderField('Room No *', 'room', 2, { halfWidth: true, icon: <Home size={16} color={Colors.textMuted} />, placeholder: '101' })}
-                            <View style={{ width: Spacing.sm }} />
-                            {renderField('Sharing *', 'sharingType', 3, { halfWidth: true, keyboard: 'numeric', placeholder: '2, 3, 4' })}
-                        </View>
-                        <View style={styles.row}>
-                            {renderField('Monthly Rent *', 'rent', 4, { halfWidth: true, keyboard: 'numeric', placeholder: '5000' })}
-                            <View style={{ width: Spacing.sm }} />
-                            {renderField('Advance', 'advance', 5, { halfWidth: true, keyboard: 'numeric', placeholder: '2000' })}
+                        <View style={styles.inputRow}>
+                            {renderField('ROOM NUMBER', 'room', { halfWidth: true, icon: <Home size={16} color={Colors.primary} />, placeholder: '101' })}
+                            <View style={{ width: 12 }} />
+                            {renderField('SHARING', 'sharingType', { halfWidth: true, keyboard: 'numeric', placeholder: 'Beds' })}
                         </View>
 
-                        <Animated.View style={submitPress}>
+                        <View style={styles.inputRow}>
+                            {renderField('MONTHLY RENT', 'rent', { halfWidth: true, keyboard: 'numeric', placeholder: 'Amount' })}
+                            <View style={{ width: 12 }} />
+                            {renderField('ADVANCE PAID', 'advance', { halfWidth: true, keyboard: 'numeric', placeholder: 'Amount' })}
+                        </View>
+
+                        <Animated.View style={[submitPress, { marginTop: 12 }]}>
                             <TouchableOpacity onPress={handleSubmit} disabled={loading} onPressIn={submitIn} onPressOut={submitOut} activeOpacity={1}>
-                                <LinearGradient colors={Gradients.secondary} style={styles.submitButton}>
-                                    {loading ? <ActivityIndicator color="#fff" /> : (<><Save color="#fff" size={18} /><Text style={styles.submitButtonText}>Register Resident</Text></>)}
+                                <LinearGradient colors={Gradients.secondary} style={styles.registerBtn}>
+                                    {loading ? <ActivityIndicator color="#fff" /> : (
+                                        <>
+                                            <Save color="#fff" size={18} />
+                                            <Text style={styles.registerBtnText}>Complete Registration</Text>
+                                        </>
+                                    )}
                                 </LinearGradient>
                             </TouchableOpacity>
                         </Animated.View>
@@ -100,20 +105,38 @@ const AddTenant = ({ navigation }) => {
 
 const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: Colors.background },
-    scrollContent: { padding: Spacing.md },
-    card: { backgroundColor: Colors.surface, borderRadius: BorderRadius.xl, padding: Spacing.lg, borderWidth: 1, borderColor: Colors.border },
-    headerRow: { flexDirection: 'row', alignItems: 'center', marginBottom: Spacing.xl, gap: 14 },
-    headerIconBg: { width: 44, height: 44, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
-    cardTitle: { ...Typography.h3, color: Colors.text },
-    cardSubtitle: { ...Typography.caption, color: Colors.secondary, marginTop: 2 },
-    formGroup: { marginBottom: Spacing.md },
-    label: { ...Typography.caption, color: Colors.textSecondary, marginBottom: 6, fontWeight: '600' },
-    inputWrapper: { position: 'relative' },
-    inputIcon: { position: 'absolute', left: 12, top: 0, bottom: 0, justifyContent: 'center', zIndex: 1 },
-    input: { backgroundColor: Colors.surfaceElevated, borderWidth: 1, borderColor: Colors.border, borderRadius: BorderRadius.sm, paddingHorizontal: 14, paddingVertical: 12, ...Typography.body, color: Colors.text },
-    row: { flexDirection: 'row' },
-    submitButton: { borderRadius: BorderRadius.md, padding: 16, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', marginTop: Spacing.sm, gap: 8 },
-    submitButtonText: { color: '#fff', ...Typography.bodyBold, fontSize: 16 },
+    scrollArea: { padding: Spacing.md },
+    formCard: {
+        backgroundColor: Colors.backgroundAlt,
+        borderRadius: BorderRadius.lg,
+        padding: Spacing.lg,
+        borderWidth: 1,
+        borderColor: Colors.border,
+        ...Shadows.md
+    },
+    cardHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 28, gap: 16 },
+    iconBox: { width: 48, height: 48, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
+    cardTitle: { ...Typography.h3, color: Colors.text, fontSize: 22 },
+    cardInfo: { ...Typography.bodySmall, color: Colors.textSecondary, marginTop: 2 },
+
+    fieldGroup: { marginBottom: 20 },
+    fieldLabel: { ...Typography.tiny, color: Colors.textSecondary, marginBottom: 8, letterSpacing: 1, fontWeight: '800' },
+    inputContainer: { position: 'relative' },
+    fieldIcon: { position: 'absolute', left: 14, top: 0, bottom: 0, justifyContent: 'center', zIndex: 1 },
+    textInput: {
+        backgroundColor: Colors.surface,
+        borderWidth: 1,
+        borderColor: Colors.border,
+        borderRadius: 12,
+        paddingHorizontal: 16,
+        paddingVertical: 14,
+        ...Typography.body,
+        color: Colors.text,
+        fontSize: 15
+    },
+    inputRow: { flexDirection: 'row' },
+    registerBtn: { borderRadius: BorderRadius.md, padding: 18, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', marginTop: 8, gap: 10, ...Shadows.glow(Colors.secondary, 0.2) },
+    registerBtnText: { color: '#fff', ...Typography.bodyBold, fontSize: 16, letterSpacing: 0.5 },
 });
 
 export default AddTenant;

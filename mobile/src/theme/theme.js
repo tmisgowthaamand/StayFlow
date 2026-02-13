@@ -1,136 +1,101 @@
-// Premium Dark Theme — StayFlow Mobile
-// Inspired by latest iOS/Material 3 design language
-
 export const Colors = {
-    // Core palette
-    primary: '#6C63FF',       // Vibrant Indigo
-    primaryLight: '#A5A0FF',
-    primaryDark: '#4B44CC',
-    secondary: '#00D9A6',     // Mint Green
-    secondaryLight: '#5EEAD4',
-    accent: '#FF6B9D',        // Coral Pink
-    accentAlt: '#FFB347',     // Warm Amber
+    // Futuristic SaaS Palette - Refined
+    primary: '#7C3AED',       // Rich Violet
+    primaryLight: '#A78BFA',
+    primaryDark: '#5B21B6',
+    secondary: '#059669',     // Emerald 600
+    secondaryLight: '#34D399',
+    accent: '#F43F5E',        // Rose
+    accentAlt: '#2563EB',     // Royal Blue
 
-    // Backgrounds (Dark mode)
-    background: '#0A0E1A',     // Deep Navy
-    backgroundAlt: '#111827',  // Slightly lighter
-    surface: '#1A1F2E',       // Card surface
-    surfaceElevated: '#232A3E', // Elevated cards
-    surfaceGlass: 'rgba(26, 31, 46, 0.85)', // Glass effect
+    // Neutrals for Depth
+    background: '#020617',    // Deep Space
+    backgroundAlt: '#0B0F1A', // Card Background
+    surface: '#121826',       // Slate 900 modified
+    surfaceElevated: '#1E293B',
+    surfaceGlass: 'rgba(255, 255, 255, 0.03)',
+    surfaceGlassBright: 'rgba(255, 255, 255, 0.08)',
 
-    // Text
-    text: '#F1F5F9',          // Primary text
-    textSecondary: '#94A3B8',  // Secondary text
-    textMuted: '#64748B',      // Muted
-    textBright: '#FFFFFF',     // Pure white
+    // Text Layers
+    text: '#F8FAFC',
+    textSecondary: '#94A3B8',
+    textMuted: '#475569',
+    textBright: '#FFFFFF',
+    textDark: '#020617',
 
-    // States
+    // Status Semantic
     success: '#10B981',
-    successLight: '#D1FAE5',
-    successBg: 'rgba(16, 185, 129, 0.12)',
-    danger: '#EF4444',
-    dangerLight: '#FEE2E2',
-    dangerBg: 'rgba(239, 68, 68, 0.12)',
+    successBg: 'rgba(16, 185, 129, 0.08)',
     warning: '#F59E0B',
-    warningLight: '#FEF3C7',
-    warningBg: 'rgba(245, 158, 11, 0.12)',
+    warningBg: 'rgba(245, 158, 11, 0.08)',
+    danger: '#EF4444',
+    dangerBg: 'rgba(239, 68, 68, 0.08)',
     info: '#3B82F6',
-    infoBg: 'rgba(59, 130, 246, 0.12)',
+    infoBg: 'rgba(59, 130, 246, 0.08)',
 
-    // Borders
-    border: 'rgba(148, 163, 184, 0.12)',
-    borderLight: 'rgba(148, 163, 184, 0.06)',
-    borderFocus: '#6C63FF',
-
-    // Overlays
-    overlay: 'rgba(0, 0, 0, 0.6)',
-    overlayLight: 'rgba(0, 0, 0, 0.3)',
-
-    // Tab bar
-    tabBarBg: '#0F1322',
-    tabBarBorder: 'rgba(108, 99, 255, 0.1)',
+    border: 'rgba(255, 255, 255, 0.06)',
+    borderBright: 'rgba(255, 255, 255, 0.12)',
 };
 
 export const Gradients = {
-    primary: ['#6C63FF', '#4B44CC'],
-    secondary: ['#00D9A6', '#059669'],
-    accent: ['#FF6B9D', '#F43F5E'],
-    warm: ['#FFB347', '#FF6B9D'],
-    cool: ['#6C63FF', '#00D9A6'],
-    dark: ['#1A1F2E', '#0A0E1A'],
-    card: ['rgba(108, 99, 255, 0.08)', 'rgba(0, 217, 166, 0.04)'],
-    header: ['#0A0E1A', '#111827'],
-    success: ['#10B981', '#059669'],
-    danger: ['#EF4444', '#DC2626'],
-    purple: ['#8B5CF6', '#6C63FF'],
-    gold: ['#F59E0B', '#D97706'],
+    primary: ['#7C3AED', '#4C1D95'],
+    secondary: ['#059669', '#064E3B'],
+    accent: ['#F43F5E', '#BE123C'],
+    cool: ['#3B82F6', '#1E40AF'],
+    purple: ['#8B5CF6', '#C026D3'],
+
+    // Designer Blends
+    premium: ['#020617', '#0F172A'],
+    glass: ['rgba(255,255,255,0.08)', 'rgba(255,255,255,0.02)'],
+    vibrant: ['#8B5CF6', '#EC4899'], // Violet to Pink
+    ocean: ['#0EA5E9', '#2563EB'], // Sky to Blue
+    forest: ['#10B981', '#059669'],
+    card: ['#1E293B', '#0F172A'],
 };
 
 export const Spacing = {
-    xxs: 2,
-    xs: 4,
-    sm: 8,
-    md: 16,
-    lg: 24,
-    xl: 32,
-    xxl: 48,
+    xxs: 4, xs: 8, sm: 12, md: 16, lg: 24, xl: 32, xxl: 48, xxxl: 64,
 };
 
 export const BorderRadius = {
-    sm: 8,
-    md: 12,
-    lg: 16,
-    xl: 20,
-    xxl: 24,
-    full: 9999,
+    xs: 6, sm: 12, md: 18, lg: 24, xl: 32, xxl: 48, full: 9999,
 };
 
 export const Typography = {
-    h1: { fontSize: 28, fontWeight: '800', letterSpacing: -0.5 },
-    h2: { fontSize: 22, fontWeight: '700', letterSpacing: -0.3 },
-    h3: { fontSize: 18, fontWeight: '700' },
-    h4: { fontSize: 16, fontWeight: '600' },
-    body: { fontSize: 14, fontWeight: '400' },
-    bodyBold: { fontSize: 14, fontWeight: '600' },
-    caption: { fontSize: 12, fontWeight: '500' },
-    tiny: { fontSize: 10, fontWeight: '600' },
-    stat: { fontSize: 26, fontWeight: '800', letterSpacing: -0.5 },
+    h1: { fontSize: 36, fontWeight: '900', letterSpacing: -1.5, lineHeight: 44 },
+    h2: { fontSize: 28, fontWeight: '800', letterSpacing: -1, lineHeight: 34 },
+    h3: { fontSize: 22, fontWeight: '700', letterSpacing: -0.5, lineHeight: 28 },
+    h4: { fontSize: 18, fontWeight: '700', letterSpacing: -0.2, lineHeight: 24 },
+
+    body: { fontSize: 15, fontWeight: '400', lineHeight: 22, color: Colors.text },
+    bodyBold: { fontSize: 15, fontWeight: '700', lineHeight: 22 },
+    bodySmall: { fontSize: 13, fontWeight: '500', lineHeight: 18 },
+
+    caption: { fontSize: 12, fontWeight: '600', letterSpacing: 0.5, textTransform: 'uppercase' },
+    tiny: { fontSize: 10, fontWeight: '800', letterSpacing: 1, textTransform: 'uppercase' },
 };
 
 export const Shadows = {
     sm: {
         shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.25,
-        shadowRadius: 4,
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.1,
+        shadowRadius: 8,
         elevation: 3,
     },
     md: {
         shadowColor: '#000',
-        shadowOffset: { width: 0, height: 4 },
+        shadowOffset: { width: 0, height: 12 },
         shadowOpacity: 0.3,
-        shadowRadius: 8,
-        elevation: 6,
-    },
-    lg: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 8 },
-        shadowOpacity: 0.35,
-        shadowRadius: 16,
+        shadowRadius: 24,
         elevation: 10,
     },
-    glow: (color = '#6C63FF') => ({
+    glow: (color = Colors.primary, intensity = 0.3) => ({
         shadowColor: color,
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.3,
-        shadowRadius: 12,
-        elevation: 8,
+        shadowOffset: { width: 0, height: 0 },
+        shadowOpacity: intensity,
+        shadowRadius: 15,
+        elevation: 12,
     }),
-    cardGlow: {
-        shadowColor: '#6C63FF',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.15,
-        shadowRadius: 8,
-        elevation: 4,
-    },
 };
+

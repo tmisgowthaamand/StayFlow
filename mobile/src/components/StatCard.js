@@ -2,93 +2,63 @@ import React, { useRef, useEffect, memo } from 'react';
 import { View, Text, StyleSheet, Animated, Easing } from 'react-native';
 import { Colors, Spacing, Shadows, Typography, BorderRadius, Gradients } from '../theme/theme';
 import { LinearGradient } from 'expo-linear-gradient';
-import { usePressAnimation } from '../utils/animations';
+import { usePressAnimation, useScaleIn } from '../utils/animations';
 
-const StatCard = memo(({ title, value, icon: Icon, color, subtitle, index = 0 }) => {
-    const opacity = useRef(new Animated.Value(0)).current;
-    const translateY = useRef(new Animated.Value(30)).current;
-    const scale = useRef(new Animated.Value(0.88)).current;
-    const { scaleStyle, onPressIn, onPressOut } = usePressAnimation(0.95);
+const StatCard = memo(({ title, value, icon: Icon, color, subtitle, index = 0, size = 'medium' }) => {
+    const entranceAnim = useScaleIn(index * 80);
+    const { scaleStyle, onPressIn, onPressOut } = usePressAnimation(0.97);
 
-    useEffect(() => {
-        const delay = index * 100;
-        const timer = setTimeout(() => {
-            Animated.parallel([
-                Animated.timing(opacity, {
-                    toValue: 1,
-                    duration: 500,
-                    easing: Easing.out(Easing.cubic),
-                    useNativeDriver: true,
-                }),
-                Animated.spring(scale, {
-                    toValue: 1,
-                    friction: 6,
-                    tension: 50,
-                    useNativeDriver: true,
-                }),
-                Animated.timing(translateY, {
-                    toValue: 0,
-                    duration: 500,
-                    easing: Easing.out(Easing.back(1.2)),
-                    useNativeDriver: true,
-                }),
-            ]).start();
-        }, delay);
+    const isLarge = size === 'large';
+    const isSmall = size === 'small';
 
-        return () => clearTimeout(timer);
-    }, []);
-
-    const getDarkerShade = (hex) => hex + '99';
+    const meshColors = color ? [color + '20', color + '05', 'transparent'] : Gradients.card;
 
     return (
         <Animated.View
             style={[
                 styles.container,
-                Shadows.cardGlow,
+                entranceAnim,
                 scaleStyle,
-                {
-                    opacity,
-                    transform: [
-                        ...scaleStyle.transform,
-                        { translateY },
-                        { scale },
-                    ],
-                },
+                isLarge && styles.largeCard,
+                isSmall && styles.smallCard,
+                { borderColor: color + '40' || Colors.border }
             ]}
             onTouchStart={onPressIn}
             onTouchEnd={onPressOut}
             onTouchCancel={onPressOut}
         >
-            <LinearGradient
-                colors={[color || Colors.primary, getDarkerShade(color || Colors.primary)]}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-                style={styles.gradient}
-            >
-                {/* Background decoration */}
-                <View style={styles.bgCircle} />
-                <View style={styles.bgCircle2} />
+            <View style={styles.inner}>
+                {/* Mesh Gradient Overlay */}
+                <LinearGradient
+                    colors={meshColors}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={StyleSheet.absoluteFill}
+                />
 
-                <View style={styles.content}>
-                    <View style={styles.header}>
-                        <Text style={styles.title}>{title}</Text>
-                        {Icon && (
-                            <View style={styles.iconContainer}>
-                                <Icon color="rgba(255,255,255,0.9)" size={18} />
-                            </View>
-                        )}
+                <View style={styles.header}>
+                    <View style={[styles.iconBox, { backgroundColor: (color || Colors.primary) + '20' }]}>
+                        {Icon && <Icon color={color || Colors.primary} size={isSmall ? 18 : 22} />}
                     </View>
-                    <Text style={styles.value} numberOfLines={1} adjustsFontSizeToFit>
-                        {value}
-                    </Text>
-                    {subtitle && (
-                        <View style={styles.subtitleRow}>
-                            <View style={styles.subtitleDot} />
-                            <Text style={styles.subtitle}>{subtitle}</Text>
+                    {!isSmall && (
+                        <View style={styles.titleColumn}>
+                            <Text style={styles.titleText}>{title}</Text>
                         </View>
                     )}
                 </View>
-            </LinearGradient>
+
+                <View style={styles.content}>
+                    <Text style={[styles.valueText, isLarge && styles.largeValue]} numberOfLines={1}>
+                        {value}
+                    </Text>
+                    {isSmall && <Text style={styles.smallTitle}>{title}</Text>}
+                    {!isSmall && subtitle && (
+                        <View style={styles.subtitleRow}>
+                            <Text style={styles.subtitleText}>{subtitle}</Text>
+                        </View>
+                    )}
+                </View>
+            </View>
         </Animated.View>
     );
 });
@@ -97,78 +67,24 @@ const styles = StyleSheet.create({
     container: {
         borderRadius: BorderRadius.xl,
         overflow: 'hidden',
-        marginBottom: Spacing.sm,
+        backgroundColor: Colors.surface,
+        borderWidth: 1,
         flex: 1,
-        marginHorizontal: Spacing.xs,
+        minHeight: 130,
+        ...Shadows.sm,
     },
-    gradient: {
-        padding: Spacing.md,
-        height: 128,
-        justifyContent: 'space-between',
-        position: 'relative',
-        overflow: 'hidden',
-    },
-    bgCircle: {
-        position: 'absolute',
-        width: 100,
-        height: 100,
-        borderRadius: 50,
-        backgroundColor: 'rgba(255,255,255,0.06)',
-        top: -30,
-        right: -20,
-    },
-    bgCircle2: {
-        position: 'absolute',
-        width: 60,
-        height: 60,
-        borderRadius: 30,
-        backgroundColor: 'rgba(255,255,255,0.04)',
-        bottom: -10,
-        left: -15,
-    },
-    content: {
-        flex: 1,
-        justifyContent: 'space-between',
-    },
-    header: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-    },
-    iconContainer: {
-        width: 34,
-        height: 34,
-        borderRadius: 10,
-        backgroundColor: 'rgba(255,255,255,0.15)',
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
-    title: {
-        color: 'rgba(255, 255, 255, 0.75)',
-        ...Typography.tiny,
-        textTransform: 'uppercase',
-        letterSpacing: 1.2,
-    },
-    value: {
-        color: '#fff',
-        ...Typography.stat,
-    },
-    subtitleRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 6,
-    },
-    subtitleDot: {
-        width: 4,
-        height: 4,
-        borderRadius: 2,
-        backgroundColor: 'rgba(255,255,255,0.5)',
-    },
-    subtitle: {
-        color: 'rgba(255, 255, 255, 0.55)',
-        ...Typography.tiny,
-        letterSpacing: 0.5,
-    },
+    inner: { flex: 1, padding: Spacing.md, justifyContent: 'space-between' },
+    largeCard: { flex: 1.6, minHeight: 150 },
+    smallCard: { minHeight: 100 },
+    header: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+    iconBox: { width: 44, height: 44, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
+    titleColumn: { flex: 1 },
+    titleText: { ...Typography.tiny, color: Colors.textSecondary, letterSpacing: 1.5, fontSize: 11 },
+    smallTitle: { ...Typography.tiny, color: Colors.textMuted, fontSize: 10, marginTop: 4, letterSpacing: 1 },
+    content: { marginTop: Spacing.xs },
+    valueText: { ...Typography.h2, color: Colors.text, fontWeight: '900', letterSpacing: -1 },
+    largeValue: { fontSize: 36 },
+    subtitleText: { fontSize: 12, color: Colors.textMuted, fontWeight: '700', textTransform: 'uppercase' },
 });
 
 export default StatCard;

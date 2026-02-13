@@ -1,215 +1,295 @@
 import React, { useRef, useEffect, useState, memo, useCallback } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Platform, StatusBar, Animated, Easing } from 'react-native';
-import { Colors, Spacing, Typography, Gradients } from '../theme/theme';
+import { View, Text, StyleSheet, TouchableOpacity, Platform, StatusBar, Animated, Easing, TextInput } from 'react-native';
+import { Colors, Spacing, Typography, Gradients, Shadows, BorderRadius } from '../theme/theme';
 import { LinearGradient } from 'expo-linear-gradient';
-import { ArrowLeft, Menu, Bell } from 'lucide-react-native';
+import { ArrowLeft, Bell, Search, User, Zap, Menu, X } from 'lucide-react-native';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { getUnreadCount } from '../utils/notifications';
 
-const Header = memo(({ title, onMenuPress, onBack, subtitle = 'StayFlow PG Management', showNotifBell = true }) => {
+const Header = memo(({ title, onMenuPress, onBack, subtitle, showNotifBell = true, transparent = false, onSearchChange, placeholder = "Search..." }) => {
     const navigation = useNavigation();
     const [unreadCount, setUnreadCount] = useState(0);
+    const [isSearching, setIsSearching] = useState(false);
+    const [searchQuery, setSearchQuery] = useState('');
 
-    // Slide down + fade in
-    const translateY = useRef(new Animated.Value(-30)).current;
-    const opacity = useRef(new Animated.Value(0)).current;
-    const accentWidth = useRef(new Animated.Value(0)).current;
-
-    // Bell badge animation
-    const badgeScale = useRef(new Animated.Value(0)).current;
+    const entrance = useRef(new Animated.Value(0)).current;
+    const searchAnim = useRef(new Animated.Value(0)).current;
 
     useEffect(() => {
-        Animated.parallel([
-            Animated.timing(opacity, {
-                toValue: 1,
-                duration: 450,
-                easing: Easing.out(Easing.cubic),
-                useNativeDriver: true,
-            }),
-            Animated.timing(translateY, {
-                toValue: 0,
-                duration: 450,
-                easing: Easing.out(Easing.cubic),
-                useNativeDriver: true,
-            }),
-        ]).start();
-
-        Animated.timing(accentWidth, {
+        Animated.timing(entrance, {
             toValue: 1,
-            duration: 600,
-            delay: 300,
-            easing: Easing.out(Easing.cubic),
-            useNativeDriver: false,
+            duration: 800,
+            easing: Easing.out(Easing.back(1.5)),
+            useNativeDriver: true,
         }).start();
     }, []);
 
-    // Load unread count on focus + polling
+    useEffect(() => {
+        Animated.spring(searchAnim, {
+            toValue: isSearching ? 1 : 0,
+            useNativeDriver: true,
+            friction: 8,
+            tension: 50,
+        }).start();
+    }, [isSearching]);
+
     useFocusEffect(
         useCallback(() => {
             const loadCount = async () => {
                 try {
                     const count = await getUnreadCount();
                     setUnreadCount(count);
-                    if (count > 0) {
-                        Animated.spring(badgeScale, {
-                            toValue: 1,
-                            friction: 4,
-                            tension: 80,
-                            useNativeDriver: true,
-                        }).start();
-                    } else {
-                        badgeScale.setValue(0);
-                    }
                 } catch (e) { }
             };
-
             loadCount();
-            const interval = setInterval(loadCount, 30000); // Poll every 30s
+            const interval = setInterval(loadCount, 30000);
             return () => clearInterval(interval);
         }, [])
     );
 
-    const handleNotifPress = useCallback(() => {
-        navigation.navigate('Notifications');
-    }, [navigation]);
+    const translateY = entrance.interpolate({
+        inputRange: [0, 1],
+        outputRange: [-20, 0],
+    });
+
+    const opacity = entrance.interpolate({
+        inputRange: [0, 1],
+        outputRange: [0, 1],
+    });
+
+    const titleScale = searchAnim.interpolate({
+        inputRange: [0, 1],
+        outputRange: [1, 0.8],
+    });
+
+    const titleOpacity = searchAnim.interpolate({
+        inputRange: [0, 1],
+        outputRange: [1, 0],
+    });
+
+    const searchInputTranslate = searchAnim.interpolate({
+        inputRange: [0, 1],
+        outputRange: [30, 0],
+    });
+
+    const toggleSearch = () => {
+        const nextState = !isSearching;
+        setIsSearching(nextState);
+        if (!nextState) {
+            setSearchQuery('');
+            onSearchChange?.('');
+        }
+    };
+
+    const handleSearch = (text) => {
+        setSearchQuery(text);
+        onSearchChange?.(text);
+    };
 
     return (
-        <Animated.View style={[styles.container, { opacity, transform: [{ translateY }] }]}>
-            <LinearGradient
-                colors={Gradients.header}
-                style={styles.gradient}
-            >
-                <View style={styles.content}>
-                    {onBack && (
-                        <TouchableOpacity onPress={onBack} style={styles.backButton} activeOpacity={0.7}>
+        <Animated.View style={[
+            styles.container,
+            { opacity, transform: [{ translateY }] },
+            transparent ? styles.transparent : styles.opaque
+        ]}>
+            <View style={styles.content}>
+                <View style={styles.leftSection}>
+                    {onBack ? (
+                        <TouchableOpacity onPress={onBack} style={styles.circularButton}>
                             <ArrowLeft color={Colors.text} size={22} />
                         </TouchableOpacity>
-                    )}
-                    {onMenuPress && (
-                        <TouchableOpacity onPress={onMenuPress} style={styles.menuButton} activeOpacity={0.7}>
-                            <Menu color={Colors.text} size={22} />
+                    ) : (
+                        <TouchableOpacity onPress={onMenuPress} style={styles.brandGroup}>
+                            <LinearGradient colors={Gradients.vibrant} style={styles.brandIcon}>
+                                <Zap color="#fff" size={18} fill="#fff" />
+                            </LinearGradient>
                         </TouchableOpacity>
                     )}
-                    <View style={styles.titleContainer}>
-                        <Text style={styles.titleText}>{title}</Text>
-                        {subtitle && <Text style={styles.subtitleText}>{subtitle}</Text>}
-                    </View>
 
-                    {showNotifBell && (
-                        <TouchableOpacity onPress={handleNotifPress} style={styles.bellButton} activeOpacity={0.7}>
-                            <Bell color={Colors.text} size={22} />
-                            {unreadCount > 0 && (
-                                <Animated.View style={[styles.badge, { transform: [{ scale: badgeScale }] }]}>
-                                    <LinearGradient colors={['#EF4444', '#DC2626']} style={styles.badgeGradient}>
-                                        <Text style={styles.badgeText}>
-                                            {unreadCount > 9 ? '9+' : unreadCount}
-                                        </Text>
-                                    </LinearGradient>
-                                </Animated.View>
-                            )}
-                        </TouchableOpacity>
+                    {!isSearching ? (
+                        <Animated.View style={[styles.titleGroup, { opacity: titleOpacity, transform: [{ scale: titleScale }] }]}>
+                            <Text style={styles.titleText}>{title}</Text>
+                            {subtitle && <Text style={styles.subtitleText}>{subtitle}</Text>}
+                        </Animated.View>
+                    ) : (
+                        <Animated.View style={[styles.searchInputWrapper, { opacity: searchAnim, transform: [{ translateX: searchInputTranslate }] }]}>
+                            <View style={styles.searchInner}>
+                                <Search color={Colors.primary} size={16} />
+                                <TextInput
+                                    style={styles.headerInput}
+                                    placeholder={placeholder}
+                                    placeholderTextColor={Colors.textMuted}
+                                    value={searchQuery}
+                                    onChangeText={handleSearch}
+                                    autoFocus
+                                />
+                            </View>
+                        </Animated.View>
                     )}
                 </View>
 
-                {/* Animated accent bar */}
-                <Animated.View style={[styles.accentBarContainer, {
-                    transform: [{ scaleX: accentWidth }],
-                }]}>
-                    <LinearGradient
-                        colors={Gradients.cool}
-                        start={{ x: 0, y: 0 }}
-                        end={{ x: 1, y: 0 }}
-                        style={styles.accentBar}
-                    />
-                </Animated.View>
-            </LinearGradient>
+                <View style={styles.rightSection}>
+                    <TouchableOpacity style={[styles.iconButton, isSearching && styles.searchingIconActive]} onPress={toggleSearch}>
+                        {isSearching ? <X color={Colors.accent} size={20} /> : <Search color={Colors.textSecondary} size={20} />}
+                    </TouchableOpacity>
+
+                    {!isSearching && showNotifBell && (
+                        <TouchableOpacity onPress={() => navigation.navigate('Notifications')} style={styles.iconButton}>
+                            <Bell color={Colors.text} size={20} />
+                            {unreadCount > 0 && (
+                                <View style={styles.badge}>
+                                    <Text style={styles.badgeText}>{unreadCount > 9 ? '9+' : unreadCount}</Text>
+                                </View>
+                            )}
+                        </TouchableOpacity>
+                    )}
+
+                    {!isSearching && (
+                        <TouchableOpacity onPress={onMenuPress} style={styles.menuButton}>
+                            <Menu color={Colors.textSecondary} size={20} />
+                        </TouchableOpacity>
+                    )}
+                </View>
+            </View>
         </Animated.View>
     );
 });
 
-const STATUSBAR_HEIGHT = Platform.OS === 'ios' ? 50 : (StatusBar.currentHeight || 0);
+const STATUSBAR_HEIGHT = Platform.OS === 'ios' ? 60 : (StatusBar.currentHeight || 0);
 
 const styles = StyleSheet.create({
     container: {
-        overflow: 'hidden',
+        paddingTop: STATUSBAR_HEIGHT,
+        zIndex: 1000,
     },
-    gradient: {
-        paddingTop: STATUSBAR_HEIGHT + 8,
-        paddingBottom: 14,
-        paddingHorizontal: Spacing.lg,
+    opaque: {
+        backgroundColor: Colors.background,
+    },
+    transparent: {
+        backgroundColor: 'transparent',
     },
     content: {
         flexDirection: 'row',
         alignItems: 'center',
+        justifyContent: 'space-between',
+        paddingHorizontal: Spacing.lg,
+        paddingBottom: 12,
     },
-    backButton: {
-        width: 38,
-        height: 38,
+    leftSection: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        flex: 1,
+    },
+    brandGroup: {
+        flexDirection: 'row',
+        alignItems: 'center',
+    },
+    brandIcon: {
+        width: 36,
+        height: 36,
         borderRadius: 12,
-        backgroundColor: Colors.surfaceGlass,
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginRight: 10,
+        ...Shadows.glow(Colors.primary, 0.4),
+    },
+    circularButton: {
+        width: 40,
+        height: 40,
+        borderRadius: 20,
+        backgroundColor: Colors.surface,
         alignItems: 'center',
         justifyContent: 'center',
         marginRight: 12,
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.08)',
+    },
+    titleGroup: {
+        justifyContent: 'center',
+    },
+    titleText: {
+        ...Typography.h3,
+        color: Colors.text,
+        fontWeight: '900',
+        letterSpacing: -1,
+    },
+    subtitleText: {
+        ...Typography.caption,
+        color: Colors.textMuted,
+        fontSize: 11,
+        marginTop: 0,
+        fontWeight: '700',
+        textTransform: 'uppercase',
+        letterSpacing: 1,
+    },
+    rightSection: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+    },
+    iconButton: {
+        width: 38,
+        height: 38,
+        borderRadius: 12,
+        backgroundColor: 'rgba(255,255,255,0.05)',
+        alignItems: 'center',
+        justifyContent: 'center',
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.08)',
     },
     menuButton: {
         width: 38,
         height: 38,
         borderRadius: 12,
-        backgroundColor: Colors.surfaceGlass,
         alignItems: 'center',
         justifyContent: 'center',
-        marginRight: 12,
+        marginLeft: 4,
     },
-    titleContainer: {
+    // Search Styles
+    searchInputWrapper: {
         flex: 1,
-    },
-    titleText: {
-        ...Typography.h2,
-        color: Colors.text,
-    },
-    subtitleText: {
-        ...Typography.tiny,
-        color: Colors.textMuted,
-        marginTop: 2,
-        letterSpacing: 1,
-        textTransform: 'uppercase',
-    },
-    bellButton: {
-        width: 42,
-        height: 42,
-        borderRadius: 14,
-        backgroundColor: Colors.surfaceGlass,
-        alignItems: 'center',
-        justifyContent: 'center',
         marginLeft: 8,
+    },
+    searchInner: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: Colors.surface,
+        borderRadius: 12,
+        paddingHorizontal: 12,
+        height: 42,
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.1)',
+    },
+    headerInput: {
+        flex: 1,
+        height: '100%',
+        color: Colors.text,
+        marginLeft: 10,
+        ...Typography.bodySmall,
+        fontSize: 14,
+    },
+    searchingIconActive: {
+        backgroundColor: 'rgba(239, 68, 68, 0.1)',
+        borderColor: 'rgba(239, 68, 68, 0.2)',
     },
     badge: {
         position: 'absolute',
-        top: -3,
-        right: -3,
-    },
-    badgeGradient: {
+        top: -4,
+        right: -4,
         minWidth: 18,
         height: 18,
         borderRadius: 9,
+        backgroundColor: Colors.accent,
         alignItems: 'center',
         justifyContent: 'center',
-        paddingHorizontal: 4,
         borderWidth: 2,
         borderColor: Colors.background,
+        paddingHorizontal: 4,
     },
     badgeText: {
-        fontSize: 9,
-        fontWeight: '800',
         color: '#fff',
-    },
-    accentBarContainer: {
-        marginTop: 12,
-        transformOrigin: 'left',
-    },
-    accentBar: {
-        height: 3,
-        borderRadius: 2,
+        fontSize: 10,
+        fontWeight: '900',
     },
 });
 

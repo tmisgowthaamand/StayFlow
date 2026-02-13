@@ -3,16 +3,12 @@ import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createStackNavigator, CardStyleInterpolators } from '@react-navigation/stack';
 import { StatusBar } from 'expo-status-bar';
-import { View, StyleSheet, Animated, Easing, LogBox } from 'react-native';
-import { Colors } from './src/theme/theme';
+import { View, StyleSheet, Animated, Easing, LogBox, Platform } from 'react-native';
+import { Colors, Typography } from './src/theme/theme';
+import { LayoutDashboard, Users, Zap, FileText, Map } from 'lucide-react-native';
 
-// Suppress common Expo Go / Firebase / Notification warnings that often clutter development
-LogBox.ignoreLogs([
-  'expo-notifications: Android Push notifications',
-  'Remote notifications are removed',
-  'Request failed with status code 404',
-  'Firebase'
-]);
+
+// Screens
 import Dashboard from './src/screens/Dashboard';
 import Residents from './src/screens/Residents';
 import Billing from './src/screens/Billing';
@@ -23,81 +19,28 @@ import Announcements from './src/screens/Announcements';
 import PDFViewer from './src/screens/PDFViewer';
 import AddTenant from './src/screens/AddTenant';
 import NotificationsScreen from './src/screens/Notifications';
-import { LayoutDashboard, Users, Zap, FileText, Map } from 'lucide-react-native';
 import { requestNotificationPermissions } from './src/utils/notifications';
-import * as Notifications from 'expo-notifications';
 
-// Configure notifications to show even when app is open
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldPlaySound: true,
-    shouldSetBadge: false,
-  }),
-});
+LogBox.ignoreLogs(['expo-notifications', 'Remote notifications', 'Firebase']);
 
 const Tab = createBottomTabNavigator();
 const Stack = createStackNavigator();
 
-// ─── Animated Tab Icon ─────────────────────────────────────────
 function AnimatedTabIcon({ IconComponent, color, size, focused }) {
   const scale = useRef(new Animated.Value(1)).current;
-  const translateY = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    if (focused) {
-      Animated.parallel([
-        Animated.spring(scale, {
-          toValue: 1.15,
-          friction: 4,
-          tension: 100,
-          useNativeDriver: true,
-        }),
-        Animated.spring(translateY, {
-          toValue: -2,
-          friction: 4,
-          tension: 100,
-          useNativeDriver: true,
-        }),
-      ]).start();
-    } else {
-      Animated.parallel([
-        Animated.spring(scale, {
-          toValue: 1,
-          friction: 6,
-          tension: 60,
-          useNativeDriver: true,
-        }),
-        Animated.spring(translateY, {
-          toValue: 0,
-          friction: 6,
-          tension: 60,
-          useNativeDriver: true,
-        }),
-      ]).start();
-    }
+    Animated.spring(scale, {
+      toValue: focused ? 1.2 : 1,
+      useNativeDriver: true,
+      friction: 4,
+      tension: 40,
+    }).start();
   }, [focused]);
 
   return (
-    <Animated.View
-      style={{
-        transform: [{ scale }, { translateY }],
-        alignItems: 'center',
-        justifyContent: 'center',
-      }}
-    >
-      <IconComponent color={color} size={size} />
-      {focused && (
-        <View
-          style={{
-            width: 5,
-            height: 5,
-            borderRadius: 2.5,
-            backgroundColor: color,
-            marginTop: 4,
-          }}
-        />
-      )}
+    <Animated.View style={{ transform: [{ scale }] }}>
+      <IconComponent color={color} size={size} strokeWidth={focused ? 2.5 : 2} />
     </Animated.View>
   );
 }
@@ -108,22 +51,31 @@ function MainTabs() {
       screenOptions={({ route }) => ({
         headerShown: false,
         tabBarActiveTintColor: Colors.primary,
-        tabBarInactiveTintColor: Colors.textMuted,
+        tabBarInactiveTintColor: Colors.textSecondary,
         tabBarStyle: {
+          position: 'absolute',
+          bottom: 24,
+          left: 16,
+          right: 16,
           height: 72,
-          paddingBottom: 14,
-          paddingTop: 10,
-          backgroundColor: Colors.tabBarBg,
-          borderTopWidth: 1,
-          borderTopColor: Colors.tabBarBorder,
-          elevation: 0,
-          shadowOpacity: 0,
+          borderRadius: 24,
+          backgroundColor: 'rgba(15, 23, 42, 0.98)',
+          borderTopWidth: 0,
+          paddingBottom: 12,
+          paddingTop: 8,
+          elevation: 12,
+          shadowColor: '#000',
+          shadowOffset: { width: 0, height: 10 },
+          shadowOpacity: 0.4,
+          shadowRadius: 20,
+          borderWidth: 1,
+          borderColor: 'rgba(255, 255, 255, 0.05)',
         },
+        tabBarShowLabel: true,
         tabBarLabelStyle: {
-          fontSize: 10,
-          fontWeight: '600',
-          letterSpacing: 0.3,
-          marginTop: -2,
+          ...Typography.tiny,
+          fontWeight: '700',
+          marginTop: -4,
         },
         tabBarIcon: ({ color, size, focused }) => {
           const icons = {
@@ -133,14 +85,7 @@ function MainTabs() {
             New: FileText,
             Billing: Zap,
           };
-          return (
-            <AnimatedTabIcon
-              IconComponent={icons[route.name]}
-              color={color}
-              size={size}
-              focused={focused}
-            />
-          );
+          return <AnimatedTabIcon IconComponent={icons[route.name]} color={color} size={22} focused={focused} />;
         },
       })}
     >
@@ -161,24 +106,12 @@ export default function App() {
   return (
     <View style={styles.container}>
       <NavigationContainer>
-        <StatusBar style="light" backgroundColor={Colors.background} />
+        <StatusBar style="light" />
         <Stack.Navigator
           screenOptions={{
             headerShown: false,
             cardStyle: { backgroundColor: Colors.background },
-            animationEnabled: true,
-            gestureEnabled: true,
-            cardStyleInterpolator: CardStyleInterpolators.forFadeFromBottomAndroid,
-            transitionSpec: {
-              open: {
-                animation: 'timing',
-                config: { duration: 280, easing: Easing.out(Easing.cubic) },
-              },
-              close: {
-                animation: 'timing',
-                config: { duration: 220, easing: Easing.in(Easing.cubic) },
-              },
-            },
+            cardStyleInterpolator: CardStyleInterpolators.forHorizontalIOS,
           }}
         >
           <Stack.Screen name="Main" component={MainTabs} />
@@ -194,8 +127,5 @@ export default function App() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: Colors.background,
-  },
+  container: { flex: 1, backgroundColor: Colors.background },
 });

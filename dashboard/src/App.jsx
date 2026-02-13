@@ -383,16 +383,16 @@ const App = () => {
         formData.append('file', announceFile);
       }
 
-      await axios.post('/api/broadcast', formData, {
+      await axios.post('/api/announcement', formData, {
         headers: { 'Content-Type': 'multipart/form-data' }
       });
 
-      showToast('Announcement broadcasted to WhatsApp!');
+      showToast('Announcement sent to WhatsApp group!');
       setAnnounceForm('');
       setAnnounceFile(null);
     } catch (err) {
       const errorMsg = err.response?.data?.error || err.message;
-      showToast(`Broadcast failed: ${errorMsg}`, 'error');
+      showToast(`Announcement failed: ${errorMsg}`, 'error');
     }
   };
 
@@ -1029,7 +1029,7 @@ const App = () => {
 
       <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="panel">
         <h3 className="panel-title" style={{ marginBottom: 20 }}><Megaphone size={18} /> Smart Announcements</h3>
-        <p style={{ color: 'var(--text-dim)', fontSize: '0.9rem', marginBottom: 24 }}>Broadcast important updates to all active residents on WhatsApp.</p>
+        <p style={{ color: 'var(--text-dim)', fontSize: '0.9rem', marginBottom: 24 }}>Send important updates to all active residents on WhatsApp.</p>
         <div className="input-group">
           <label>Message</label>
           <textarea rows="5" placeholder="Type your announcement here..." value={announceForm} onChange={e => setAnnounceForm(e.target.value)} style={{ width: '100%', borderRadius: 12, border: '1px solid var(--glass-border)', background: 'rgba(255,255,255,0.03)', color: 'white', padding: 12 }} />
@@ -1052,7 +1052,7 @@ const App = () => {
 
         <button className="btn btn-success" style={{ width: '100%', background: 'var(--secondary)', marginTop: 10 }} onClick={handleAnnounce}>
           <CheckCircle size={14} style={{ marginRight: 6 }} />
-          Send WhatsApp Broadcast
+          Send WhatsApp Announcement
         </button>
       </motion.div>
     </div>

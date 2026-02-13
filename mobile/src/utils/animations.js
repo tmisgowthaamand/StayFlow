@@ -1,283 +1,277 @@
-/**
- * StayFlow Animation Utilities
- * All animations use useNativeDriver: true for 60fps, zero-lag performance.
- * No LayoutAnimation (causes Android glitches). Pure Animated API only.
- */
-import React, { useRef, useEffect, useCallback, memo } from 'react';
-import { Animated, Easing, View, StyleSheet } from 'react-native';
+import React, { useRef, useEffect, useState, useMemo } from 'react';
+import { Animated, Easing as RNEasing, View, StyleSheet, Dimensions, Text } from 'react-native';
+import { Colors, BorderRadius } from '../theme/theme';
+import Reanimated, {
+    useSharedValue,
+    useAnimatedStyle,
+    withRepeat,
+    withTiming,
+    withSequence,
+    withDelay,
+    interpolate,
+    Extrapolate,
+    Easing as REasing
+} from 'react-native-reanimated';
 
-// ─── Reusable Hooks ────────────────────────────────────────────
+const { width, height } = Dimensions.get('window');
+
+// ─── Reanimated High-Performance Hooks ─────────────────────────
 
 /**
- * Fade + slide up entrance — the workhorse animation.
- * @param {number} delay - ms delay before animation starts
- * @param {number} duration - ms duration
- * @param {number} slideDistance - how far to slide (px)
+ * Spline-like Mesh Floating Hook (Reanimated)
  */
-export const useFadeSlideIn = (delay = 0, duration = 450, slideDistance = 24) => {
-    const opacity = useRef(new Animated.Value(0)).current;
-    const translateY = useRef(new Animated.Value(slideDistance)).current;
+export const useMeshFloat = (rangeX = 50, rangeY = 50, duration = 10000) => {
+    // Return empty style if animation is disabled or failing
+    const translateX = useSharedValue(0);
+    const translateY = useSharedValue(0);
 
     useEffect(() => {
-        const timer = setTimeout(() => {
-            Animated.parallel([
-                Animated.timing(opacity, {
-                    toValue: 1,
-                    duration,
-                    easing: Easing.out(Easing.cubic),
-                    useNativeDriver: true,
-                }),
-                Animated.timing(translateY, {
-                    toValue: 0,
-                    duration,
-                    easing: Easing.out(Easing.cubic),
-                    useNativeDriver: true,
-                }),
-            ]).start();
-        }, delay);
-
-        return () => clearTimeout(timer);
+        translateX.value = withRepeat(
+            withSequence(
+                withTiming(rangeX, { duration, easing: REasing.inOut(REasing.ease) }),
+                withTiming(-rangeX, { duration: duration * 1.2, easing: REasing.inOut(REasing.ease) }),
+                withTiming(0, { duration, easing: REasing.inOut(REasing.ease) })
+            ),
+            -1,
+            true
+        );
+        translateY.value = withRepeat(
+            withSequence(
+                withTiming(-rangeY, { duration: duration * 0.8, easing: REasing.inOut(REasing.ease) }),
+                withTiming(rangeY, { duration: duration * 1.5, easing: REasing.inOut(REasing.ease) }),
+                withTiming(0, { duration, easing: REasing.inOut(REasing.ease) })
+            ),
+            -1,
+            true
+        );
     }, []);
 
-    return { opacity, transform: [{ translateY }] };
+    return useAnimatedStyle(() => ({
+        transform: [
+            { translateX: translateX.value },
+            { translateY: translateY.value }
+        ]
+    }));
 };
 
 /**
- * Scale spring animation for entrance.
+ * Pulsing Glow Effect (Reanimated)
  */
+export const useGlowPulse = (minOpacity = 0.2, maxOpacity = 0.6, duration = 3000) => {
+    const opacity = useSharedValue(minOpacity);
+
+    useEffect(() => {
+        opacity.value = withRepeat(
+            withSequence(
+                withTiming(maxOpacity, { duration }),
+                withTiming(minOpacity, { duration })
+            ),
+            -1,
+            true
+        );
+    }, []);
+
+    return useAnimatedStyle(() => ({
+        opacity: opacity.value
+    }));
+};
+
+// ─── React Bits Inspired Components ───────────────────────────
+
+/**
+ * DecryptedText Effect (Simplified for RN)
+ */
+export const DecryptedText = ({ text, delay = 0, style }) => {
+    const [displayText, setDisplayText] = useState('');
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789@#$%&*';
+
+    useEffect(() => {
+        let iterations = 0;
+        const interval = setInterval(() => {
+            setDisplayText(
+                text.split('')
+                    .map((char, index) => {
+                        if (index < iterations) return text[index];
+                        return chars[Math.floor(Math.random() * chars.length)];
+                    })
+                    .join('')
+            );
+            if (iterations >= text.length) clearInterval(interval);
+            iterations += 1 / 3;
+        }, 30);
+        return () => clearInterval(interval);
+    }, [text]);
+
+    return <Text style={style}>{displayText}</Text>;
+};
+
+/**
+ * SplitText Animation (Entrance)
+ */
+export const SplitText = ({ text, style, delay = 0 }) => {
+    return (
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
+            {text.split('').map((char, i) => (
+                <AnimatedChar key={i} char={char} index={i} delay={delay} style={style} />
+            ))}
+        </View>
+    );
+};
+
+const AnimatedChar = ({ char, index, delay, style }) => {
+    // Simplified: No Reanimated if it's causing issues
+    return <Text style={style}>{char}</Text>;
+};
+
+// ─── Entrance Animations (Legacy Animated API) ──────────────────
+
+export const useFadeSlideIn = (delay = 0, duration = 800, distance = 40) => {
+    const fade = useRef(new Animated.Value(0)).current;
+    const slide = useRef(new Animated.Value(distance)).current;
+
+    useEffect(() => {
+        Animated.parallel([
+            Animated.timing(fade, {
+                toValue: 1,
+                duration: duration,
+                delay: delay,
+                easing: RNEasing.out(RNEasing.back(1.5)),
+                useNativeDriver: true,
+            }),
+            Animated.timing(slide, {
+                toValue: 0,
+                duration: duration,
+                delay: delay,
+                easing: RNEasing.out(RNEasing.back(1.5)),
+                useNativeDriver: true,
+            })
+        ]).start();
+    }, []);
+
+    return { opacity: fade, transform: [{ translateY: slide }] };
+};
+
 export const useScaleIn = (delay = 0) => {
-    const scale = useRef(new Animated.Value(0.85)).current;
+    const scale = useRef(new Animated.Value(0.8)).current;
     const opacity = useRef(new Animated.Value(0)).current;
 
     useEffect(() => {
-        const timer = setTimeout(() => {
-            Animated.parallel([
-                Animated.spring(scale, {
-                    toValue: 1,
-                    friction: 7,
-                    tension: 40,
-                    useNativeDriver: true,
-                }),
-                Animated.timing(opacity, {
-                    toValue: 1,
-                    duration: 300,
-                    useNativeDriver: true,
-                }),
-            ]).start();
-        }, delay);
-
-        return () => clearTimeout(timer);
+        Animated.spring(scale, {
+            toValue: 1,
+            delay,
+            friction: 8,
+            tension: 40,
+            useNativeDriver: true,
+        }).start();
+        Animated.timing(opacity, {
+            toValue: 1,
+            duration: 500,
+            delay,
+            useNativeDriver: true,
+        }).start();
     }, []);
 
     return { opacity, transform: [{ scale }] };
 };
 
-/**
- * Pressable scale effect — shrink on press, bounce back on release.
- * Returns { scaleStyle, onPressIn, onPressOut }
- */
-export const usePressAnimation = (activeScale = 0.96) => {
-    const scaleAnim = useRef(new Animated.Value(1)).current;
+// ─── Interactive Animations ─────────────────────────────────────
 
-    const onPressIn = useCallback(() => {
-        Animated.spring(scaleAnim, {
-            toValue: activeScale,
-            friction: 5,
-            tension: 100,
+export const usePressAnimation = (scaleTo = 0.95) => {
+    const anim = useRef(new Animated.Value(1)).current;
+
+    const onPressIn = () => {
+        Animated.spring(anim, {
+            toValue: scaleTo,
             useNativeDriver: true,
-        }).start();
-    }, []);
-
-    const onPressOut = useCallback(() => {
-        Animated.spring(scaleAnim, {
-            toValue: 1,
             friction: 4,
-            tension: 80,
-            useNativeDriver: true,
+            tension: 100,
         }).start();
-    }, []);
-
-    return {
-        scaleStyle: { transform: [{ scale: scaleAnim }] },
-        onPressIn,
-        onPressOut,
     };
+
+    const onPressOut = () => {
+        Animated.spring(anim, {
+            toValue: 1,
+            useNativeDriver: true,
+            friction: 4,
+            tension: 100,
+        }).start();
+    };
+
+    return { scaleStyle: { transform: [{ scale: anim }] }, onPressIn, onPressOut };
 };
 
-// ─── Animated List Item Wrapper ────────────────────────────────
+// ─── Components ────────────────────────────────────────────────
 
-/**
- * Wraps any list item with a staggered fade + slide entrance.
- * Use inside FlatList renderItem.
- */
-export const AnimatedListItem = memo(({ children, index, style }) => {
-    const anim = useFadeSlideIn(index * 60, 400, 20);
+export const AnimatedListItem = ({ children, index }) => {
+    const anim = useFadeSlideIn(index * 100, 600, 30);
+    return <Animated.View style={anim}>{children}</Animated.View>;
+};
 
-    return (
-        <Animated.View style={[anim, style]}>
-            {children}
-        </Animated.View>
-    );
-});
-
-// ─── Shimmer Skeleton Loader ───────────────────────────────────
-
-export const SkeletonLoader = memo(({ width = '100%', height = 16, borderRadius = 8, style }) => {
-    const shimmer = useRef(new Animated.Value(0)).current;
+export const SkeletonLoader = ({ style }) => {
+    const anim = useRef(new Animated.Value(0)).current;
 
     useEffect(() => {
-        const loop = Animated.loop(
-            Animated.sequence([
-                Animated.timing(shimmer, {
-                    toValue: 1,
-                    duration: 1000,
-                    easing: Easing.inOut(Easing.ease),
-                    useNativeDriver: true,
-                }),
-                Animated.timing(shimmer, {
-                    toValue: 0,
-                    duration: 1000,
-                    easing: Easing.inOut(Easing.ease),
-                    useNativeDriver: true,
-                }),
-            ])
-        );
-        loop.start();
-        return () => loop.stop();
+        Animated.loop(
+            Animated.timing(anim, {
+                toValue: 1,
+                duration: 1500,
+                easing: RNEasing.linear,
+                useNativeDriver: true,
+            })
+        ).start();
     }, []);
 
-    const opacity = shimmer.interpolate({
+    const translateX = anim.interpolate({
         inputRange: [0, 1],
-        outputRange: [0.3, 0.7],
+        outputRange: [-width, width],
     });
 
     return (
-        <Animated.View
-            style={[
-                {
-                    width,
-                    height,
-                    borderRadius,
-                    backgroundColor: 'rgba(148, 163, 184, 0.15)',
-                    opacity,
-                },
-                style,
-            ]}
-        />
-    );
-});
-
-/**
- * Full skeleton card placeholder for loading states.
- */
-export const SkeletonCard = memo(({ lines = 3 }) => (
-    <View style={skeletonStyles.card}>
-        <View style={skeletonStyles.row}>
-            <SkeletonLoader width={40} height={40} borderRadius={12} />
-            <View style={{ flex: 1, marginLeft: 12, gap: 8 }}>
-                <SkeletonLoader width="60%" height={14} />
-                <SkeletonLoader width="40%" height={10} />
-            </View>
+        <View style={[styles.skeleton, style]}>
+            <Animated.View
+                style={[
+                    styles.skeletonGlow,
+                    { transform: [{ translateX }] }
+                ]}
+            />
         </View>
-        {lines > 1 && <SkeletonLoader width="100%" height={12} style={{ marginTop: 14 }} />}
-        {lines > 2 && <SkeletonLoader width="75%" height={12} style={{ marginTop: 8 }} />}
+    );
+};
+
+export const SkeletonCard = ({ lines = 3 }) => (
+    <View style={styles.skelCard}>
+        <SkeletonLoader style={styles.skelIcon} />
+        <View style={{ flex: 1, gap: 10 }}>
+            {Array(lines).fill(0).map((_, i) => (
+                <SkeletonLoader key={i} style={[styles.skelLine, { width: i === lines - 1 ? '60%' : '100%' }]} />
+            ))}
+        </View>
     </View>
-));
+);
 
-const skeletonStyles = StyleSheet.create({
-    card: {
-        backgroundColor: 'rgba(26, 31, 46, 0.6)',
-        borderRadius: 16,
-        padding: 16,
-        marginBottom: 12,
-        borderWidth: 1,
-        borderColor: 'rgba(148, 163, 184, 0.08)',
+const styles = StyleSheet.create({
+    skeleton: {
+        backgroundColor: 'rgba(255,255,255,0.05)',
+        overflow: 'hidden',
+        borderRadius: 8,
     },
-    row: {
+    skeletonGlow: {
+        width: '50%',
+        height: '100%',
+        backgroundColor: 'rgba(255,255,255,0.08)',
+        opacity: 0.5,
+    },
+    skelCard: {
         flexDirection: 'row',
-        alignItems: 'center',
+        padding: 16,
+        backgroundColor: 'rgba(255,255,255,0.03)',
+        borderRadius: 16,
+        marginBottom: 16,
+        gap: 16,
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.05)',
     },
+    skelIcon: { width: 50, height: 50, borderRadius: 12 },
+    skelLine: { height: 12, borderRadius: 6 },
 });
 
-// ─── Stagger Group ─────────────────────────────────────────────
-
-/**
- * Animates children in a stagger pattern.
- * Wrap a group of items and each will fade + slide in sequence.
- */
-export const StaggerGroup = memo(({ children, staggerMs = 80, style }) => {
-    return (
-        <View style={style}>
-            {React.Children.map(children, (child, index) => {
-                if (!child) return null;
-                return (
-                    <AnimatedListItem index={index} key={index}>
-                        {child}
-                    </AnimatedListItem>
-                );
-            })}
-        </View>
-    );
-});
-
-// ─── Number Counter Animation ──────────────────────────────────
-
-/**
- * Animates a number counting up from 0 to target value.
- */
-export const useCountUp = (targetValue, duration = 800, delay = 0) => {
-    const animatedValue = useRef(new Animated.Value(0)).current;
-    const displayValue = useRef(0);
-    const [display, setDisplay] = React.useState('0');
-
-    useEffect(() => {
-        const listener = animatedValue.addListener(({ value }) => {
-            setDisplay(Math.floor(value).toLocaleString());
-        });
-
-        const timer = setTimeout(() => {
-            Animated.timing(animatedValue, {
-                toValue: targetValue,
-                duration,
-                easing: Easing.out(Easing.cubic),
-                useNativeDriver: false, // Required for value listener
-            }).start();
-        }, delay);
-
-        return () => {
-            clearTimeout(timer);
-            animatedValue.removeListener(listener);
-        };
-    }, [targetValue]);
-
-    return display;
-};
-
-// ─── Pulse Animation ───────────────────────────────────────────
-
-export const usePulse = (minScale = 0.97, maxScale = 1.03, speed = 2000) => {
-    const pulse = useRef(new Animated.Value(1)).current;
-
-    useEffect(() => {
-        const loop = Animated.loop(
-            Animated.sequence([
-                Animated.timing(pulse, {
-                    toValue: maxScale,
-                    duration: speed / 2,
-                    easing: Easing.inOut(Easing.ease),
-                    useNativeDriver: true,
-                }),
-                Animated.timing(pulse, {
-                    toValue: minScale,
-                    duration: speed / 2,
-                    easing: Easing.inOut(Easing.ease),
-                    useNativeDriver: true,
-                }),
-            ])
-        );
-        loop.start();
-        return () => loop.stop();
-    }, []);
-
-    return { transform: [{ scale: pulse }] };
-};

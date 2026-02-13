@@ -9,7 +9,7 @@ const api = axios.create({
 
 export const getTenants = async () => {
     try {
-        const response = await api.get('/tenants');
+        const response = await api.get('tenants');
         return response.data;
     } catch (error) {
         console.error('Fetch tenants failed:', error.message);
@@ -19,7 +19,7 @@ export const getTenants = async () => {
 
 export const getDashboardStats = async () => {
     try {
-        const response = await api.get('/dashboard-stats');
+        const response = await api.get('dashboard-stats');
         return response.data;
     } catch (error) {
         console.error('Fetch stats failed:', error.message);
@@ -29,7 +29,7 @@ export const getDashboardStats = async () => {
 
 export const notifyTenant = async (phone, name) => {
     try {
-        const response = await api.post('/notify-tenant', { phone, name });
+        const response = await api.post('notify-tenant', { phone, name });
         return response.data;
     } catch (error) {
         console.error('Notify tenant failed:', error.message);
@@ -39,7 +39,7 @@ export const notifyTenant = async (phone, name) => {
 
 export const updateEBBill = async (room, totalEB) => {
     try {
-        const response = await api.post('/update-eb', { room, totalEB });
+        const response = await api.post('update-eb', { room, totalEB });
         return response.data;
     } catch (error) {
         console.error('Update EB failed:', error.message);
@@ -49,7 +49,7 @@ export const updateEBBill = async (room, totalEB) => {
 
 export const markPaidManual = async (phone, name, amount, mode) => {
     try {
-        const response = await api.post('/mark-paid', { phone, name, amount, mode });
+        const response = await api.post('mark-paid', { phone, name, amount, mode });
         return response.data;
     } catch (error) {
         console.error('Mark paid failed:', error.message);
@@ -59,7 +59,7 @@ export const markPaidManual = async (phone, name, amount, mode) => {
 
 export const addTenant = async (tenantData) => {
     try {
-        const response = await api.post('/add-tenant', tenantData);
+        const response = await api.post('add-tenant', tenantData);
         return response.data;
     } catch (error) {
         console.error('Add tenant failed:', error.message);
@@ -69,7 +69,7 @@ export const addTenant = async (tenantData) => {
 
 export const deleteTenant = async (phone, name) => {
     try {
-        const response = await api.post('/delete-tenant', { phone, name });
+        const response = await api.post('delete-tenant', { phone, name });
         return response.data;
     } catch (error) {
         console.error('Delete tenant failed:', error.message);
@@ -79,7 +79,7 @@ export const deleteTenant = async (phone, name) => {
 
 export const updateTenant = async (data) => {
     try {
-        const response = await api.post('/update-and-notify', data);
+        const response = await api.post('update-and-notify', data);
         return response.data;
     } catch (error) {
         console.error('Update tenant failed:', error.message);
@@ -87,23 +87,23 @@ export const updateTenant = async (data) => {
     }
 };
 
-export const broadcastMessage = async (data, isMultipart = false) => {
+export const sendAnnouncement = async (data, isMultipart = false) => {
     try {
         const config = isMultipart ? { headers: { 'Content-Type': 'multipart/form-data' } } : {};
         // If not multipart, wrap message in object as backend expects { message: ... }
         const payload = isMultipart ? data : { message: data };
 
-        const response = await api.post('/broadcast', payload, config);
+        const response = await api.post('announcement', payload, config);
         return response.data;
     } catch (error) {
-        console.error('Broadcast failed:', error.message);
+        console.error('Announcement failed:', error.message);
         throw error;
     }
 };
 
 export const notifyAll = async () => {
     try {
-        const response = await api.post('/trigger-notifications');
+        const response = await api.post('trigger-notifications');
         return response.data;
     } catch (error) {
         console.error('Notify all failed:', error.message);
@@ -113,7 +113,7 @@ export const notifyAll = async () => {
 
 export const generateInvoice = async (phone, name) => {
     try {
-        const response = await api.post('/generate-invoice', { phone, name });
+        const response = await api.post('generate-invoice', { phone, name });
         return response.data;
     } catch (error) {
         console.error('Generate invoice failed:', error.message);
@@ -123,7 +123,7 @@ export const generateInvoice = async (phone, name) => {
 
 export const getNotifications = async () => {
     try {
-        const response = await api.get('/notifications');
+        const response = await api.get('notifications');
         return response.data;
     } catch (error) {
         if (error.response?.status === 404) return []; // Silent fail for local testing
@@ -134,7 +134,7 @@ export const getNotifications = async () => {
 
 export const getUnreadNotificationCount = async () => {
     try {
-        const response = await api.get('/notifications/unread-count');
+        const response = await api.get('notifications/unread-count');
         return response.data;
     } catch (error) {
         if (error.response?.status === 404) return { count: 0 }; // Silent fail for local testing
@@ -144,7 +144,7 @@ export const getUnreadNotificationCount = async () => {
 
 export const markNotificationsAsRead = async (id) => {
     try {
-        const response = await api.post('/notifications/mark-read', { id });
+        const response = await api.post('notifications/mark-read', { id });
         return response.data;
     } catch (error) {
         console.error('Mark read failed:', error.message);
@@ -154,7 +154,7 @@ export const markNotificationsAsRead = async (id) => {
 
 export const clearAllNotifications = async () => {
     try {
-        const response = await api.delete('/notifications');
+        const response = await api.delete('notifications');
         return response.data;
     } catch (error) {
         console.error('Clear notifications failed:', error.message);

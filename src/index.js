@@ -1237,7 +1237,7 @@ app.get('/api/archived-tenants', async (req, res) => {
     }
 });
 
-app.post('/api/broadcast', upload.single('file'), async (req, res) => {
+app.post(['/api/announcement', '/api/broadcast'], upload.single('file'), async (req, res) => {
     try {
         const { message } = req.body;
         const file = req.file;
@@ -1246,20 +1246,48 @@ app.post('/api/broadcast', upload.single('file'), async (req, res) => {
         const tenants = await sheetsService.getTenantsJSON();
         const active = tenants.filter(t => t.Status !== 'VACATED');
 
-        for (const t of active) {
-            if (!t.Phone) continue;
-            try {
-                if (file) {
-                    await sendMedia(t.Phone, file.path, message || '', null, file.originalname);
-                } else {
-                    await sendMessage(t.Phone, `📢 *Announcement*\n\n${message}`);
-                }
-            } catch (err) {
-                console.error(`Broadcast error for ${t.Phone}:`, err.message);
-            }
+        // Create In-App Notification
+        try {
+            await Notification.create({
+                type: 'announcement',
+                title: '📢 New Announcement',
+                body: message || (file ? 'Sent an attachment' : 'Announcement sent to residents'),
+                meta: { message, hasFile: !!file, count: active.length }
+            });
+        } catch (e) {
+            console.error('Failed to create announcement notification:', e.message);
         }
-        res.json({ success: true, count: active.length });
+
+        // Respond immediately to prevent mobile app timeout
+        res.json({ success: true, message: `Sending announcement to ${active.length} residents...` });
+
+        // Background process to handle sending without blocking the response
+        (async () => {
+            console.log(`[ANNOUNCEMENT] Starting background send to ${active.length} recipients...`);
+            let sentCount = 0;
+            for (const t of active) {
+                if (!t.Phone) continue;
+                try {
+                    if (file) {
+                        await sendMedia(t.Phone, file.path, message || '', null, file.originalname);
+                    } else {
+                        await sendMessage(t.Phone, `📢 *Announcement*\n\n${message}`);
+                    }
+                    sentCount++;
+                    // Non-blocking delay to respect rate limits
+                    await new Promise(r => setTimeout(r, 1000));
+                } catch (err) {
+                    console.error(`[ANNOUNCEMENT] Error for ${t.Phone}:`, err.message);
+                }
+            }
+            console.log(`[ANNOUNCEMENT] Complete: Sent to ${sentCount}/${active.length} recipients.`);
+
+            // Note: In a production environment with many users, 
+            // the temp file would be deleted after the loop, 
+            // but we keep it simple here as multer cleans up based on config.
+        })();
     } catch (err) {
+        console.error('Announcement API Error:', err.message);
         res.status(500).json({ error: err.message });
     }
 });

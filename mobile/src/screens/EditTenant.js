@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, Alert, ActivityIndicator, KeyboardAvoidingView, Platform, Animated, Easing } from 'react-native';
+import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, Alert, ActivityIndicator, KeyboardAvoidingView, Platform, Animated, Easing as RNEasing } from 'react-native';
 import { Colors, Spacing, Shadows, Typography, BorderRadius, Gradients } from '../theme/theme';
 import { LinearGradient } from 'expo-linear-gradient';
 import Header from '../components/Header';
@@ -23,89 +23,95 @@ const EditTenant = ({ route, navigation }) => {
     const cardAnim = useFadeSlideIn(80, 500, 28);
     const { scaleStyle: submitPress, onPressIn: submitIn, onPressOut: submitOut } = usePressAnimation(0.95);
 
-    // Form field entrance animations
-    const fieldAnims = useRef(Array.from({ length: 6 }, () => new Animated.Value(0))).current;
-    const fieldSlides = useRef(Array.from({ length: 6 }, () => new Animated.Value(16))).current;
-    useEffect(() => {
-        fieldAnims.forEach((anim, i) => {
-            setTimeout(() => {
-                Animated.parallel([
-                    Animated.timing(anim, { toValue: 1, duration: 350, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
-                    Animated.timing(fieldSlides[i], { toValue: 0, duration: 350, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
-                ]).start();
-            }, 200 + i * 60);
-        });
-    }, []);
-
     const handleChange = (key, value) => setFormData(prev => ({ ...prev, [key]: value }));
 
     const handleSubmit = async () => {
         try {
             setLoading(true);
             await updateTenant({ oldPhone: tenant.Phone, oldName: tenant.Name, name: formData.name, phone: formData.phone, room: formData.room, rent: formData.rent, eb: formData.eb, sharingType: formData.sharingType, location: formData.location, status: formData.status });
-            Alert.alert('Success', 'Resident updated!', [{ text: 'OK', onPress: () => navigation.goBack() }]);
-        } catch (e) { Alert.alert('Error', 'Failed: ' + (e?.response?.data?.error || e.message)); }
+            Alert.alert('Details Updated', `Profile for ${formData.name} has been synchronized.`, [{ text: 'Done', onPress: () => navigation.goBack() }]);
+        } catch (e) { Alert.alert('Error', 'Profile update failed'); }
         finally { setLoading(false); }
     };
 
-    const renderField = (label, key, fieldIndex, options = {}) => (
-        <Animated.View style={[styles.formGroup, options.halfWidth && { flex: 1 }, { opacity: fieldAnims[fieldIndex], transform: [{ translateY: fieldSlides[fieldIndex] }] }]}>
-            <Text style={styles.label}>{label}</Text>
-            <View style={styles.inputWrapper}>
-                {options.icon && <View style={styles.inputIcon}>{options.icon}</View>}
-                <TextInput style={[styles.input, options.icon && { paddingLeft: 40 }]} value={formData[key]} onChangeText={t => handleChange(key, t)} keyboardType={options.keyboard || 'default'} maxLength={options.maxLength} placeholderTextColor={Colors.textMuted} placeholder={options.placeholder} />
+    const renderField = (label, key, options = {}) => (
+        <View style={[styles.fieldGroup, options.halfWidth && { flex: 1 }]}>
+            <Text style={styles.fieldLabel}>{label}</Text>
+            <View style={styles.inputBox}>
+                {options.icon && <View style={styles.fieldIcon}>{options.icon}</View>}
+                <TextInput
+                    style={[styles.textInput, options.icon && { paddingLeft: 44 }]}
+                    value={formData[key]}
+                    onChangeText={t => handleChange(key, t)}
+                    keyboardType={options.keyboard || 'default'}
+                    maxLength={options.maxLength}
+                    placeholderTextColor={Colors.textMuted}
+                    placeholder={options.placeholder}
+                />
             </View>
-        </Animated.View>
+        </View>
     );
 
     return (
         <View style={styles.container}>
-            <Header title="Edit Resident" />
+            <Header title="Edit Profile" />
             <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
-                <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-                    <Animated.View style={[styles.card, Shadows.md, cardAnim]}>
-                        <View style={styles.headerRow}>
-                            <LinearGradient colors={Gradients.primary} style={styles.headerIconBg}>
-                                <User color="#fff" size={20} />
+                <ScrollView contentContainerStyle={styles.scrollArea} showsVerticalScrollIndicator={false}>
+                    <Animated.View style={[styles.editCard, cardAnim]}>
+                        <View style={styles.cardHeader}>
+                            <LinearGradient colors={Gradients.primary} style={styles.iconBox}>
+                                <User color="#fff" size={24} />
                             </LinearGradient>
                             <View>
-                                <Text style={styles.cardTitle}>Edit Details</Text>
-                                <Text style={styles.cardSubtitle}>{tenant.Name}</Text>
+                                <Text style={styles.cardTitle}>Resident Profile</Text>
+                                <Text style={styles.cardInfo}>Update existing records for {tenant.Name}</Text>
                             </View>
                         </View>
 
-                        {renderField('Full Name', 'name', 0, { icon: <User size={16} color={Colors.textMuted} />, placeholder: 'Full name' })}
-                        {renderField('Phone Number', 'phone', 1, { keyboard: 'phone-pad', maxLength: 10, icon: <Phone size={16} color={Colors.textMuted} />, placeholder: '9876543210' })}
+                        {renderField('FULL NAME', 'name', { icon: <User size={16} color={Colors.primary} /> })}
+                        {renderField('PHONE NUMBER', 'phone', { keyboard: 'phone-pad', maxLength: 10, icon: <Phone size={16} color={Colors.primary} /> })}
 
-                        <View style={styles.row}>
-                            {renderField('Room No', 'room', 2, { halfWidth: true, icon: <Home size={16} color={Colors.textMuted} />, placeholder: '101' })}
-                            <View style={{ width: Spacing.sm }} />
-                            {renderField('Sharing', 'sharingType', 3, { halfWidth: true, keyboard: 'numeric', placeholder: '2' })}
-                        </View>
-                        <View style={styles.row}>
-                            {renderField('Monthly Rent (₹)', 'rent', 4, { halfWidth: true, keyboard: 'numeric', placeholder: '5000' })}
-                            <View style={{ width: Spacing.sm }} />
-                            {renderField('EB Due (₹)', 'eb', 5, { halfWidth: true, keyboard: 'numeric', icon: <Zap size={16} color={Colors.textMuted} />, placeholder: '0' })}
+                        <View style={styles.inputRow}>
+                            {renderField('ROOM', 'room', { halfWidth: true, icon: <Home size={16} color={Colors.primary} /> })}
+                            <View style={{ width: 12 }} />
+                            {renderField('SHARING', 'sharingType', { halfWidth: true, keyboard: 'numeric' })}
                         </View>
 
-                        <Animated.View style={{ opacity: fieldAnims[5], transform: [{ translateY: fieldSlides[5] }] }}>
-                            <View style={styles.formGroup}>
-                                <Text style={styles.label}>Payment Status</Text>
-                                <View style={styles.statusContainer}>
-                                    <TouchableOpacity style={[styles.statusOption, formData.status === 'PAID' && styles.statusActivePaid]} onPress={() => handleChange('status', 'PAID')}>
-                                        <Text style={[styles.statusOptionText, formData.status === 'PAID' && { color: Colors.success }]}>PAID</Text>
-                                    </TouchableOpacity>
-                                    <TouchableOpacity style={[styles.statusOption, formData.status === 'PENDING' && styles.statusActivePending]} onPress={() => handleChange('status', 'PENDING')}>
-                                        <Text style={[styles.statusOptionText, formData.status === 'PENDING' && { color: Colors.danger }]}>PENDING</Text>
-                                    </TouchableOpacity>
-                                </View>
+                        <View style={styles.inputRow}>
+                            {renderField('MONTHLY RENT', 'rent', { halfWidth: true, keyboard: 'numeric' })}
+                            <View style={{ width: 12 }} />
+                            {renderField('EB DUE', 'eb', { halfWidth: true, keyboard: 'numeric', icon: <Zap size={16} color={Colors.primary} /> })}
+                        </View>
+
+                        <View style={styles.fieldGroup}>
+                            <Text style={styles.fieldLabel}>LEDGER STATUS</Text>
+                            <View style={styles.toggleRow}>
+                                <TouchableOpacity
+                                    style={[styles.toggleBtn, formData.status === 'PAID' && styles.togglePaid]}
+                                    onPress={() => handleChange('status', 'PAID')}
+                                    activeOpacity={0.8}
+                                >
+                                    <Text style={[styles.toggleText, formData.status === 'PAID' && { color: Colors.secondaryLight }]}>PAID</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity
+                                    style={[styles.toggleBtn, formData.status === 'PENDING' && styles.togglePending]}
+                                    onPress={() => handleChange('status', 'PENDING')}
+                                    activeOpacity={0.8}
+                                >
+                                    <Text style={[styles.toggleText, formData.status === 'PENDING' && { color: Colors.danger }]}>PENDING</Text>
+                                </TouchableOpacity>
                             </View>
-                        </Animated.View>
+                        </View>
 
-                        <Animated.View style={submitPress}>
+                        <Animated.View style={[submitPress, { marginTop: 12 }]}>
                             <TouchableOpacity onPress={handleSubmit} disabled={loading} onPressIn={submitIn} onPressOut={submitOut} activeOpacity={1}>
-                                <LinearGradient colors={Gradients.primary} style={styles.submitButton}>
-                                    {loading ? <ActivityIndicator color="#fff" /> : (<><Save color="#fff" size={18} /><Text style={styles.submitButtonText}>Save Changes</Text></>)}
+                                <LinearGradient colors={Gradients.primary} style={styles.saveBtn}>
+                                    {loading ? <ActivityIndicator color="#fff" /> : (
+                                        <>
+                                            <Save color="#fff" size={20} />
+                                            <Text style={styles.saveBtnText}>Save Synchronize</Text>
+                                        </>
+                                    )}
                                 </LinearGradient>
                             </TouchableOpacity>
                         </Animated.View>
@@ -118,25 +124,45 @@ const EditTenant = ({ route, navigation }) => {
 
 const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: Colors.background },
-    scrollContent: { padding: Spacing.md },
-    card: { backgroundColor: Colors.surface, borderRadius: BorderRadius.xl, padding: Spacing.lg, borderWidth: 1, borderColor: Colors.border },
-    headerRow: { flexDirection: 'row', alignItems: 'center', marginBottom: Spacing.xl, gap: 14 },
-    headerIconBg: { width: 44, height: 44, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
-    cardTitle: { ...Typography.h3, color: Colors.text },
-    cardSubtitle: { ...Typography.caption, color: Colors.primary, marginTop: 2 },
-    formGroup: { marginBottom: Spacing.md },
-    label: { ...Typography.caption, color: Colors.textSecondary, marginBottom: 6, fontWeight: '600' },
-    inputWrapper: { position: 'relative' },
-    inputIcon: { position: 'absolute', left: 12, top: 0, bottom: 0, justifyContent: 'center', zIndex: 1 },
-    input: { backgroundColor: Colors.surfaceElevated, borderWidth: 1, borderColor: Colors.border, borderRadius: BorderRadius.sm, paddingHorizontal: 14, paddingVertical: 12, ...Typography.body, color: Colors.text },
-    row: { flexDirection: 'row' },
-    statusContainer: { flexDirection: 'row', gap: 12 },
-    statusOption: { flex: 1, padding: 14, borderRadius: BorderRadius.sm, borderWidth: 1, borderColor: Colors.border, alignItems: 'center', backgroundColor: Colors.surfaceElevated },
-    statusActivePaid: { backgroundColor: Colors.successBg, borderColor: Colors.success },
-    statusActivePending: { backgroundColor: Colors.dangerBg, borderColor: Colors.danger },
-    statusOptionText: { ...Typography.bodyBold, color: Colors.textSecondary },
-    submitButton: { borderRadius: BorderRadius.md, padding: 16, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', marginTop: Spacing.sm, gap: 8 },
-    submitButtonText: { color: '#fff', ...Typography.bodyBold, fontSize: 16 },
+    scrollArea: { padding: Spacing.md },
+    editCard: {
+        backgroundColor: Colors.backgroundAlt,
+        borderRadius: BorderRadius.lg,
+        padding: Spacing.lg,
+        borderWidth: 1,
+        borderColor: Colors.border,
+        ...Shadows.md
+    },
+    cardHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 32, gap: 16 },
+    iconBox: { width: 52, height: 52, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
+    cardTitle: { ...Typography.h3, color: Colors.text, fontSize: 22 },
+    cardInfo: { ...Typography.bodySmall, color: Colors.textSecondary, marginTop: 2 },
+
+    fieldGroup: { marginBottom: 22 },
+    fieldLabel: { ...Typography.tiny, color: Colors.textSecondary, marginBottom: 10, letterSpacing: 1, fontWeight: '800' },
+    inputBox: { position: 'relative' },
+    fieldIcon: { position: 'absolute', left: 14, top: 0, bottom: 0, justifyContent: 'center', zIndex: 1 },
+    textInput: {
+        backgroundColor: Colors.surface,
+        borderWidth: 1,
+        borderColor: Colors.border,
+        borderRadius: 12,
+        paddingHorizontal: 16,
+        paddingVertical: 14,
+        ...Typography.body,
+        color: Colors.text,
+        fontSize: 15
+    },
+    inputRow: { flexDirection: 'row' },
+
+    toggleRow: { flexDirection: 'row', gap: 12 },
+    toggleBtn: { flex: 1, paddingVertical: 14, borderRadius: 12, borderWidth: 1, borderColor: Colors.border, alignItems: 'center', backgroundColor: Colors.surface },
+    togglePaid: { backgroundColor: Colors.successBg, borderColor: Colors.secondaryLight },
+    togglePending: { backgroundColor: Colors.dangerBg, borderColor: Colors.danger },
+    toggleText: { ...Typography.bodyBold, color: Colors.textMuted, fontSize: 13, letterSpacing: 1 },
+
+    saveBtn: { borderRadius: BorderRadius.md, padding: 18, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', marginTop: 8, gap: 12, ...Shadows.glow(Colors.primary, 0.2) },
+    saveBtnText: { color: '#fff', ...Typography.bodyBold, fontSize: 16, letterSpacing: 0.5 },
 });
 
 export default EditTenant;

@@ -50,6 +50,13 @@ export const NOTIFICATION_TYPES = {
         gradient: ['#8B5CF6', '#6C63FF'],
         color: '#8B5CF6',
     },
+    ANNOUNCEMENT: {
+        key: 'announcement',
+        label: 'Announcement',
+        icon: 'Megaphone',
+        gradient: ['#60A5FA', '#3B82F6'],
+        color: '#60A5FA',
+    },
 };
 
 /**
@@ -378,5 +385,13 @@ export const notifyEBSplit = (room, perPerson, count) =>
         `EB bill split — Room ${room}`,
         `₹${perPerson}/person for ${count} residents`,
         { room, perPerson, count },
+        true // bannerOnly
+    );
+export const notifyAnnouncement = (message, count) =>
+    addNotification(
+        'announcement',
+        `📢 New Announcement`,
+        message || `Sent to ${count} residents`,
+        { message, count },
         true // bannerOnly
     );

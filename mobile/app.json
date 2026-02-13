@@ -20,13 +20,7 @@
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#0A0E1A"
       },
-      "statusBar": {
-        "backgroundColor": "#0A0E1A",
-        "barStyle": "light-content",
-        "translucent": true
-      },
-      "package": "com.stayflow.mobile",
-      "googleServicesFile": "./google-services.json"
+      "package": "com.stayflow.mobile"
     },
     "notification": {
       "icon": "./assets/notification-icon.png",
@@ -34,6 +28,9 @@
     },
     "web": {
       "favicon": "./assets/favicon.png"
-    }
+    },
+    "plugins": [
+      "expo-asset"
+    ]
   }
 }
