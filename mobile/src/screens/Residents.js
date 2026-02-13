@@ -114,6 +114,31 @@ const Residents = ({ route }) => {
         setFilteredTenants(filtered);
     };
 
+    const confirmFinalPayment = (phone, name, amount, mode) => {
+        Alert.alert(
+            "Confirm Invoice",
+            `Okay to confirm invoice for ${name}?`,
+            [
+                { text: "Cancel", style: "cancel" },
+                {
+                    text: "OK",
+                    onPress: async () => {
+                        try {
+                            setLoading(true);
+                            await markPaidManual(phone, name, amount, mode);
+                            Alert.alert("Success", `Marked as Paid via ${mode}. Invoice sent to resident.`);
+                            fetchTenants();
+                        } catch (e) {
+                            Alert.alert("Error", "Mark paid failed: " + e.message);
+                        } finally {
+                            setLoading(false);
+                        }
+                    }
+                }
+            ]
+        );
+    };
+
     const handleAction = async (action) => {
         if (!selectedTenant) return;
 
@@ -124,10 +149,28 @@ const Residents = ({ route }) => {
                 await notifyTenant(selectedTenant.Phone, selectedTenant.Name);
                 Alert.alert(t('success'), t('reminder_sent'));
             } else if (action === 'PAID') {
-                setSelectedTenant(null);
+                const tenantName = selectedTenant.Name;
+                const tenantPhone = selectedTenant.Phone;
                 const amount = parseFloat(selectedTenant['Total Amount'] || selectedTenant['Monthly Rent'] || '0');
-                await markPaidManual(selectedTenant.Phone, selectedTenant.Name, amount, 'CASH');
-                Alert.alert("Success", "Marked as Paid via CASH.");
+
+                setSelectedTenant(null);
+
+                Alert.alert(
+                    "Select Payment Mode",
+                    `How did ${tenantName} pay ₹${amount}?`,
+                    [
+                        { text: "Cancel", style: "cancel" },
+                        {
+                            text: "CASH",
+                            onPress: () => confirmFinalPayment(tenantPhone, tenantName, amount, 'CASH')
+                        },
+                        {
+                            text: "UPI",
+                            onPress: () => confirmFinalPayment(tenantPhone, tenantName, amount, 'UPI')
+                        }
+                    ]
+                );
+                return;
             } else if (action === 'PREVIEW') {
                 setSelectedTenant(null); // Close the menu
                 try {
