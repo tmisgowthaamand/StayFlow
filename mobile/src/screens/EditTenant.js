@@ -6,9 +6,11 @@ import Header from '../components/Header';
 import { updateTenant } from '../api/api';
 import { Save, User, Phone, Home, Zap } from 'lucide-react-native';
 import { useFadeSlideIn, usePressAnimation } from '../utils/animations';
+import { useLanguage } from '../context/LanguageContext';
 
 const EditTenant = ({ route, navigation }) => {
     const { tenant } = route.params;
+    const { t } = useLanguage();
     const [formData, setFormData] = useState({
         name: tenant.Name, phone: tenant.Phone, room: (tenant.Room || '').toString(),
         sharingType: (tenant['Sharing Type'] || '').toString(),
@@ -29,8 +31,8 @@ const EditTenant = ({ route, navigation }) => {
         try {
             setLoading(true);
             await updateTenant({ oldPhone: tenant.Phone, oldName: tenant.Name, name: formData.name, phone: formData.phone, room: formData.room, rent: formData.rent, eb: formData.eb, sharingType: formData.sharingType, location: formData.location, status: formData.status });
-            Alert.alert('Details Updated', `Profile for ${formData.name} has been synchronized.`, [{ text: 'Done', onPress: () => navigation.goBack() }]);
-        } catch (e) { Alert.alert('Error', 'Profile update failed'); }
+            Alert.alert(t('details_updated'), t('profile_synced', { name: formData.name }), [{ text: t('done'), onPress: () => navigation.goBack() }]);
+        } catch (e) { Alert.alert(t('error'), t('profile_update_failed')); }
         finally { setLoading(false); }
     };
 
@@ -54,7 +56,7 @@ const EditTenant = ({ route, navigation }) => {
 
     return (
         <View style={styles.container}>
-            <Header title="Edit Profile" />
+            <Header title={t('edit_profile')} />
             <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
                 <ScrollView contentContainerStyle={styles.scrollArea} showsVerticalScrollIndicator={false}>
                     <Animated.View style={[styles.editCard, cardAnim]}>
@@ -63,42 +65,42 @@ const EditTenant = ({ route, navigation }) => {
                                 <User color="#fff" size={24} />
                             </LinearGradient>
                             <View>
-                                <Text style={styles.cardTitle}>Resident Profile</Text>
-                                <Text style={styles.cardInfo}>Update existing records for {tenant.Name}</Text>
+                                <Text style={styles.cardTitle}>{t('resident_profile')}</Text>
+                                <Text style={styles.cardInfo}>{t('update_records')} {tenant.Name}</Text>
                             </View>
                         </View>
 
-                        {renderField('FULL NAME', 'name', { icon: <User size={16} color={Colors.primary} /> })}
-                        {renderField('PHONE NUMBER', 'phone', { keyboard: 'phone-pad', maxLength: 10, icon: <Phone size={16} color={Colors.primary} /> })}
+                        {renderField(t('full_name').toUpperCase(), 'name', { icon: <User size={16} color={Colors.primary} /> })}
+                        {renderField(t('phone_number').toUpperCase(), 'phone', { keyboard: 'phone-pad', maxLength: 10, icon: <Phone size={16} color={Colors.primary} /> })}
 
                         <View style={styles.inputRow}>
-                            {renderField('ROOM', 'room', { halfWidth: true, icon: <Home size={16} color={Colors.primary} /> })}
+                            {renderField(t('room').toUpperCase(), 'room', { halfWidth: true, icon: <Home size={16} color={Colors.primary} /> })}
                             <View style={{ width: 12 }} />
-                            {renderField('SHARING', 'sharingType', { halfWidth: true, keyboard: 'numeric' })}
+                            {renderField(t('sharing').toUpperCase(), 'sharingType', { halfWidth: true, keyboard: 'numeric' })}
                         </View>
 
                         <View style={styles.inputRow}>
-                            {renderField('MONTHLY RENT', 'rent', { halfWidth: true, keyboard: 'numeric' })}
+                            {renderField(t('monthly_rent').toUpperCase(), 'rent', { halfWidth: true, keyboard: 'numeric' })}
                             <View style={{ width: 12 }} />
-                            {renderField('EB DUE', 'eb', { halfWidth: true, keyboard: 'numeric', icon: <Zap size={16} color={Colors.primary} /> })}
+                            {renderField(t('eb_due').toUpperCase(), 'eb', { halfWidth: true, keyboard: 'numeric', icon: <Zap size={16} color={Colors.primary} /> })}
                         </View>
 
                         <View style={styles.fieldGroup}>
-                            <Text style={styles.fieldLabel}>LEDGER STATUS</Text>
+                            <Text style={styles.fieldLabel}>{t('ledger_status').toUpperCase()}</Text>
                             <View style={styles.toggleRow}>
                                 <TouchableOpacity
                                     style={[styles.toggleBtn, formData.status === 'PAID' && styles.togglePaid]}
                                     onPress={() => handleChange('status', 'PAID')}
                                     activeOpacity={0.8}
                                 >
-                                    <Text style={[styles.toggleText, formData.status === 'PAID' && { color: Colors.secondaryLight }]}>PAID</Text>
+                                    <Text style={[styles.toggleText, formData.status === 'PAID' && { color: Colors.secondaryLight }]}>{t('paid')}</Text>
                                 </TouchableOpacity>
                                 <TouchableOpacity
                                     style={[styles.toggleBtn, formData.status === 'PENDING' && styles.togglePending]}
                                     onPress={() => handleChange('status', 'PENDING')}
                                     activeOpacity={0.8}
                                 >
-                                    <Text style={[styles.toggleText, formData.status === 'PENDING' && { color: Colors.danger }]}>PENDING</Text>
+                                    <Text style={[styles.toggleText, formData.status === 'PENDING' && { color: Colors.danger }]}>{t('pending')}</Text>
                                 </TouchableOpacity>
                             </View>
                         </View>
@@ -109,7 +111,7 @@ const EditTenant = ({ route, navigation }) => {
                                     {loading ? <ActivityIndicator color="#fff" /> : (
                                         <>
                                             <Save color="#fff" size={20} />
-                                            <Text style={styles.saveBtnText}>Save Synchronize</Text>
+                                            <Text style={styles.saveBtnText}>{t('save_synchronize')}</Text>
                                         </>
                                     )}
                                 </LinearGradient>

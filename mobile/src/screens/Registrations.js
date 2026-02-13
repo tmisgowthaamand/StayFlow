@@ -6,11 +6,13 @@ import Header from '../components/Header';
 import { getTenants } from '../api/api';
 import { FileText, Calendar, ExternalLink, Clock } from 'lucide-react-native';
 import { usePressAnimation, useFadeSlideIn, SkeletonCard } from '../utils/animations';
+import { useLanguage } from '../context/LanguageContext';
 
 // ─── Animated Registration Card ────────────────────────────────
 const RegistrationCard = memo(({ item, index, openDocument }) => {
+    const { t } = useLanguage();
     const hasDoc = !!item['Registration Form'];
-    const joinDate = item['Join Date'] || 'Unknown';
+    const joinDate = item['Join Date'] || t('unknown');
     const isPaid = item.Status === 'PAID' || item.Status === 'VALID';
     const { scaleStyle, onPressIn, onPressOut } = usePressAnimation(0.97);
 
@@ -43,24 +45,24 @@ const RegistrationCard = memo(({ item, index, openDocument }) => {
                         <Text style={styles.phoneText}>{item.Phone}</Text>
                     </View>
                 </View>
-                <View style={styles.roomBadge}><Text style={styles.roomText}>Room {item.Room || 'N/A'}</Text></View>
+                <View style={styles.roomBadge}><Text style={styles.roomText}>{t('room')} {item.Room || t('na')}</Text></View>
             </View>
             <View style={styles.divider} />
             <View style={styles.detailsRow}>
-                <View style={styles.detailItem}><Calendar size={13} color={Colors.textMuted} /><Text style={styles.detailText}>Joined: {joinDate}</Text></View>
+                <View style={styles.detailItem}><Calendar size={13} color={Colors.textMuted} /><Text style={styles.detailText}>{t('joined')}: {joinDate}</Text></View>
                 <View style={styles.detailItem}><Clock size={13} color={Colors.textMuted} /><Text style={styles.detailText}>{item.Status || 'ACTIVE'}</Text></View>
             </View>
             <TouchableOpacity style={[styles.docButton, !hasDoc && styles.docButtonDisabled]} onPress={() => openDocument(item['Registration Form'])} disabled={!hasDoc} activeOpacity={0.85}>
                 {hasDoc ? (
                     <LinearGradient colors={Gradients.primary} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.docButtonGradient}>
                         <FileText size={16} color="#fff" />
-                        <Text style={styles.docButtonText}>View Registration PDF</Text>
+                        <Text style={styles.docButtonText}>{t('view_registration_pdf')}</Text>
                         <ExternalLink size={14} color="rgba(255,255,255,0.7)" style={{ marginLeft: 'auto' }} />
                     </LinearGradient>
                 ) : (
                     <View style={styles.docButtonDisabledInner}>
                         <FileText size={16} color={Colors.textMuted} />
-                        <Text style={styles.docButtonTextDisabled}>No Registration Form</Text>
+                        <Text style={styles.docButtonTextDisabled}>{t('no_registration_form')}</Text>
                     </View>
                 )}
             </TouchableOpacity>
@@ -72,6 +74,7 @@ const Registrations = () => {
     const [tenants, setTenants] = useState([]);
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
+    const { t } = useLanguage();
 
     const fetchRegistrations = useCallback(async () => {
         try {
@@ -96,14 +99,14 @@ const Registrations = () => {
 
     return (
         <View style={styles.container}>
-            <Header title="Registrations" />
+            <Header title={t('registrations')} />
             {loading && !refreshing ? (
                 <View style={styles.listContent}><SkeletonCard /><SkeletonCard /><SkeletonCard /><SkeletonCard /></View>
             ) : (
                 <FlatList
                     data={tenants} keyExtractor={keyExtractor} renderItem={renderItem} contentContainerStyle={styles.listContent}
                     refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[Colors.primary]} tintColor={Colors.primary} progressBackgroundColor={Colors.surface} />}
-                    ListEmptyComponent={<View style={styles.emptyContainer}><Text style={styles.emptyText}>No registrations found.</Text></View>}
+                    ListEmptyComponent={<View style={styles.emptyContainer}><Text style={styles.emptyText}>{t('no_registrations')}</Text></View>}
                     showsVerticalScrollIndicator={false} removeClippedSubviews={true} maxToRenderPerBatch={8} windowSize={5}
                 />
             )}

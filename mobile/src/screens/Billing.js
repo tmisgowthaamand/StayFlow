@@ -6,8 +6,10 @@ import Header from '../components/Header';
 import { getTenants, updateEBBill } from '../api/api';
 import { Zap, Save, CheckCircle2, Search } from 'lucide-react-native';
 import { usePressAnimation, useFadeSlideIn, SkeletonCard, AnimatedListItem } from '../utils/animations';
+import { useLanguage } from '../context/LanguageContext';
 
 const EBItem = memo(({ item, onSave, index }) => {
+    const { t } = useLanguage();
     const [ebValue, setEbValue] = useState(item['EB Amount']?.toString() || '0');
     const [isChanged, setIsChanged] = useState(false);
     const { scaleStyle, onPressIn, onPressOut } = usePressAnimation(0.98);
@@ -32,7 +34,7 @@ const EBItem = memo(({ item, onSave, index }) => {
                         </LinearGradient>
                         <View style={styles.infoText}>
                             <Text style={styles.nameText}>{item.Name}</Text>
-                            <Text style={styles.roomText}>Room {item.Room}</Text>
+                            <Text style={styles.roomText}>{t('room')} {item.Room}</Text>
                         </View>
                     </View>
 
@@ -62,6 +64,7 @@ const EBItem = memo(({ item, onSave, index }) => {
 const Billing = () => {
     const [tenants, setTenants] = useState([]);
     const [filteredTenants, setFilteredTenants] = useState([]);
+    const { t } = useLanguage();
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
 
@@ -93,19 +96,19 @@ const Billing = () => {
         try {
             setLoading(true);
             // Placeholder: Add real API call to update EB bill
-            Alert.alert('Success', `EB Bill for ${tenant.Name} updated to ₹${amt}`);
+            Alert.alert(t('success'), `${t('eb_bill_for')} ${tenant.Name} ${t('updated_to')} ₹${amt}`);
             fetchTenants();
-        } catch (e) { Alert.alert('Error', 'Failed to update bill'); }
+        } catch (e) { Alert.alert(t('error'), t('failed_update_bill')); }
         finally { setLoading(false); }
     };
 
     return (
         <View style={styles.container}>
             <Header
-                title="Utilities"
-                subtitle="Electric Bill"
+                title={t('utilities')}
+                subtitle={t('electric_bill')}
                 onSearchChange={handleSearch}
-                placeholder="Search name, room..."
+                placeholder={t('search_placeholder')}
             />
 
             {loading && !refreshing ? (

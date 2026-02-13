@@ -8,9 +8,11 @@ import { getTenants, updateTenant, notifyTenant } from '../api/api';
 import { Home, Zap, User, X, Users, ArrowRight, LayoutGrid } from 'lucide-react-native';
 import { usePressAnimation, useFadeSlideIn, SkeletonCard, AnimatedListItem } from '../utils/animations';
 import { notifyEBSplit } from '../utils/notifications';
+import { useLanguage } from '../context/LanguageContext';
 
 // ─── Premium Room Card ─────────────────────────────────────────
 const RoomCard = memo(({ item, index, onSplitPress }) => {
+    const { t } = useLanguage();
     const totalBeds = parseInt(item.sharingType || 0) || 1; // Fallback to 1 to avoid NaN
     const occupants = Array.isArray(item.occupants) ? item.occupants : [];
     const occupancyPct = (occupants.length / totalBeds) * 100;
@@ -38,17 +40,23 @@ const RoomCard = memo(({ item, index, onSplitPress }) => {
                         </LinearGradient>
                     </View>
                     <View style={styles.roomText}>
-                        <Text style={styles.roomName}>Room {item.room}</Text>
-                        <Text style={styles.roomSub}>{occupants.length} of {totalBeds} beds occupied</Text>
+                        <Text style={styles.roomName}>{t('room')} {item.room}</Text>
+                        <Text style={styles.roomSub}>{occupants.length} {t('of')} {totalBeds} {t('beds_occupied')}</Text>
                     </View>
+                    <TouchableOpacity
+                        style={styles.splitBtn}
+                        onPress={() => onSplitPress(item)}
+                    >
+                        <Zap size={18} color={Colors.primary} fill={Colors.primary} />
+                    </TouchableOpacity>
                     <View style={[styles.statusBadge, { borderColor: isFull ? Colors.danger : Colors.secondary }]}>
-                        <Text style={[styles.statusText, { color: isFull ? Colors.danger : Colors.secondary }]}>{isFull ? 'FULL' : 'VACANT'}</Text>
+                        <Text style={[styles.statusText, { color: isFull ? Colors.danger : Colors.secondary }]}>{isFull ? t('full') : t('vacant')}</Text>
                     </View>
                 </View>
 
                 <View style={styles.progressContainer}>
                     <View style={styles.progressLabelRow}>
-                        <Text style={styles.progressLabel}>{Math.round(occupancyPct)}% OCCUPIED</Text>
+                        <Text style={styles.progressLabel}>{Math.round(occupancyPct)}% {t('occupied')}</Text>
                     </View>
                     <View style={styles.progressBarBg}>
                         <Animated.View style={[
@@ -68,7 +76,7 @@ const RoomCard = memo(({ item, index, onSplitPress }) => {
                             <Text style={styles.residentName} numberOfLines={1}>{occ.Name?.split(' ')[0]}</Text>
                         </View>
                     )) : (
-                        <Text style={styles.emptyText}>No residents currently</Text>
+                        <Text style={styles.emptyText}>{t('no_residents')}</Text>
                     )}
                 </View>
             </Animated.View>
@@ -82,6 +90,7 @@ const Rooms = () => {
     const [selectedRoom, setSelectedRoom] = useState(null);
     const [ebInput, setEbInput] = useState('');
     const navigation = useNavigation();
+    const { t } = useLanguage();
 
     const fetchRooms = useCallback(async () => {
         try {
@@ -89,7 +98,18 @@ const Rooms = () => {
             const tenants = await getTenants();
             const grouped = tenants.reduce((acc, t) => {
                 const room = t.Room || 'Unassigned';
-                if (!acc[room]) acc[room] = { room, occupants: [], sharingType: parseInt(t['Sharing Type'] || '0') };
+                // Helper to parse bed count
+                const getBedCount = (type) => {
+                    if (!type) return 1;
+                    const s = type.toString().toLowerCase();
+                    if (s.includes('one') || s.includes('single')) return 1;
+                    if (s.includes('two') || s.includes('double')) return 2;
+                    if (s.includes('three') || s.includes('triple')) return 3;
+                    if (s.includes('four')) return 4;
+                    return parseInt(s) || 1;
+                };
+
+                if (!acc[room]) acc[room] = { room, occupants: [], sharingType: getBedCount(t['Sharing Type']) };
                 if (t.Status !== 'VACATED') acc[room].occupants.push(t);
                 return acc;
             }, {});
@@ -100,6 +120,21 @@ const Rooms = () => {
 
     useEffect(() => { fetchRooms(); }, []);
 
+    const handleSplit = () => {
+        if (!ebInput || isNaN(ebInput) || !selectedRoom) return;
+        const amount = parseFloat(ebInput);
+        const count = selectedRoom.occupants.length;
+        if (count === 0) return Alert.alert(t('error'), t('no_occupants'));
+
+        const perHead = Math.ceil(amount / count);
+
+        notifyEBSplit(selectedRoom.room, perHead, count);
+        Alert.alert(t('success'), t('bill_split_success').replace('{{amount}}', perHead).replace('{{count}}', count));
+
+        setSelectedRoom(null);
+        setEbInput('');
+    };
+
     const totalRooms = rooms.length;
     const totalBeds = rooms.reduce((acc, r) => acc + (r.sharingType || 0), 0);
     const totalOccupants = rooms.reduce((acc, r) => acc + r.occupants.length, 0);
@@ -107,17 +142,22 @@ const Rooms = () => {
 
     return (
         <View style={styles.container}>
-            <Header title="Inventory" subtitle="Management" />
+            <Header title={t('inventory')} subtitle={t('management')} />
 
             <View style={styles.statsRow}>
                 <LinearGradient colors={['rgba(255,255,255,0.03)', 'transparent']} style={styles.statBox}>
                     <Text style={styles.statVal}>{totalRooms}</Text>
-                    <Text style={styles.statLab}>ROOMS</Text>
+                    <Text style={styles.statLab}>{t('rooms')}</Text>
+                </LinearGradient>
+                <View style={styles.statDivider} />
+                <LinearGradient colors={['rgba(255,255,255,0.03)', 'transparent']} style={styles.statBox}>
+                    <Text style={styles.statVal}>{totalBeds}</Text>
+                    <Text style={styles.statLab}>{t('beds')}</Text>
                 </LinearGradient>
                 <View style={styles.statDivider} />
                 <LinearGradient colors={['rgba(255,255,255,0.03)', 'transparent']} style={styles.statBox}>
                     <Text style={styles.statVal}>{loadFactor}%</Text>
-                    <Text style={styles.statLab}>LOAD</Text>
+                    <Text style={styles.statLab}>{t('load')}</Text>
                 </LinearGradient>
             </View>
 
@@ -132,6 +172,54 @@ const Rooms = () => {
                     showsVerticalScrollIndicator={false}
                 />
             )}
+
+            <Modal
+                transparent={true}
+                visible={!!selectedRoom}
+                onRequestClose={() => setSelectedRoom(null)}
+                animationType="fade"
+            >
+                <View style={styles.modalOverlay}>
+                    <View style={styles.modalContainer}>
+                        <View style={styles.modalHeader}>
+                            <View style={styles.modalIcon}>
+                                <Zap size={24} color={Colors.primary} fill={Colors.primary} />
+                            </View>
+                            <View>
+                                <Text style={styles.modalTitle}>{t('split_eb_bill')}</Text>
+                                <Text style={styles.modalSub}>{t('room')} {selectedRoom?.room}</Text>
+                            </View>
+                        </View>
+
+                        <Text style={styles.label}>{t('total_bill_amount')}</Text>
+                        <TextInput
+                            style={styles.input}
+                            value={ebInput}
+                            onChangeText={setEbInput}
+                            placeholder="₹ 0.00"
+                            placeholderTextColor={Colors.textMuted}
+                            keyboardType="numeric"
+                        />
+
+                        {ebInput && !isNaN(ebInput) && selectedRoom?.occupants.length > 0 && (
+                            <View style={styles.splitPreview}>
+                                <Text style={styles.splitText}>
+                                    {t('each_pays')}: <Text style={styles.splitAmount}>₹{Math.ceil(parseFloat(ebInput) / selectedRoom.occupants.length)}</Text>
+                                </Text>
+                            </View>
+                        )}
+
+                        <View style={styles.modalActions}>
+                            <TouchableOpacity style={[styles.btn, styles.btnCancel]} onPress={() => setSelectedRoom(null)}>
+                                <Text style={styles.btnTextCancel}>{t('cancel')}</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity style={[styles.btn, styles.btnConfirm]} onPress={handleSplit}>
+                                <Text style={styles.btnTextConfirm}>{t('confirm_split')}</Text>
+                            </TouchableOpacity>
+                        </View>
+                    </View>
+                </View>
+            </Modal>
         </View>
     );
 };
@@ -190,6 +278,53 @@ const styles = StyleSheet.create({
     statusDot: { width: 6, height: 6, borderRadius: 3, marginRight: 8 },
     residentName: { ...Typography.bodySmall, color: Colors.textSecondary, fontWeight: '700' },
     emptyText: { ...Typography.bodySmall, color: Colors.textMuted, fontStyle: 'italic' },
+
+    // Split Button
+    splitBtn: {
+        width: 36,
+        height: 36,
+        borderRadius: 10,
+        backgroundColor: 'rgba(124, 58, 237, 0.1)',
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginRight: 8,
+        borderWidth: 1,
+        borderColor: 'rgba(124, 58, 237, 0.2)'
+    },
+
+    // Modal
+    modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.8)', justifyContent: 'center', padding: Spacing.lg },
+    modalContainer: { backgroundColor: Colors.backgroundAlt, borderRadius: BorderRadius.xl, padding: Spacing.lg, borderWidth: 1, borderColor: Colors.border },
+    modalHeader: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: Spacing.lg },
+    modalIcon: { width: 48, height: 48, borderRadius: 14, backgroundColor: 'rgba(124, 58, 237, 0.1)', alignItems: 'center', justifyContent: 'center' },
+    modalTitle: { ...Typography.h3, color: Colors.text },
+    modalSub: { ...Typography.body, color: Colors.textMuted },
+    label: { ...Typography.tiny, color: Colors.textSecondary, marginBottom: 8 },
+    input: {
+        backgroundColor: Colors.background,
+        borderRadius: BorderRadius.md,
+        padding: 12,
+        color: Colors.text,
+        fontSize: 18,
+        borderWidth: 1,
+        borderColor: Colors.border,
+        marginBottom: Spacing.lg
+    },
+    splitPreview: {
+        backgroundColor: Colors.surface,
+        padding: 12,
+        borderRadius: BorderRadius.md,
+        marginBottom: Spacing.lg,
+        alignItems: 'center'
+    },
+    splitText: { ...Typography.body, color: Colors.textMuted },
+    splitAmount: { ...Typography.bodyBold, color: Colors.primary, fontSize: 18 },
+    modalActions: { flexDirection: 'row', gap: 12 },
+    btn: { flex: 1, padding: 14, borderRadius: BorderRadius.md, alignItems: 'center' },
+    btnCancel: { backgroundColor: Colors.surface },
+    btnConfirm: { backgroundColor: Colors.primary },
+    btnTextCancel: { ...Typography.bodyBold, color: Colors.textMuted },
+    btnTextConfirm: { ...Typography.bodyBold, color: '#fff' },
 });
 
 export default Rooms;

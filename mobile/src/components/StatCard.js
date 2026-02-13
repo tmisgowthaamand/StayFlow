@@ -1,65 +1,75 @@
-import React, { useRef, useEffect, memo } from 'react';
-import { View, Text, StyleSheet, Animated, Easing } from 'react-native';
+import React, { memo } from 'react';
+import { View, Text, StyleSheet, Animated, Easing, TouchableOpacity } from 'react-native';
 import { Colors, Spacing, Shadows, Typography, BorderRadius, Gradients } from '../theme/theme';
 import { LinearGradient } from 'expo-linear-gradient';
 import { usePressAnimation, useScaleIn } from '../utils/animations';
+import { useTheme } from '../context/ThemeContext';
 
-const StatCard = memo(({ title, value, icon: Icon, color, subtitle, index = 0, size = 'medium' }) => {
+const StatCard = memo(({ title, value, icon: Icon, color, subtitle, index = 0, size = 'medium', onPress }) => {
     const entranceAnim = useScaleIn(index * 80);
     const { scaleStyle, onPressIn, onPressOut } = usePressAnimation(0.97);
+    const { colors } = useTheme();
 
     const isLarge = size === 'large';
     const isSmall = size === 'small';
 
-    const meshColors = color ? [color + '20', color + '05', 'transparent'] : Gradients.card;
+    const meshColors = color ? [color + '20', color + '05', 'transparent'] : (colors.gradients?.card || Gradients.card);
 
     return (
-        <Animated.View
-            style={[
-                styles.container,
-                entranceAnim,
-                scaleStyle,
-                isLarge && styles.largeCard,
-                isSmall && styles.smallCard,
-                { borderColor: color + '40' || Colors.border }
-            ]}
-            onTouchStart={onPressIn}
-            onTouchEnd={onPressOut}
-            onTouchCancel={onPressOut}
+        <TouchableOpacity
+            onPress={onPress}
+            activeOpacity={0.9}
+            onPressIn={onPressIn}
+            onPressOut={onPressOut}
+            style={{ flex: 1 }}
         >
-            <View style={styles.inner}>
-                {/* Mesh Gradient Overlay */}
-                <LinearGradient
-                    colors={meshColors}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 1 }}
-                    style={StyleSheet.absoluteFill}
-                />
+            <Animated.View
+                style={[
+                    styles.container,
+                    entranceAnim,
+                    scaleStyle,
+                    isLarge && styles.largeCard,
+                    isSmall && styles.smallCard,
+                    {
+                        borderColor: color ? color + '40' : colors.border,
+                        backgroundColor: colors.surface
+                    }
+                ]}
+            >
+                <View style={styles.inner}>
+                    {/* Mesh Gradient Overlay */}
+                    <LinearGradient
+                        colors={meshColors}
+                        start={{ x: 0, y: 0 }}
+                        end={{ x: 1, y: 1 }}
+                        style={StyleSheet.absoluteFill}
+                    />
 
-                <View style={styles.header}>
-                    <View style={[styles.iconBox, { backgroundColor: (color || Colors.primary) + '20' }]}>
-                        {Icon && <Icon color={color || Colors.primary} size={isSmall ? 18 : 22} />}
+                    <View style={styles.header}>
+                        <View style={[styles.iconBox, { backgroundColor: (color || colors.primary) + '20' }]}>
+                            {Icon && <Icon color={color || colors.primary} size={isSmall ? 18 : 22} />}
+                        </View>
+                        {!isSmall && (
+                            <View style={styles.titleColumn}>
+                                <Text style={[styles.titleText, { color: colors.textSecondary }]}>{title}</Text>
+                            </View>
+                        )}
                     </View>
-                    {!isSmall && (
-                        <View style={styles.titleColumn}>
-                            <Text style={styles.titleText}>{title}</Text>
-                        </View>
-                    )}
-                </View>
 
-                <View style={styles.content}>
-                    <Text style={[styles.valueText, isLarge && styles.largeValue]} numberOfLines={1}>
-                        {value}
-                    </Text>
-                    {isSmall && <Text style={styles.smallTitle}>{title}</Text>}
-                    {!isSmall && subtitle && (
-                        <View style={styles.subtitleRow}>
-                            <Text style={styles.subtitleText}>{subtitle}</Text>
-                        </View>
-                    )}
+                    <View style={styles.content}>
+                        <Text style={[styles.valueText, isLarge && styles.largeValue, { color: colors.text }]} numberOfLines={1}>
+                            {value}
+                        </Text>
+                        {isSmall && <Text style={[styles.smallTitle, { color: colors.textMuted }]}>{title}</Text>}
+                        {!isSmall && subtitle && (
+                            <View style={styles.subtitleRow}>
+                                <Text style={[styles.subtitleText, { color: colors.textMuted }]}>{subtitle}</Text>
+                            </View>
+                        )}
+                    </View>
                 </View>
-            </View>
-        </Animated.View>
+            </Animated.View>
+        </TouchableOpacity>
     );
 });
 

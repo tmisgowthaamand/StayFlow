@@ -13,6 +13,7 @@ import {
     BellOff, Trash2, CheckCheck, Clock, X, AlertCircle, ChevronRight,
     Megaphone
 } from 'lucide-react-native';
+import { useLanguage } from '../context/LanguageContext';
 
 const ICON_MAP = { FileText, CheckCircle, UserPlus, Send, Zap, AlertCircle, Megaphone };
 
@@ -54,6 +55,9 @@ const NotificationCard = memo(({ item, index, onRead, onDelete }) => {
                                 <Text style={styles.timeText}>{formatNotificationTime(item.timestamp)}</Text>
                             </View>
                             <Text style={styles.notifBody} numberOfLines={2}>{item.body}</Text>
+                            {(item.type === 'announcement' || item.meta?.imageUrl) && item.meta?.imageUrl && (
+                                <Image source={{ uri: item.meta.imageUrl }} style={styles.attachedImage} resizeMode="cover" />
+                            )}
                         </View>
                     </View>
                     <TouchableOpacity style={styles.deleteBtn} onPress={() => onDelete(item.id)}>
@@ -70,6 +74,7 @@ const Notifications = ({ navigation }) => {
     const [notifications, setNotifications] = useState([]);
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
+    const { t } = useLanguage();
 
     const loadNotifications = useCallback(async () => {
         try {
@@ -104,12 +109,12 @@ const Notifications = ({ navigation }) => {
 
     return (
         <View style={styles.container}>
-            <Header title="Notifications" onBack={() => navigation.goBack()} showNotifBell={false} />
+            <Header title={t('notifications')} onBack={() => navigation.goBack()} showNotifBell={false} />
 
             <View style={styles.actionHeader}>
-                <Text style={styles.countText}>{notifications.filter(n => !n.read).length} Unread</Text>
+                <Text style={styles.countText}>{notifications.filter(n => !n.read).length} {t('unread')}</Text>
                 <TouchableOpacity onPress={handleMarkAllRead}>
-                    <Text style={styles.markAllText}>Mark all as read</Text>
+                    <Text style={styles.markAllText}>{t('mark_all_read')}</Text>
                 </TouchableOpacity>
             </View>
 
@@ -124,7 +129,7 @@ const Notifications = ({ navigation }) => {
                     )}
                     contentContainerStyle={styles.listContent}
                     refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[Colors.primary]} tintColor={Colors.primary} />}
-                    ListEmptyComponent={<View style={styles.empty}><Text style={styles.emptyText}>No notifications yet</Text></View>}
+                    ListEmptyComponent={<View style={styles.empty}><Text style={styles.emptyText}>{t('no_notifications')}</Text></View>}
                     showsVerticalScrollIndicator={false}
                 />
             )}
@@ -157,6 +162,13 @@ const styles = StyleSheet.create({
     unreadText: { color: Colors.text, fontWeight: '700' },
     timeText: { ...Typography.tiny, color: Colors.textMuted },
     notifBody: { ...Typography.tiny, color: Colors.textSecondary, lineHeight: 14 },
+    attachedImage: {
+        width: '100%',
+        height: 150,
+        borderRadius: BorderRadius.md,
+        marginTop: 10,
+        backgroundColor: Colors.surfaceElevated,
+    },
     deleteBtn: { padding: 8, marginLeft: 10 },
     empty: { padding: 80, alignItems: 'center' },
     emptyText: { ...Typography.body, color: Colors.textMuted },

@@ -10,13 +10,14 @@ import {
     ArrowUpRight, Plus, Activity, LayoutGrid,
     Calendar, Bell, Menu, Search, ChevronRight,
     Settings, LogOut, Info, ShieldCheck, User, X,
-    CreditCard, Megaphone
+    CreditCard, Megaphone, AlertCircle, Clock, MapPin
 } from 'lucide-react-native';
 import { useNavigation } from '@react-navigation/native';
 import {
     useFadeSlideIn, usePressAnimation, AnimatedListItem,
     SkeletonCard, useMeshFloat, useGlowPulse, DecryptedText, SplitText
 } from '../utils/animations';
+import { useLanguage } from '../context/LanguageContext';
 // ─── Main Dashboard ─────────────────────────────────────────────
 const ActivityItem = memo(({ item, index }) => {
     const isPaid = item.Status === 'PAID' || item.Status === 'VALID';
@@ -52,6 +53,7 @@ const Dashboard = () => {
     const [refreshing, setRefreshing] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
     const navigation = useNavigation();
+    const { t } = useLanguage();
 
     const fetchAllData = useCallback(async () => {
         try {
@@ -96,8 +98,20 @@ const Dashboard = () => {
 
     const totalColl = active.filter(t => t.Status === 'PAID' || t.Status === 'VALID')
         .reduce((sum, t) => sum + parseFloat((t['Total Amount'] || '0').toString().replace(/[^\d.]/g, '')), 0);
-    const expected = active.reduce((sum, t) => sum + parseFloat((t['Total Amount'] || '0').toString().replace(/[^\d.]/g, '')), 0);
-    const pending = active.filter(t => t.Status === 'PENDING').length;
+    const expected = 150067; // Static override
+    const pendingCount = active.filter(t => t.Status === 'PENDING').length;
+    const unpaidCount = active.filter(t => t.Status === 'ACTIVE' || !t.Status).length;
+
+    const totalBeds = active.reduce((sum, t) => {
+        const type = t['Sharing Type'] || '';
+        if (type.includes('One')) return sum + 1;
+        if (type.includes('Two')) return sum + 2;
+        if (type.includes('Three')) return sum + 3;
+        if (type.includes('Four')) return sum + 4;
+        return sum + 1;
+    }, 0);
+    const vacantBeds = totalBeds - active.length;
+    const uniqueRooms = [...new Set(active.map(t => t.Room).filter(Boolean))];
 
     const handleMenuPress = () => {
         setIsMenuVisible(true);
@@ -122,7 +136,7 @@ const Dashboard = () => {
                 title="StayFlow"
                 onSearchChange={setSearchQuery}
                 onMenuPress={handleMenuPress}
-                placeholder="Ask StayFlow AI (Name, Room, Paid...)"
+                placeholder={t('ai_placeholder')}
             />
 
             <ScrollView
@@ -137,7 +151,7 @@ const Dashboard = () => {
                             <View style={styles.heroContent}>
                                 <View style={styles.heroHeader}>
                                     <View>
-                                        <Text style={styles.heroLabel}>TOTAL COLLECTED</Text>
+                                        <Text style={styles.heroLabel}>{t('total_collected')}</Text>
                                         <Text style={styles.heroValue}>₹{totalColl.toLocaleString()}</Text>
                                     </View>
                                     <View style={styles.heroIconBubble}>
@@ -150,12 +164,17 @@ const Dashboard = () => {
                                 <View style={styles.heroStatsRow}>
                                     <View style={styles.heroStatItem}>
                                         <Text style={styles.heroStatVal}>{Math.round((totalColl / expected) * 100) || 0}%</Text>
-                                        <Text style={styles.heroStatLab}>Collected</Text>
+                                        <Text style={styles.heroStatLab}>{t('progress')}</Text>
+                                    </View>
+                                    <View style={styles.heroStatDivider} />
+                                    <View style={styles.heroStatItem}>
+                                        <Text style={styles.heroStatVal}>₹{expected.toLocaleString()}</Text>
+                                        <Text style={styles.heroStatLab}>{t('expected')}</Text>
                                     </View>
                                     <View style={styles.heroStatDivider} />
                                     <View style={styles.heroStatItem}>
                                         <Text style={styles.heroStatVal}>{active.length}</Text>
-                                        <Text style={styles.heroStatLab}>Residents</Text>
+                                        <Text style={styles.heroStatLab}>{t('residents')}</Text>
                                     </View>
                                 </View>
                             </View>
@@ -166,16 +185,49 @@ const Dashboard = () => {
                 {/* 2. Grid Overview */}
                 <View style={styles.sectionHeader}>
                     <LayoutGrid size={18} color={Colors.primary} />
-                    <Text style={styles.sectionTitle}>INSIGHTS</Text>
+                    <Text style={styles.sectionTitle}>{t('insights')}</Text>
                 </View>
 
                 <View style={styles.bentoGrid}>
                     <View style={styles.bentoRow}>
-                        <StatCard title="Rooms" value="14/16" icon={Home} color={Colors.accentAlt} index={2} size="large" subtitle="Occupied" />
-                        <View style={styles.bentoCol}>
-                            <StatCard title="Pending" value={pending.toString()} icon={Users} color={Colors.accent} index={3} size="small" />
-                            <StatCard title="Capacity" value="88%" icon={Activity} color={Colors.secondary} index={4} size="small" />
-                        </View>
+                        <StatCard
+                            title={t('pending_verif')}
+                            value={pendingCount.toString()}
+                            icon={Clock}
+                            color={Colors.accent}
+                            index={2}
+                            size="small"
+                            onPress={() => navigation.navigate('Residents', { filter: 'PENDING' })}
+                        />
+                        <StatCard
+                            title={t('unpaid')}
+                            value={unpaidCount.toString()}
+                            icon={AlertCircle}
+                            color={Colors.accent}
+                            index={3}
+                            size="small"
+                            onPress={() => navigation.navigate('Residents', { filter: 'ACTIVE' })}
+                        />
+                    </View>
+                    <View style={styles.bentoRow}>
+                        <StatCard
+                            title={t('vacant_beds')}
+                            value={vacantBeds > 0 ? vacantBeds.toString() : t('full')}
+                            icon={MapPin}
+                            color={Colors.secondary}
+                            index={4}
+                            size="small"
+                            onPress={() => navigation.navigate('Rooms')}
+                        />
+                        <StatCard
+                            title={t('total_rooms')}
+                            value={uniqueRooms.length.toString()}
+                            icon={Home}
+                            color={Colors.accentAlt}
+                            index={5}
+                            size="small"
+                            onPress={() => navigation.navigate('Rooms')}
+                        />
                     </View>
                 </View>
 
@@ -183,14 +235,14 @@ const Dashboard = () => {
                 <View style={styles.actionRow}>
                     <TouchableOpacity style={styles.actionBtn} onPress={() => navigation.navigate('Announcements')}>
                         <LinearGradient colors={['rgba(124, 58, 237, 0.1)', 'rgba(124, 58, 237, 0.02)']} style={styles.actionBtnGradient}>
-                            <Zap size={20} color={Colors.primary} />
-                            <Text style={styles.actionBtnText}>Broadcast</Text>
+                            <Megaphone size={20} color={Colors.primary} />
+                            <Text style={styles.actionBtnText}>{t('announcements')}</Text>
                         </LinearGradient>
                     </TouchableOpacity>
-                    <TouchableOpacity style={styles.actionBtn} onPress={() => navigation.navigate('AddTenant')}>
-                        <LinearGradient colors={['rgba(16, 185, 129, 0.1)', 'rgba(16, 185, 129, 0.02)']} style={styles.actionBtnGradient}>
-                            <Plus size={20} color={Colors.secondary} />
-                            <Text style={styles.actionBtnText}>Register</Text>
+                    <TouchableOpacity style={styles.actionBtn} onPress={() => navigation.navigate('Rooms')}>
+                        <LinearGradient colors={['rgba(37, 99, 235, 0.1)', 'rgba(37, 99, 235, 0.02)']} style={styles.actionBtnGradient}>
+                            <LayoutGrid size={20} color={Colors.accentAlt} />
+                            <Text style={styles.actionBtnText}>{t('rooms')}</Text>
                         </LinearGradient>
                     </TouchableOpacity>
                 </View>
@@ -198,11 +250,11 @@ const Dashboard = () => {
                 {/* 4. Activity Section */}
                 <View style={styles.sectionHeader}>
                     <Activity size={18} color={Colors.primary} />
-                    <Text style={styles.sectionTitle}>{searchQuery ? 'AI SEARCH RESULTS' : 'RECENT ACTIVITY'}</Text>
-                    {searchQuery && (
+                    <Text style={styles.sectionTitle}>{searchQuery ? t('ai_search') : t('recent_activity')}</Text>
+                    {searchQuery.length > 0 && (
                         <View style={styles.aiBadge}>
                             <Zap size={10} color={Colors.secondary} fill={Colors.secondary} />
-                            <Text style={styles.aiBadgeText}>AI ACTIVE</Text>
+                            <Text style={styles.aiBadgeText}>{t('ai_active')}</Text>
                         </View>
                     )}
                 </View>
@@ -252,46 +304,46 @@ const Dashboard = () => {
                             <View style={styles.menuDivider} />
 
                             <View style={styles.menuBody}>
-                                <ScrollView showsVerticalScrollIndicator={false}>
-                                    <Text style={styles.menuSectionTitle}>NAVIGATION</Text>
+                                <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false}>
+                                    <Text style={styles.menuSectionTitle}>{t('navigation_menu')}</Text>
 
                                     <TouchableOpacity style={styles.menuItem} onPress={() => { closeMenu(); navigation.navigate('Residents'); }}>
                                         <View style={styles.menuIconBox}><Users size={20} color={Colors.text} /></View>
-                                        <Text style={styles.menuItemText}>Residents</Text>
+                                        <Text style={styles.menuItemText}>{t('residents')}</Text>
                                     </TouchableOpacity>
 
                                     <TouchableOpacity style={styles.menuItem} onPress={() => { closeMenu(); navigation.navigate('Billing'); }}>
                                         <View style={styles.menuIconBox}><CreditCard size={20} color={Colors.text} /></View>
-                                        <Text style={styles.menuItemText}>Billing & Finance</Text>
+                                        <Text style={styles.menuItemText}>{t('billing_finance')}</Text>
                                     </TouchableOpacity>
 
                                     <TouchableOpacity style={styles.menuItem} onPress={() => { closeMenu(); navigation.navigate('Rooms'); }}>
                                         <View style={styles.menuIconBox}><LayoutGrid size={20} color={Colors.text} /></View>
-                                        <Text style={styles.menuItemText}>Room Status</Text>
+                                        <Text style={styles.menuItemText}>{t('room_status')}</Text>
                                     </TouchableOpacity>
 
                                     <TouchableOpacity style={styles.menuItem} onPress={() => { closeMenu(); navigation.navigate('Announcements'); }}>
                                         <View style={styles.menuIconBox}><Megaphone size={20} color={Colors.text} /></View>
-                                        <Text style={styles.menuItemText}>Announcements</Text>
+                                        <Text style={styles.menuItemText}>{t('announcements')}</Text>
                                     </TouchableOpacity>
 
                                     <TouchableOpacity style={styles.menuItem} onPress={() => { closeMenu(); navigation.navigate('Notifications'); }}>
                                         <View style={styles.menuIconBox}><Bell size={20} color={Colors.text} /></View>
-                                        <Text style={styles.menuItemText}>Notifications</Text>
+                                        <Text style={styles.menuItemText}>{t('notifications')}</Text>
                                     </TouchableOpacity>
 
                                     <View style={styles.menuDivider} />
-                                    <Text style={styles.menuSectionTitle}>SYSTEM</Text>
+                                    <Text style={styles.menuSectionTitle}>{t('system')}</Text>
 
-                                    <TouchableOpacity style={styles.menuItem} onPress={() => Alert.alert("Settings", "Coming Soon!")}>
+                                    <TouchableOpacity style={styles.menuItem} onPress={() => { closeMenu(); navigation.navigate('GeneralSettings'); }}>
                                         <View style={styles.menuIconBox}><Settings size={20} color={Colors.text} /></View>
-                                        <Text style={styles.menuItemText}>General Settings</Text>
+                                        <Text style={styles.menuItemText}>{t('general_settings')}</Text>
                                     </TouchableOpacity>
 
                                     <TouchableOpacity style={styles.menuItem} onPress={() => Alert.alert("About", "StayFlow Mobile v1.0.4")}>
                                         <View style={styles.menuIconBox}><Info size={20} color={Colors.text} /></View>
                                         <View>
-                                            <Text style={styles.menuItemText}>App Information</Text>
+                                            <Text style={styles.menuItemText}>{t('app_info')}</Text>
                                             <Text style={styles.menuItemSub}>Version 1.0.4</Text>
                                         </View>
                                     </TouchableOpacity>
@@ -300,7 +352,7 @@ const Dashboard = () => {
                                 <View style={styles.menuFooter}>
                                     <TouchableOpacity style={styles.logoutBtn} onPress={closeMenu}>
                                         <LogOut size={18} color={Colors.accent} />
-                                        <Text style={styles.logoutText}>Sign Out</Text>
+                                        <Text style={styles.logoutText}>{t('sign_out')}</Text>
                                     </TouchableOpacity>
                                     <Text style={styles.versionTag}>Build: 2024.02.R1</Text>
                                 </View>
@@ -329,7 +381,7 @@ const styles = StyleSheet.create({
     heroDivider: { height: 1, backgroundColor: 'rgba(255,255,255,0.1)', marginVertical: 12 },
     heroStatsRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.15)', borderRadius: BorderRadius.md, padding: 12 },
     heroStatItem: { flex: 1, alignItems: 'center' },
-    heroStatVal: { ...Typography.h3, color: '#fff', fontSize: 20 },
+    heroStatVal: { ...Typography.h3, color: '#fff', fontSize: 18 },
     heroStatLab: { ...Typography.tiny, color: 'rgba(255,255,255,0.5)', marginTop: 2 },
     heroStatDivider: { width: 1, height: 24, backgroundColor: 'rgba(255,255,255,0.1)' },
 
@@ -349,7 +401,7 @@ const styles = StyleSheet.create({
     },
     aiBadgeText: { ...Typography.tiny, color: Colors.secondary, fontWeight: '900', fontSize: 10 },
     bentoGrid: { marginBottom: Spacing.md },
-    bentoRow: { flexDirection: 'row', gap: Spacing.sm },
+    bentoRow: { flexDirection: 'row', gap: Spacing.sm, marginBottom: Spacing.sm },
     bentoCol: { flex: 1, gap: Spacing.sm },
 
     // Actions
@@ -396,7 +448,7 @@ const styles = StyleSheet.create({
     menuIconBox: { width: 40, height: 40, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.05)', alignItems: 'center', justifyContent: 'center' },
     menuItemText: { ...Typography.bodyBold, color: Colors.text },
     menuItemSub: { ...Typography.tiny, color: Colors.textMuted, marginTop: 2 },
-    menuFooter: { position: 'absolute', bottom: 40, left: 0, right: 0, gap: 15 },
+    menuFooter: { marginTop: 'auto', paddingTop: 20, gap: 15 },
     logoutBtn: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 12, borderRadius: 12, backgroundColor: 'rgba(255, 68, 68, 0.1)' },
     logoutText: { ...Typography.bodyBold, color: Colors.accent },
     versionTag: { ...Typography.tiny, color: Colors.textMuted, textAlign: 'center', opacity: 0.5 },

@@ -1,0 +1,711 @@
+import React, { createContext, useState, useContext, useEffect } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
+const LanguageContext = createContext();
+
+export const useLanguage = () => useContext(LanguageContext);
+
+const translations = {
+    'en': {
+        // Auth
+        welcome_back: "Welcome Back",
+        sign_in_subtitle: "Sign in to manage your property",
+        username: "USERNAME",
+        password: "PASSWORD",
+        sign_in: "Sign In",
+        login_failed: "Login Failed",
+        invalid_credentials: "Invalid credentials. Please try again.",
+        default_credentials: "Default Credentials: admin / admin",
+
+        // Dashboard
+        total_collected: "TOTAL COLLECTED",
+        progress: "Progress",
+        expected: "Expected",
+        residents: "Residents",
+        insights: "INSIGHTS",
+        pending_verif: "Pending Verif",
+        unpaid: "Unpaid",
+        vacant_beds: "Vacant Beds",
+        total_rooms: "Total Rooms",
+        broadcast: "Broadcast",
+        announcements: "Announcements",
+        register: "Register",
+        recent_activity: "RECENT ACTIVITY",
+        ai_search: "AI SEARCH RESULTS",
+        ai_active: "AI ACTIVE",
+        ai_placeholder: "Ask StayFlow AI (Name, Room, Paid...)",
+
+        // Menu
+        navigation_menu: "NAVIGATION",
+        billing_finance: "Billing & Finance",
+        room_status: "Room Status",
+        notifications: "Notifications",
+        system: "SYSTEM",
+        general_settings: "General Settings",
+        app_info: "App Information",
+        sign_out: "Sign Out",
+
+        // Residents
+        management: "Management",
+        search_residents: "Search name, room, or phone...",
+        no_residents: "No residents found",
+        rent: "RENT",
+        phone: "PHONE",
+        edit: "Edit",
+        remind: "Remind",
+        mark_paid: "Mark as Paid",
+        gen_invoice: "Generate Invoice",
+        remove_resident: "Remove Resident",
+        remove_resident: "Remove Resident",
+        confirm_delete: "Confirm Delete",
+        preview_invoice: "Preview Invoice",
+
+        // Rooms
+        inventory: "Inventory",
+        rooms: "ROOMS",
+        room: "Room",
+        load: "LOAD",
+        beds: "BEDS",
+        beds: "BEDS",
+        full: "FULL",
+        vacant: "VACANT",
+        occupied: "OCCUPIED",
+        split_bill: "Split EB Bill",
+        split_eb_bill: "Split EB Bill",
+        total_bill_amount: "TOTAL BILL AMOUNT",
+        each_pays: "Each pays",
+        confirm_split: "Confirm Split",
+        cancel: "Cancel",
+        of: "of",
+        beds_occupied: "beds occupied",
+        no_occupants: "No occupants in this room.",
+        bill_split_success: "Bill split! ₹{{amount}} assigned to {{count}} residents.",
+
+        // Settings
+        settings_title: "Settings",
+        general: "General",
+        app_preferences: "APP PREFERENCES",
+        push_notif: "Push Notifications",
+        push_sub: "Receive alerts for payments & requests",
+        dark_mode: "Dark Mode",
+        dark_sub: "Adjust appearance theme",
+        account_security: "ACCOUNT & SECURITY",
+        edit_profile: "Edit Profile",
+        edit_profile_sub: "Update personal details",
+        change_password: "Change Password",
+        change_password_sub: "Update login credentials",
+        language: "Language",
+        clear_cache: "Clear Cache",
+        clear_cache_sub: "Free up space",
+        select_language: "Select Language",
+        save_changes: "Save Changes",
+        update_pass: "Update Password",
+        current_pass: "Current Password",
+        new_pass: "New Password",
+        name: "Name",
+        email: "Email",
+
+        // Notifications
+        notifications: "Notifications",
+        unread: "Unread",
+        mark_all_read: "Mark all as read",
+        no_notifications: "No notifications yet",
+
+        // Registrations
+        registrations: "Registrations",
+        no_registrations: "No registrations found",
+        view_registration_pdf: "View Registration PDF",
+        no_registration_form: "No Registration Form",
+        joined: "Joined",
+        unknown: "Unknown",
+
+        // Add Tenant
+        new_resident: "New Resident",
+        registration: "Registration",
+        onboard_resident: "Onboard a new resident to the system",
+        full_name: "Full Name",
+        whatsapp_number: "WhatsApp Number",
+        room_number: "Room Number",
+        sharing: "Sharing",
+        monthly_rent: "Monthly Rent",
+        advance_paid: "Advance Paid",
+        complete_registration: "Complete Registration",
+        incomplete_form: "Kindly provide all mandatory resident information.",
+        resident_added: "has been added to Room",
+        view_residents: "View Residents",
+        failed_register: "Failed to register resident.",
+        name_placeholder: "Resident name",
+        phone_placeholder: "Phone including country code",
+        amount: "Amount",
+        na: "N/A",
+
+        // Edit Tenant
+        resident_profile: "Resident Profile",
+        update_records: "Update existing records for",
+        phone_number: "Phone Number",
+        eb_due: "EB Due",
+        ledger_status: "Ledger Status",
+        paid: "Paid",
+        pending: "Pending",
+        save_synchronize: "Save Synchronize",
+        details_updated: "Details Updated",
+        profile_synced: "Profile for {{name}} has been synchronized.",
+        done: "Done",
+        profile_update_failed: "Profile update failed",
+        success: "Success",
+        error: "Error",
+
+        // Billing
+        utilities: "Utilities",
+        electric_bill: "Electric Bill",
+        search_placeholder: "Search name, room...",
+        eb_bill_for: "EB Bill for",
+        updated_to: "updated to",
+        failed_update_bill: "Failed to update bill",
+
+        // Announcements
+        announcement: "Announcement",
+        whatsapp_channel: "WhatsApp Channel",
+        draft_announcement: "Draft your announcement here...",
+        add_media: "Add media or document",
+        send_to_all: "Send to All",
+        announcement_sent: "Announcement sending started! Residents will receive it shortly.",
+        announcement_failed: "Announcement channel failed: ",
+        network_error: "Network Error",
+        send_message: "Send Message",
+        to: "To",
+        type_message: "Type your message here...",
+        message_sent: "Message sent successfully!",
+        message_failed: "Failed to send message: "
+    },
+    'ta': {
+        // Auth
+        welcome_back: "நல்வரவு",
+        sign_in_subtitle: "உங்கள் சொத்தை நிர்வகிக்க உள்நுழையவும்",
+        username: "பயனர்பெயர்",
+        password: "கடவுச்சொல்",
+        sign_in: "உள்நுழையவும்",
+        login_failed: "உள்நுழைவு தோல்வியடைந்தது",
+        invalid_credentials: "தவறான சான்றுகள். மீண்டும் முயற்சிக்கவும்.",
+        default_credentials: "இயல்புநிலை சான்றுகள்: admin / admin",
+
+        // Dashboard
+        total_collected: "மொத்த வசூல்",
+        progress: "முன்னேற்றம்",
+        expected: "எதிர்பார்க்கப்படுவது",
+        residents: "குடியிருப்பாளர்கள்",
+        insights: "அறிக்கைகள்",
+        pending_verif: "சரிபார்ப்பு நிலுவை",
+        unpaid: "செலுத்தப்படாதது",
+        vacant_beds: "காலியான படுக்கைகள்",
+        total_rooms: "மொத்த அறைகள்",
+        broadcast: "ஒளிபரப்பு",
+        announcements: "அறிவிப்புகள்",
+        register: "பதிவு",
+        recent_activity: "சமீபத்திய நடவடிக்கை",
+        ai_search: "AI தேடல் முடிவுகள்",
+        ai_active: "AI செயல்பாட்டில்",
+        ai_placeholder: "StayFlow AI (பெயர், அறை...)",
+
+        // Menu
+        navigation_menu: "வழிச்செலுத்தல்",
+        billing_finance: "பில்லிங் & நிதி",
+        room_status: "அறை நிலை",
+        notifications: "அறிவிப்புகள்",
+        system: "அமைப்பு",
+        general_settings: "பொது அமைப்புகள்",
+        app_info: "பயன்பாட்டு தகவல்",
+        sign_out: "வெளியேறு",
+
+        // Residents
+        management: "நிர்வாகம்",
+        search_residents: "தேடு (பெயர், அறை, எண்...)",
+        no_residents: "குடியிருப்பாளர்கள் இல்லை",
+        rent: "வாடகை",
+        phone: "தொலைபேசி",
+        edit: "திருத்து",
+        remind: "நினைவூட்டு",
+        mark_paid: "செலுத்தியதாகக் குறி",
+        gen_invoice: "இன்வாய்ஸ் உருவாக்கு",
+        remove_resident: "குடியிருப்பாளரை நீக்கு",
+        remove_resident: "குடியிருப்பாளரை நீக்கு",
+        confirm_delete: "நீக்குதலை உறுதிப்படுத்தவும்",
+        preview_invoice: "இன்வாய்ஸை முன்னோட்டமிடுங்கள்",
+
+        // Rooms
+        inventory: "சரக்கு",
+        rooms: "அறைகள்",
+        room: "அறை",
+        load: "சுமை",
+        beds: "படுக்கைகள்",
+        full: "நிறைந்தது",
+        vacant: "காலியானது",
+        occupied: "நிரம்பியது",
+        split_bill: "EB பில் பிரிப்பு",
+        split_eb_bill: "EB பில் பிரிப்பு",
+        total_bill_amount: "மொத்த பில் தொகை",
+        each_pays: "ஒவ்வொருவரும் செலுத்துவது",
+        confirm_split: "பிரிப்பை உறுதிசெய்",
+        cancel: "ரத்துசெய்",
+        of: "இல்",
+        beds_occupied: "படுக்கைகள் ஆக்கிரமிக்கப்பட்டுள்ளன",
+        no_occupants: "இந்த அறையில் குடியிருப்பாளர்கள் இல்லை.",
+        bill_split_success: "பில் பிரிக்கப்பட்டது! ₹{{amount}} {{count}} குடியிருப்பாளர்களுக்கு ஒதுக்கப்பட்டுள்ளது.",
+
+        // Settings
+        settings_title: "அமைப்புகள்",
+        general: "பொது",
+        app_preferences: "பயன்பாட்டு விருப்பங்கள்",
+        push_notif: "புஷ் அறிவிப்புகள்",
+        push_sub: "கட்டண விழிப்பூட்டல்களைப் பெறவும்",
+        dark_mode: "டார்க் மோட்",
+        dark_sub: "தோற்றத்தை மாற்றவும்",
+        account_security: "கணக்கு & பாதுகாப்பு",
+        edit_profile: "சுயவிவரத்தைத் திருத்து",
+        edit_profile_sub: "தனிப்பட்ட விவரங்களைப் புதுப்பிக்கவும்",
+        change_password: "கடவுச்சொல்லை மாற்றவும்",
+        change_password_sub: "உள்நுழைவு சான்றுகளைப் புதுப்பிக்கவும்",
+        language: "மொழி",
+        clear_cache: "தேக்ககத்தை அழி",
+        clear_cache_sub: "இடத்தை விடுவிக்கவும்",
+        select_language: "மொழியைத் தேர்ந்தெடுக்கவும்",
+        save_changes: "மாற்றங்களைச் சேமி",
+        update_pass: "கடவுச்சொல்லைப் புதுப்பிக்கவும்",
+        current_pass: "தற்போதைய கடவுச்சொல்",
+        new_pass: "புதிய கடவுச்சொல்",
+        name: "பெயர்",
+        email: "மின்னஞ்சல்",
+
+        // Notifications
+        notifications: "அறிவிப்புகள்",
+        unread: "படிக்காதவை",
+        mark_all_read: "அனைத்தையும் படித்ததாகக் குறி",
+        no_notifications: "அறிவிப்புகள் இல்லை",
+
+        // Registrations
+        registrations: "பதிவுகள்",
+        no_registrations: "பதிவுகள் எதுவும் இல்லை",
+        view_registration_pdf: "பதிவு PDF ஐ காண்க",
+        no_registration_form: "பதிவு படிவம் இல்லை",
+        joined: "சேர்ந்தது",
+        unknown: "தெரியாத",
+
+        // Add Tenant
+        new_resident: "புதிய குடியிருப்பாளர்",
+        registration: "பதிவு",
+        onboard_resident: "அமைப்பில் புதிய குடியிருப்பாளரைச் சேர்க்கவும்",
+        full_name: "முழு பெயர்",
+        whatsapp_number: "வாட்ஸ்அப் எண்",
+        room_number: "அறை எண்",
+        sharing: "பகிர்வு",
+        monthly_rent: "மாத வாடகை",
+        advance_paid: "முன்பணம்",
+        complete_registration: "பதிவை முடிக்கவும்",
+        incomplete_form: "தயவுசெய்து அனைத்து கட்டாயத் தகவல்களையும் வழங்கவும்.",
+        resident_added: "அறையில் சேர்க்கப்பட்டார்",
+        view_residents: "குடியிருப்பாளர்களை காண்க",
+        failed_register: "குடியிருப்பாளரைப் பதிவு செய்வதில் தோல்வி.",
+        name_placeholder: "குடியிருப்பாளர் பெயர்",
+        phone_placeholder: "நாட்டு குறியீட்டுடன் தொலைபேசி",
+        amount: "தொகை",
+        na: "பொருந்தாது",
+
+        // Edit Tenant
+        resident_profile: "குடியிருப்பாளர் சுயவிவரம்",
+        update_records: "தற்போதுள்ள பதிவுகளைப் புதுப்பிக்கவும்",
+        phone_number: "தொலைபேசி எண்",
+        eb_due: "EB பாக்கி",
+        ledger_status: "லெட்ஜர் நிலை",
+        paid: "செலுத்தப்பட்டது",
+        pending: "நிலுவையில்",
+        save_synchronize: "சேமித்து ஒத்திசைக்கவும்",
+        details_updated: "விவரங்கள் புதுப்பிக்கப்பட்டன",
+        profile_synced: "{{name}} க்கான சுயவிவரம் ஒத்திசைக்கப்பட்டது.",
+        done: "முடிந்தது",
+        profile_update_failed: "சுயவிவரப் புதுப்பிப்பு தோல்வியடைந்தது",
+        success: "வெற்றி",
+        error: "பிழை",
+
+        // Billing
+        utilities: "பயன்பாடுகள்",
+        electric_bill: "மின்சார கட்டணம்",
+        search_placeholder: "பெயர், அறையைத் தேடு...",
+        eb_bill_for: "EB பில்",
+        updated_to: "புதுப்பிக்கப்பட்டது",
+        failed_update_bill: "பில்லைப் புதுப்பிப்பதில் தோல்வி",
+
+        // Announcements
+        announcement: "அறிவிப்பு",
+        whatsapp_channel: "வாட்ஸ்அப் சேனல்",
+        draft_announcement: "உங்கள் அறிவிப்பை இங்கே வரைவு செய்யவும்...",
+        add_media: "மீடியா அல்லது ஆவணத்தைச் சேர்க்கவும்",
+        send_to_all: "அனைவருக்கும் அனுப்பு",
+        announcement_sent: "அறிவிப்பு அனுப்பப்பட்டது! குடியிருப்பாளர்கள் விரைவில் பெறுவார்கள்.",
+        announcement_failed: "அறிவிப்பு சேனல் தோல்வியடைந்தது: ",
+        network_error: "பிணைய பிழை"
+    },
+    'hi': {
+        // Auth
+        welcome_back: "वापसी पर स्वागत है",
+        sign_in_subtitle: "अपनी संपत्ति का प्रबंधन करने के लिए साइन इन करें",
+        username: "उपयोगकर्ता नाम",
+        password: "पासवर्ड",
+        sign_in: "साइन इन करें",
+        login_failed: "लॉगिन विफल",
+        invalid_credentials: "अमान्य क्रेडेंशियल। कृपया पुनः प्रयास करें।",
+        default_credentials: "डिफ़ॉल्ट क्रेडेंशियल: admin / admin",
+
+        // Dashboard
+        total_collected: "कुल जमा",
+        progress: "प्रगति",
+        expected: "अपेक्षित",
+        residents: "निवासी",
+        insights: "इनसाइट्स",
+        pending_verif: "सत्यापन लंबित",
+        unpaid: "भुगतान बाकी",
+        vacant_beds: "खाली बिस्तर",
+        total_rooms: "कुल कमरे",
+        broadcast: "प्रसारण",
+        announcements: "घोषणाएँ",
+        register: "पंजीकरण",
+        recent_activity: "हाल की गतिविधि",
+        ai_search: "AI खोज परिणाम",
+        ai_active: "AI सक्रिय",
+        ai_placeholder: "StayFlow AI (नाम, कमरा...)",
+
+        // Menu
+        navigation_menu: "नेविगेशन",
+        billing_finance: "बिलिंग और वित्त",
+        room_status: "कमरे की स्थिति",
+        notifications: "सूचनाएं",
+        system: "सिस्टम",
+        general_settings: "सामान्य सेटिंग्स",
+        app_info: "ऐप जानकारी",
+        sign_out: "साइन आउट",
+
+        // Residents
+        management: "प्रबंधन",
+        search_residents: "नाम, कमरा या फोन खोजें...",
+        no_residents: "कोई निवासी नहीं मिला",
+        rent: "किराया",
+        phone: "फोन",
+        edit: "संपादित करें",
+        remind: "याद दिलाएं",
+        mark_paid: "भुगतान चिह्नित करें",
+        gen_invoice: "चालान बनाएं",
+        remove_resident: "निवासी को हटाएं",
+        remove_resident: "निवासी को हटाएं",
+        confirm_delete: "हटाने की पुष्टि करें",
+        preview_invoice: "चालान का पूर्वावलोकन करें",
+
+        // Rooms
+        inventory: "इन्वेंटरी",
+        rooms: "कमरे",
+        room: "कमरा",
+        load: "लोड",
+        beds: "बिस्तर",
+        full: "पूर्ण",
+        vacant: "खाली",
+        occupied: "कब्जा कर लिया",
+        split_bill: "EB बिल विभाजन",
+        split_eb_bill: "EB बिल विभाजन",
+        total_bill_amount: "कुल बिल राशि",
+        each_pays: "प्रत्येक भुगतान करता है",
+        confirm_split: "विभाजन की पुष्टि करें",
+        cancel: "रद्द करें",
+        of: "का",
+        beds_occupied: "बिस्तर भरे हुए",
+        no_occupants: "इस कमरे में कोई निवासी नहीं है।",
+        bill_split_success: "बिल विभाजित! ₹{{amount}} {{count}} निवासियों को सौंपा गया।",
+
+        // Settings
+        settings_title: "सेटिंग्स",
+        general: "सामान्य",
+        app_preferences: "ऐप प्राथमिकताएं",
+        push_notif: "पुश सूचनाएं",
+        push_sub: "भुगतान अलर्ट प्राप्त करें",
+        dark_mode: "डार्क मोड",
+        dark_sub: "दिखावट थीम समायोजित करें",
+        account_security: "खाता और सुरक्षा",
+        edit_profile: "प्रोफ़ाइल संपादित करें",
+        edit_profile_sub: "व्यक्तिगत विवरण अपडेट करें",
+        change_password: "पासवर्ड बदलें",
+        change_password_sub: "लॉगिन क्रेडेंशियल अपडेट करें",
+        language: "भाषा",
+        clear_cache: "कैश साफ़ करें",
+        clear_cache_sub: "स्थान खाली करें",
+        select_language: "भाषा चुनें",
+        save_changes: "परिवर्तन सहेजें",
+        update_pass: "पासवर्ड अपडेट करें",
+        current_pass: "वर्तमान पासवर्ड",
+        new_pass: "नया पासवर्ड",
+        name: "नाम",
+        email: "ईमेल",
+
+        // Notifications
+        notifications: "सूचनाएं",
+        unread: "अपठित",
+        mark_all_read: "सभी को पढ़ा हुआ चिह्नित करें",
+        no_notifications: "कोई सूचना नहीं",
+
+        // Registrations
+        registrations: "पंजीकरण",
+        no_registrations: "कोई पंजीकरण नहीं मिला",
+        view_registration_pdf: "पंजीकरण पीडीएफ देखें",
+        no_registration_form: "कोई पंजीकरण फॉर्म नहीं",
+        joined: "शामिल हुआ",
+        unknown: "अज्ञात",
+
+        // Add Tenant
+        new_resident: "नया निवासी",
+        registration: "पंजीकरण",
+        onboard_resident: "सिस्टम में एक नए निवासी को शामिल करें",
+        full_name: "पूरा नाम",
+        whatsapp_number: "व्हाट्सएप नंबर",
+        room_number: "कमरा नंबर",
+        sharing: "साझाकरण",
+        monthly_rent: "मासिक किराया",
+        advance_paid: "अग्रिम भुगतान",
+        complete_registration: "पंजीकरण पूरा करें",
+        incomplete_form: "कृपया सभी अनिवार्य जानकारी प्रदान करें।",
+        resident_added: "कमरे में जोड़ा गया है",
+        view_residents: "निवासी देखें",
+        failed_register: "निवासी को पंजीकृत करने में विफल।",
+        name_placeholder: "निवासी का नाम",
+        phone_placeholder: "देश कोड सहित फोन",
+        amount: "राशि",
+        na: "लागू नहीं",
+
+        // Edit Tenant
+        resident_profile: "निवासी प्रोफ़ाइल",
+        update_records: "मौजूदा रिकॉर्ड अपडेट करें",
+        phone_number: "फोन नंबर",
+        eb_due: "ईबी बकाया",
+        ledger_status: "ब खाता स्थिति",
+        paid: "भुगतान किया",
+        pending: "लंबित",
+        save_synchronize: "सहेजें और सिंक्रनाइज़ करें",
+        details_updated: "विवरण अपडेट किए गए",
+        profile_synced: "{{name}} के लिए प्रोफ़ाइल सिंक्रनाइज़ की गई है।",
+        done: "पूर्ण",
+        profile_update_failed: "प्रोफ़ाइल अपडेट विफल",
+        success: "सफल",
+        error: "त्रुटि",
+
+        // Billing
+        utilities: "उपयोगिताएँ",
+        electric_bill: "बिजली बिल",
+        search_placeholder: "नाम, कमरा खोजें...",
+        eb_bill_for: "ईबी बिल",
+        updated_to: "अपडेट किया गया",
+        failed_update_bill: "बिल अपडेट करने में विफल",
+
+        // Announcements
+        announcement: "घोषणा",
+        whatsapp_channel: "व्हाट्सएप चैनल",
+        draft_announcement: "अपनी घोषणा यहाँ ड्राफ्ट करें...",
+        add_media: "मीडिया या दस्तावेज़ जोड़ें",
+        send_to_all: "सभी को भेजें",
+        announcement_sent: "घोषणा भेजना शुरू! निवासियों को जल्द ही प्राप्त होगा।",
+        announcement_failed: "घोषणा चैनल विफल: ",
+        network_error: "नेटवर्क त्रुटि"
+    },
+    'te': {
+        // Auth
+        welcome_back: "స్వాగతం",
+        sign_in_subtitle: "మీ ఆస్తిని నిర్వహించడానికి సైన్ ఇన్ చేయండి",
+        username: "యూజర్ పేరు",
+        password: "పాస్వర్డ్",
+        sign_in: "సైన్ ఇన్",
+        login_failed: "లాగిన్ విఫలమైంది",
+        invalid_credentials: "చెల్లని వివరాలు. దయచేసి మళ్ళీ ప్రయత్నించండి.",
+        default_credentials: "డిఫాల్ట్ వివరాలు: admin / admin",
+
+        // Dashboard
+        total_collected: "మొత్తం వసూలు",
+        progress: "ప్రగతి",
+        expected: "ఆశించినది",
+        residents: "నివాసితులు",
+        insights: "అంతర్దృష్టులు",
+        pending_verif: "ధృవీకరణ పెండింగ్",
+        unpaid: "చెల్లించనివి",
+        vacant_beds: "ఖాళీ పడకలు",
+        total_rooms: "మొత్తం గదులు",
+        broadcast: "ప్రసారం",
+        announcements: "ప్రకటనలు",
+        register: "నమోదు",
+        recent_activity: "ఇటీవలి కార్యకలాపాలు",
+        ai_search: "AI శోధన ఫలితాలు",
+        ai_active: "AI యాక్టివ్",
+        ai_placeholder: "StayFlow AI (పేరు, గది...)",
+
+        // Menu
+        navigation_menu: "నావిగేషన్",
+        billing_finance: "బిల్లింగ్ & ఫైనాన్స్",
+        room_status: "గది స్థితి",
+        notifications: "నోటిఫికేషన్లు",
+        system: "సిస్టమ్",
+        general_settings: "సాధారణ సెట్టింగ్‌లు",
+        app_info: "యాప్ సమాచారం",
+        sign_out: "సైన్ అవుట్",
+
+        // Residents
+        management: "నిర్వహణ",
+        search_residents: "పేరు, గది లేదా ఫోన్ వెతకండి...",
+        no_residents: "నివాసితులు కనుగొనబడలేదు",
+        rent: "అద్దె",
+        phone: "ఫోన్",
+        edit: "సవరించు",
+        remind: "గుర్తుచేయి",
+        mark_paid: "చెల్లించినట్లు గుర్తించు",
+        gen_invoice: "ఇన్వాయిస్ సృష్టించు",
+        remove_resident: "నివాసిని తొలగించు",
+        remove_resident: "నివాసిని తొలగించు",
+        confirm_delete: "తొలగింపును నిర్ధారించండి",
+        preview_invoice: "ఇన్వాయిస్ ప్రివ్యూ",
+
+        // Rooms
+        inventory: "ఇన్వెంటరీ",
+        rooms: "గదులు",
+        room: "గది",
+        load: "లోడ్",
+        beds: "పడకలు",
+        full: "పూర్తి",
+        vacant: "ఖాళీ",
+        occupied: "ఆక్రమించబడింది",
+        split_bill: "EB బిల్లు విభజన",
+        split_eb_bill: "EB బిల్లు విభజన",
+        total_bill_amount: "మొత్తం బిల్లు మొత్తం",
+        each_pays: "ప్రతి ఒక్కరు చెల్లిస్తారు",
+        confirm_split: "విభజనను నిర్ధారించు",
+        cancel: "రద్దు చేయి",
+        of: "లో",
+        beds_occupied: "పడకలు నిండాయి",
+        no_occupants: "ఈ గదిలో నివాసితులు లేరు.",
+        bill_split_success: "బిల్లు విభజించబడింది! ₹{{amount}} {{count}} నివాసితులకు కేటాయించబడింది.",
+
+        // Settings
+        settings_title: "సెట్టింగ్‌లు",
+        general: "సాధారణ",
+        app_preferences: "యాప్ ప్రాధాన్యతలు",
+        push_notif: "పుష్ నోటిఫికేషన్లు",
+        push_sub: "చెల్లింపు హెచ్చరికలను పొందండి",
+        dark_mode: "డార్క్ మోడ్",
+        dark_sub: "థీమ్ సర్దుబాటు చేయండి",
+        account_security: "ఖాతా & భద్రత",
+        edit_profile: "ప్రొఫైల్ సవరించు",
+        edit_profile_sub: "వ్యక్తిగత వివరాలను నవీకరించండి",
+        change_password: "పాస్వర్డ్ మార్చండి",
+        change_password_sub: "లాగిన్ వివరాలను నవీకరించండి",
+        language: "భాష",
+        clear_cache: "కాష్ క్లియర్ చేయి",
+        clear_cache_sub: "స్థలాన్ని ఖాళీ చేయండి",
+        select_language: "భాషను ఎంచుకోండి",
+        save_changes: "మార్పులను సేవ్ చేయి",
+        update_pass: "పాస్వర్డ్ నవీకరించు",
+        current_pass: "ప్రస్తుత పాస్వర్డ్",
+        new_pass: "కొత్త పాస్వర్డ్",
+        name: "పేరు",
+        email: "ఇమెయిల్",
+
+        // Notifications
+        notifications: "నోటిఫికేషన్లు",
+        unread: "చదవనివి",
+        mark_all_read: "అన్నీ చదివినట్లు గుర్తించు",
+        no_notifications: "ఇంకా నోటిఫికేషన్లు లేవు",
+
+        // Registrations
+        registrations: "నమోదులు",
+        no_registrations: "నమోదులు కనుగొనబడలేదు",
+        view_registration_pdf: "నమోదు PDF చూడండి",
+        no_registration_form: "నమోదు ఫారం లేదు",
+        joined: "చేరారు",
+        unknown: "తెలియదు",
+
+        // Add Tenant
+        new_resident: "కొత్త నివాసి",
+        registration: "నమోదు",
+        onboard_resident: "సిస్టమ్‌లో కొత్త నివాసిని చేర్చండి",
+        full_name: "పూర్తి పేరు",
+        whatsapp_number: "వాట్సాప్ నంబర్",
+        room_number: "గది సంఖ్య",
+        sharing: "భాగస్వామ్యం",
+        monthly_rent: "నెలవారీ అద్దె",
+        advance_paid: "అడ్వాన్స్ చెల్లించబడింది",
+        complete_registration: "నమోదు పూర్తి చేయండి",
+        incomplete_form: "దయచేసి అన్ని తప్పనిసరి వివరాలను అందించండి.",
+        resident_added: "గదిలో చేర్చబడ్డారు",
+        view_residents: "నివాసితులను చూడండి",
+        failed_register: "నివాసిని నమోదు చేయడంలో విఫలమైంది.",
+        name_placeholder: "నివాసి పేరు",
+        phone_placeholder: "దేశం కోడ్‌తో ఫోన్",
+        amount: "మొత్తం",
+        na: "వర్తించదు",
+
+        // Edit Tenant
+        resident_profile: "నివాసి ప్రొఫైల్",
+        update_records: "ఇప్పటికే ఉన్న రికార్డులను నవీకరించండి",
+        phone_number: "ఫోన్ నంబర్",
+        eb_due: "EB బకాయి",
+        ledger_status: "లెడ్జర్ స్థితి",
+        paid: "చెల్లించబడింది",
+        pending: "పెండింగ్",
+        save_synchronize: "సేవ్ చేసి సమకాలీకరించండి",
+        details_updated: "వివరాలు నవీకరించబడ్డాయి",
+        profile_synced: "{{name}} కోసం ప్రొఫైల్ సమకాలీకరించబడింది.",
+        done: "పూర్తయింది",
+        profile_update_failed: "ప్రొఫైల్ నవీకరణ విఫలమైంది",
+        success: "విజయం",
+        error: "లోపం",
+
+        // Billing
+        utilities: "యుటిలిటీస్",
+        electric_bill: "విద్యుత్ బిల్లు",
+        search_placeholder: "పేరు, గది వెతకండి...",
+        eb_bill_for: "EB బిల్లు",
+        updated_to: "నవీకరించబడింది",
+        failed_update_bill: "బిల్లును నవీకరించడంలో విఫలమైంది",
+
+        // Announcements
+        announcement: "ప్రకటన",
+        whatsapp_channel: "వాట్సాప్ ఛానెల్",
+        draft_announcement: "మీ ప్రకటనను ఇక్కడ చిత్తుప్రతి చేయండి...",
+        add_media: "మీడియా లేదా పత్రం జోడించు",
+        send_to_all: "అందరికీ పంపు",
+        announcement_sent: "ప్రకటన పంపడం ప్రారంభమైంది! నివాసితులు త్వరలో అందుకుంటారు.",
+        announcement_failed: "ప్రకటన ఛానెల్ విఫలమైంది: ",
+        network_error: "నెట్‌వర్క్ లోపం"
+    }
+};
+
+export const LanguageProvider = ({ children }) => {
+    const [language, setLanguage] = useState('en');
+
+    useEffect(() => {
+        loadLanguage();
+    }, []);
+
+    const loadLanguage = async () => {
+        try {
+            const savedLang = await AsyncStorage.getItem('appLanguage');
+            if (savedLang) setLanguage(savedLang);
+        } catch (e) { console.error('Failed to load language', e); }
+    };
+
+    const changeLanguage = async (lang) => {
+        try {
+            await AsyncStorage.setItem('appLanguage', lang);
+            setLanguage(lang);
+        } catch (e) { console.error('Failed to save language', e); }
+    };
+
+    const t = (key) => {
+        return translations[language][key] || translations['en'][key] || key;
+    };
+
+    return (
+        <LanguageContext.Provider value={{ language, changeLanguage, t }}>
+            {children}
+        </LanguageContext.Provider>
+    );
+};

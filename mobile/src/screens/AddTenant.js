@@ -7,10 +7,12 @@ import { addTenant } from '../api/api';
 import { UserPlus, Save, User, Phone, Home } from 'lucide-react-native';
 import { useFadeSlideIn, usePressAnimation } from '../utils/animations';
 import { notifyNewRegistration } from '../utils/notifications';
+import { useLanguage } from '../context/LanguageContext';
 
 const AddTenant = ({ navigation }) => {
     const [formData, setFormData] = useState({ name: '', phone: '', room: '', sharingType: '3', advance: '0', rent: '0' });
     const [loading, setLoading] = useState(false);
+    const { t } = useLanguage();
 
     // Animations
     const cardAnim = useFadeSlideIn(80, 500, 28);
@@ -20,18 +22,18 @@ const AddTenant = ({ navigation }) => {
 
     const handleSubmit = async () => {
         if (!formData.name || !formData.phone || !formData.room || !formData.rent) {
-            Alert.alert('Incomplete Form', 'Kindly provide all mandatory resident information.');
+            Alert.alert(t('error'), t('incomplete_form'));
             return;
         }
         try {
             setLoading(true);
             await addTenant({ ...formData, monthlyRent: formData.rent });
             await notifyNewRegistration(formData.name, formData.room, formData.phone);
-            Alert.alert('Registration Successful', `${formData.name} has been added to Room ${formData.room}`, [
-                { text: 'View Residents', onPress: () => navigation.navigate('Residents') }
+            Alert.alert(t('success'), `${formData.name} ${t('resident_added')} ${formData.room}`, [
+                { text: t('view_residents'), onPress: () => navigation.navigate('Residents') }
             ]);
         } catch (e) {
-            Alert.alert('Error', 'Failed to register resident.');
+            Alert.alert(t('error'), t('failed_register'));
         } finally { setLoading(false); }
     };
 
@@ -55,7 +57,7 @@ const AddTenant = ({ navigation }) => {
 
     return (
         <View style={styles.container}>
-            <Header title="New Resident" />
+            <Header title={t('new_resident')} />
             <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
                 <ScrollView contentContainerStyle={styles.scrollArea} showsVerticalScrollIndicator={false}>
                     <Animated.View style={[styles.formCard, cardAnim]}>
@@ -64,24 +66,24 @@ const AddTenant = ({ navigation }) => {
                                 <UserPlus color="#fff" size={22} />
                             </LinearGradient>
                             <View>
-                                <Text style={styles.cardTitle}>Registration</Text>
-                                <Text style={styles.cardInfo}>Onboard a new resident to the system</Text>
+                                <Text style={styles.cardTitle}>{t('registration')}</Text>
+                                <Text style={styles.cardInfo}>{t('onboard_resident')}</Text>
                             </View>
                         </View>
 
-                        {renderField('FULL NAME', 'name', { icon: <User size={16} color={Colors.primary} />, placeholder: 'Resident name' })}
-                        {renderField('WHATSAPP NUMBER', 'phone', { keyboard: 'phone-pad', maxLength: 10, icon: <Phone size={16} color={Colors.primary} />, placeholder: 'Phone including country code' })}
+                        {renderField(t('full_name').toUpperCase(), 'name', { icon: <User size={16} color={Colors.primary} />, placeholder: t('name_placeholder') })}
+                        {renderField(t('whatsapp_number').toUpperCase(), 'phone', { keyboard: 'phone-pad', maxLength: 10, icon: <Phone size={16} color={Colors.primary} />, placeholder: t('phone_placeholder') })}
 
                         <View style={styles.inputRow}>
-                            {renderField('ROOM NUMBER', 'room', { halfWidth: true, icon: <Home size={16} color={Colors.primary} />, placeholder: '101' })}
+                            {renderField(t('room_number').toUpperCase(), 'room', { halfWidth: true, icon: <Home size={16} color={Colors.primary} />, placeholder: '101' })}
                             <View style={{ width: 12 }} />
-                            {renderField('SHARING', 'sharingType', { halfWidth: true, keyboard: 'numeric', placeholder: 'Beds' })}
+                            {renderField(t('sharing').toUpperCase(), 'sharingType', { halfWidth: true, keyboard: 'numeric', placeholder: t('beds') })}
                         </View>
 
                         <View style={styles.inputRow}>
-                            {renderField('MONTHLY RENT', 'rent', { halfWidth: true, keyboard: 'numeric', placeholder: 'Amount' })}
+                            {renderField(t('monthly_rent').toUpperCase(), 'rent', { halfWidth: true, keyboard: 'numeric', placeholder: t('amount') })}
                             <View style={{ width: 12 }} />
-                            {renderField('ADVANCE PAID', 'advance', { halfWidth: true, keyboard: 'numeric', placeholder: 'Amount' })}
+                            {renderField(t('advance_paid').toUpperCase(), 'advance', { halfWidth: true, keyboard: 'numeric', placeholder: t('amount') })}
                         </View>
 
                         <Animated.View style={[submitPress, { marginTop: 12 }]}>
@@ -90,7 +92,7 @@ const AddTenant = ({ navigation }) => {
                                     {loading ? <ActivityIndicator color="#fff" /> : (
                                         <>
                                             <Save color="#fff" size={18} />
-                                            <Text style={styles.registerBtnText}>Complete Registration</Text>
+                                            <Text style={styles.registerBtnText}>{t('complete_registration')}</Text>
                                         </>
                                     )}
                                 </LinearGradient>

@@ -9,6 +9,7 @@ import * as Notifications from 'expo-notifications';
 import * as Device from 'expo-device';
 
 const STORAGE_KEY = '@stayflow_notifications';
+const DELETED_IDS_KEY = '@stayflow_deleted_ids';
 const MAX_NOTIFICATIONS = 100;
 
 /**
@@ -144,10 +145,13 @@ export const getNotifications = async () => {
         const raw = await AsyncStorage.getItem(STORAGE_KEY);
         const localNotifications = raw ? JSON.parse(raw) : [];
 
-        // 3. Merge and sort (newest first)
-        const combined = [...serverNotifications, ...localNotifications].sort((a, b) =>
-            new Date(b.timestamp) - new Date(a.timestamp)
-        );
+        // 3. Filter out locally deleted server notifications
+        const deletedRaw = await AsyncStorage.getItem(DELETED_IDS_KEY);
+        const deletedIds = deletedRaw ? JSON.parse(deletedRaw) : [];
+
+        const combined = [...serverNotifications, ...localNotifications]
+            .filter(n => !deletedIds.includes(n.id))
+            .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
 
         return combined.slice(0, MAX_NOTIFICATIONS);
     } catch (e) {
@@ -288,8 +292,21 @@ export const markAllAsRead = async () => {
 export const deleteNotification = async (notificationId) => {
     try {
         const notifications = await getNotifications();
+        const notification = notifications.find(n => n.id === notificationId);
+
+        if (notification && notification.isServer) {
+            // Add to deleted IDs list
+            const rawDeleted = await AsyncStorage.getItem(DELETED_IDS_KEY);
+            const deletedIds = rawDeleted ? JSON.parse(rawDeleted) : [];
+            if (!deletedIds.includes(notificationId)) {
+                deletedIds.push(notificationId);
+                await AsyncStorage.setItem(DELETED_IDS_KEY, JSON.stringify(deletedIds));
+            }
+        }
+
         const updated = notifications.filter(n => n.id !== notificationId);
-        await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+        // Only save local notifications back to storage
+        await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updated.filter(n => !n.isServer)));
     } catch (e) {
         console.error('Failed to delete notification:', e);
     }
@@ -302,6 +319,7 @@ export const clearAllNotifications = async () => {
     try {
         await clearServerNotifications();
         await AsyncStorage.removeItem(STORAGE_KEY);
+        await AsyncStorage.removeItem(DELETED_IDS_KEY);
     } catch (e) {
         console.error('Failed to clear notifications:', e);
     }
@@ -387,11 +405,11 @@ export const notifyEBSplit = (room, perPerson, count) =>
         { room, perPerson, count },
         true // bannerOnly
     );
-export const notifyAnnouncement = (message, count) =>
+export const notifyAnnouncement = (message, count, imageUrl) =>
     addNotification(
         'announcement',
         `📢 New Announcement`,
         message || `Sent to ${count} residents`,
-        { message, count },
+        { message, count, imageUrl },
         true // bannerOnly
     );

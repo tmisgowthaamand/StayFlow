@@ -5,15 +5,17 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { ArrowLeft, Bell, Search, User, Zap, Menu, X } from 'lucide-react-native';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { getUnreadCount } from '../utils/notifications';
+import { useTheme } from '../context/ThemeContext';
 
-const Header = memo(({ title, onMenuPress, onBack, subtitle, showNotifBell = true, transparent = false, onSearchChange, placeholder = "Search..." }) => {
+const Header = memo(({ title, onMenuPress, onBack, subtitle, showNotifBell = true, transparent = false, onSearchChange, placeholder = "Search...", rightSection, initialSearchValue = '' }) => {
     const navigation = useNavigation();
+    const { colors } = useTheme();
     const [unreadCount, setUnreadCount] = useState(0);
-    const [isSearching, setIsSearching] = useState(false);
-    const [searchQuery, setSearchQuery] = useState('');
+    const [isSearching, setIsSearching] = useState(!!initialSearchValue);
+    const [searchQuery, setSearchQuery] = useState(initialSearchValue);
 
     const entrance = useRef(new Animated.Value(0)).current;
-    const searchAnim = useRef(new Animated.Value(0)).current;
+    const searchAnim = useRef(new Animated.Value(isSearching ? 1 : 0)).current;
 
     useEffect(() => {
         Animated.timing(entrance, {
@@ -90,17 +92,17 @@ const Header = memo(({ title, onMenuPress, onBack, subtitle, showNotifBell = tru
         <Animated.View style={[
             styles.container,
             { opacity, transform: [{ translateY }] },
-            transparent ? styles.transparent : styles.opaque
+            transparent ? styles.transparent : [styles.opaque, { backgroundColor: colors.background }]
         ]}>
             <View style={styles.content}>
                 <View style={styles.leftSection}>
                     {onBack ? (
-                        <TouchableOpacity onPress={onBack} style={styles.circularButton}>
-                            <ArrowLeft color={Colors.text} size={22} />
+                        <TouchableOpacity onPress={onBack} style={[styles.circularButton, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+                            <ArrowLeft color={colors.text} size={22} />
                         </TouchableOpacity>
                     ) : (
                         <TouchableOpacity onPress={onMenuPress} style={styles.brandGroup}>
-                            <LinearGradient colors={Gradients.vibrant} style={styles.brandIcon}>
+                            <LinearGradient colors={colors.gradients?.vibrant || Gradients.vibrant} style={styles.brandIcon}>
                                 <Zap color="#fff" size={18} fill="#fff" />
                             </LinearGradient>
                         </TouchableOpacity>
@@ -108,17 +110,17 @@ const Header = memo(({ title, onMenuPress, onBack, subtitle, showNotifBell = tru
 
                     {!isSearching ? (
                         <Animated.View style={[styles.titleGroup, { opacity: titleOpacity, transform: [{ scale: titleScale }] }]}>
-                            <Text style={styles.titleText}>{title}</Text>
-                            {subtitle && <Text style={styles.subtitleText}>{subtitle}</Text>}
+                            <Text style={[styles.titleText, { color: colors.text }]}>{title}</Text>
+                            {subtitle && <Text style={[styles.subtitleText, { color: colors.textMuted }]}>{subtitle}</Text>}
                         </Animated.View>
                     ) : (
                         <Animated.View style={[styles.searchInputWrapper, { opacity: searchAnim, transform: [{ translateX: searchInputTranslate }] }]}>
-                            <View style={styles.searchInner}>
-                                <Search color={Colors.primary} size={16} />
+                            <View style={[styles.searchInner, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+                                <Search color={colors.primary} size={16} />
                                 <TextInput
-                                    style={styles.headerInput}
+                                    style={[styles.headerInput, { color: colors.text }]}
                                     placeholder={placeholder}
-                                    placeholderTextColor={Colors.textMuted}
+                                    placeholderTextColor={colors.textMuted}
                                     value={searchQuery}
                                     onChangeText={handleSearch}
                                     autoFocus
@@ -129,15 +131,17 @@ const Header = memo(({ title, onMenuPress, onBack, subtitle, showNotifBell = tru
                 </View>
 
                 <View style={styles.rightSection}>
-                    <TouchableOpacity style={[styles.iconButton, isSearching && styles.searchingIconActive]} onPress={toggleSearch}>
-                        {isSearching ? <X color={Colors.accent} size={20} /> : <Search color={Colors.textSecondary} size={20} />}
+                    <TouchableOpacity style={[styles.iconButton, { backgroundColor: 'rgba(255,255,255,0.05)', borderColor: 'rgba(255,255,255,0.08)' }, isSearching && styles.searchingIconActive]} onPress={toggleSearch}>
+                        {isSearching ? <X color={colors.accent} size={20} /> : <Search color={colors.textSecondary} size={20} />}
                     </TouchableOpacity>
 
+                    {rightSection}
+
                     {!isSearching && showNotifBell && (
-                        <TouchableOpacity onPress={() => navigation.navigate('Notifications')} style={styles.iconButton}>
-                            <Bell color={Colors.text} size={20} />
+                        <TouchableOpacity onPress={() => navigation.navigate('Notifications')} style={[styles.iconButton, { backgroundColor: 'rgba(255,255,255,0.05)', borderColor: 'rgba(255,255,255,0.08)' }]}>
+                            <Bell color={colors.text} size={20} />
                             {unreadCount > 0 && (
-                                <View style={styles.badge}>
+                                <View style={[styles.badge, { backgroundColor: colors.accent, borderColor: colors.background }]}>
                                     <Text style={styles.badgeText}>{unreadCount > 9 ? '9+' : unreadCount}</Text>
                                 </View>
                             )}
@@ -146,7 +150,7 @@ const Header = memo(({ title, onMenuPress, onBack, subtitle, showNotifBell = tru
 
                     {!isSearching && (
                         <TouchableOpacity onPress={onMenuPress} style={styles.menuButton}>
-                            <Menu color={Colors.textSecondary} size={20} />
+                            <Menu color={colors.textSecondary} size={20} />
                         </TouchableOpacity>
                     )}
                 </View>

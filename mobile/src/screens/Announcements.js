@@ -1,17 +1,20 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, Alert, ActivityIndicator, Animated, Easing } from 'react-native';
+import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, Alert, ActivityIndicator, Animated, Easing, Image } from 'react-native';
 import { Colors, Spacing, Shadows, Typography, BorderRadius, Gradients } from '../theme/theme';
 import { LinearGradient } from 'expo-linear-gradient';
 import Header from '../components/Header';
 import { sendAnnouncement } from '../api/api';
-import { Megaphone, Paperclip, X, Send } from 'lucide-react-native';
+import { Megaphone, Paperclip, X, Send, Image as ImageIcon } from 'lucide-react-native';
 import * as DocumentPicker from 'expo-document-picker';
 import { useFadeSlideIn, usePressAnimation, AnimatedListItem } from '../utils/animations';
 import { notifyAnnouncement } from '../utils/notifications';
+import { useLanguage } from '../context/LanguageContext';
 
-const Announcements = ({ navigation }) => {
+const Announcements = ({ navigation, route }) => {
+    const recipient = route.params?.recipient;
     const [message, setMessage] = useState('');
     const [attachment, setAttachment] = useState(null);
+    const { t } = useLanguage();
     const [loading, setLoading] = useState(false);
 
     const entranceAnim = useFadeSlideIn(100, 600, 20);
@@ -19,7 +22,7 @@ const Announcements = ({ navigation }) => {
 
     const handlePickDocument = async () => {
         try {
-            const result = await DocumentPicker.getDocumentAsync({ type: ['image/*', 'video/*', 'application/pdf'] });
+            const result = await DocumentPicker.getDocumentAsync({ type: '*/*' });
             if (!result.canceled && result.assets?.length > 0) {
                 setAttachment(result.assets[0]);
             }
@@ -32,13 +35,29 @@ const Announcements = ({ navigation }) => {
             setLoading(true);
             const formData = new FormData();
             if (message.trim()) formData.append('message', message);
-            if (attachment) formData.append('file', { uri: attachment.uri, name: attachment.name, type: attachment.mimeType || 'application/octet-stream' });
-            await sendAnnouncement(formData, true);
-            notifyAnnouncement(message, 'residents');
-            Alert.alert('Success', 'Announcement sending started! Residents will receive it shortly.');
+            if (attachment) formData.append('file', {
+                uri: attachment.uri,
+                name: attachment.name,
+                type: attachment.mimeType || 'application/octet-stream'
+            });
+
+            if (recipient?.Phone) {
+                formData.append('phone', recipient.Phone);
+                formData.append('name', recipient.Name);
+            }
+
+            const response = await sendAnnouncement(formData, true);
+            const serverImageUrl = response.imageUrl || response.fileUrl || response.url;
+
+            // Only notify globally if it was a broadcast
+            if (!recipient) {
+                notifyAnnouncement(message, 'residents', serverImageUrl || (attachment?.mimeType?.startsWith('image/') ? attachment.uri : null));
+            }
+
+            Alert.alert(t('success'), recipient ? t('message_sent') : t('announcement_sent'));
             navigation.goBack();
         } catch (e) {
-            Alert.alert('Error', 'Announcement channel failed: ' + (e.message || 'Network Error'));
+            Alert.alert(t('error'), (recipient ? t('message_failed') : t('announcement_failed')) + (e.message || t('network_error')));
         } finally { setLoading(false); }
     };
 
@@ -46,17 +65,19 @@ const Announcements = ({ navigation }) => {
 
     return (
         <View style={styles.container}>
-            <Header title="Announcement" onBack={() => navigation.goBack()} />
+            <Header title={recipient ? t('send_message') : t('announcement')} onBack={() => navigation.goBack()} />
             <ScrollView contentContainerStyle={styles.content}>
                 <Animated.View style={[styles.messageCard, entranceAnim]}>
                     <View style={styles.cardTop}>
                         <Megaphone size={16} color={Colors.primary} />
-                        <Text style={styles.cardBatch}>WHATSAPP CHANNEL</Text>
+                        <Text style={styles.cardBatch}>
+                            {recipient ? `${t('to').toUpperCase()}: ${recipient.Name}` : t('whatsapp_channel').toUpperCase()}
+                        </Text>
                     </View>
 
                     <TextInput
                         style={styles.composer}
-                        placeholder="Draft your announcement here..."
+                        placeholder={recipient ? t('type_message') : t('draft_announcement')}
                         placeholderTextColor={Colors.textMuted}
                         multiline
                         value={message}
@@ -66,17 +87,22 @@ const Announcements = ({ navigation }) => {
 
                     <View style={styles.cardFooter}>
                         {attachment ? (
-                            <View style={styles.filePill}>
-                                <Paperclip size={14} color={Colors.primary} />
-                                <Text style={styles.fileName} numberOfLines={1}>{attachment.name}</Text>
-                                <TouchableOpacity onPress={() => setAttachment(null)} style={styles.removeFile}>
-                                    <X size={14} color={Colors.textSecondary} />
-                                </TouchableOpacity>
+                            <View style={styles.attachmentWrapper}>
+                                {attachment.mimeType?.startsWith('image/') && (
+                                    <Image source={{ uri: attachment.uri }} style={styles.previewImage} />
+                                )}
+                                <View style={styles.filePill}>
+                                    <Paperclip size={14} color={Colors.primary} />
+                                    <Text style={styles.fileName} numberOfLines={1}>{attachment.name}</Text>
+                                    <TouchableOpacity onPress={() => setAttachment(null)} style={styles.removeFile}>
+                                        <X size={14} color={Colors.textSecondary} />
+                                    </TouchableOpacity>
+                                </View>
                             </View>
                         ) : (
                             <TouchableOpacity style={styles.attachControl} onPress={handlePickDocument}>
                                 <Paperclip size={16} color={Colors.textMuted} />
-                                <Text style={styles.attachText}>Add media or document</Text>
+                                <Text style={styles.attachText}>{t('add_media')}</Text>
                             </TouchableOpacity>
                         )}
                         <Text style={styles.countText}>{message.length}/1000</Text>
@@ -101,7 +127,7 @@ const Announcements = ({ navigation }) => {
                                 <>
                                     <Send size={20} color={hasContent ? "#fff" : Colors.textMuted} />
                                     <Text style={[styles.btnText, { color: hasContent ? "#fff" : Colors.textMuted }]}>
-                                        SEND TO ALL
+                                        {recipient ? t('send_message').toUpperCase() : t('send_to_all').toUpperCase()}
                                     </Text>
                                 </>
                             )}
@@ -146,6 +172,16 @@ const styles = StyleSheet.create({
     },
     attachControl: { flexDirection: 'row', alignItems: 'center', gap: 8 },
     attachText: { ...Typography.tiny, color: Colors.textSecondary },
+    attachmentWrapper: { flex: 1, marginRight: 12 },
+    previewImage: {
+        width: '100%',
+        height: 120,
+        borderRadius: 10,
+        marginBottom: 8,
+        backgroundColor: Colors.surface,
+        borderWidth: 1,
+        borderColor: Colors.border
+    },
     filePill: {
         flexDirection: 'row',
         alignItems: 'center',
@@ -154,8 +190,6 @@ const styles = StyleSheet.create({
         paddingHorizontal: 12,
         paddingVertical: 8,
         borderRadius: 10,
-        flex: 1,
-        marginRight: 12,
         borderWidth: 1,
         borderColor: Colors.border
     },
