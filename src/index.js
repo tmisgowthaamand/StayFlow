@@ -905,6 +905,20 @@ app.post('/api/add-tenant', async (req, res) => {
     }
 });
 
+// ─── Bulk Task Tracking ───────────────────────────────────────────
+let lastBulkTask = {
+    status: 'idle',
+    total: 0,
+    sent: 0,
+    failed: 0,
+    skipped: 0,
+    failedList: [],
+    startTime: null,
+    endTime: null
+};
+
+app.get('/api/bulk-status', (req, res) => res.json(lastBulkTask));
+
 app.post('/api/trigger-notifications', async (req, res) => {
     try {
         // Re-read fresh data from Google Sheets 
@@ -928,6 +942,21 @@ app.post('/api/trigger-notifications', async (req, res) => {
         // Background async - send notifications without blocking response
         (async () => {
             let sentCount = 0;
+            let failCount = 0;
+            let skippedCount = 0;
+            let failedRecipients = [];
+
+            lastBulkTask = {
+                status: 'running',
+                total: activeTenants.length,
+                sent: 0,
+                failed: 0,
+                skipped: 0,
+                failedList: [],
+                startTime: new Date().toISOString(),
+                endTime: null
+            };
+
             for (const tenant of activeTenants) {
                 const phone = tenant.get('Phone');
                 const name = tenant.get('Name');
@@ -940,7 +969,7 @@ app.post('/api/trigger-notifications', async (req, res) => {
                     const currentStatus = freshTenant.get('Status');
                     // 🚨 SKIP IF ALREADY PAID
                     if (currentStatus === 'PAID' || currentStatus === 'VALID') {
-                        console.log(`[NOTIFY] Skipping ${name} - Already PAID.`);
+                        skippedCount++;
                         continue;
                     }
 
@@ -948,7 +977,10 @@ app.post('/api/trigger-notifications', async (req, res) => {
                     const eb = (freshTenant.get('EB Amount') || '0').toString().replace(/[^\d.]/g, '');
                     const total = parseFloat(rent) + parseFloat(eb);
 
-                    if (total <= 0) continue;
+                    if (total <= 0) {
+                        skippedCount++;
+                        continue;
+                    }
 
                     // Update Status to PENDING
                     await sheetsService.updateTenant(phone, { 'Status': 'PENDING' }, name);
@@ -976,21 +1008,41 @@ app.post('/api/trigger-notifications', async (req, res) => {
 
                     sentCount++;
                     console.log(`[NOTIFY] Sent to ${name} (${sentCount}/${activeTenants.length})`);
-                    await new Promise(r => setTimeout(r, 1200)); // Slight delay to avoid throttle
-                } catch (e) { console.error(`Failed to notify ${name}:`, e.message); }
-            }
-            console.log(`[NOTIFY] Complete: ${sentCount} notifications sent.`);
+                    await new Promise(r => setTimeout(r, 1200));
+                } catch (e) {
+                    failCount++;
+                    failedRecipients.push(name || phone);
+                    console.error(`Failed to notify ${name}:`, e.message);
+                }
 
-            // 🔔 Create In-App Notification (Summary)
+                // Update real-time status
+                lastBulkTask.sent = sentCount;
+                lastBulkTask.failed = failCount;
+                lastBulkTask.skipped = skippedCount;
+                lastBulkTask.failedList = failedRecipients;
+            }
+
+            console.log(`[NOTIFY] Complete: ${sentCount} sent, ${failCount} failed, ${skippedCount} skipped.`);
+            lastBulkTask.status = 'completed';
+            lastBulkTask.endTime = new Date().toISOString();
+
+            // 🔔 Create In-App Notification (Summary Report)
             try {
+                const failureDetails = failCount > 0 ? `\n❌ Failed: ${failCount} (${failedRecipients.join(', ')})` : '';
                 await Notification.create({
-                    type: 'bulk_notify',
-                    title: `Bulk Invoices Sent`,
-                    body: `Invoices sent to ${sentCount} residents`,
-                    meta: { count: sentCount, timestamp: new Date().toISOString() }
+                    type: 'bulk_notify_report',
+                    title: `📢 Bulk Invoices Report`,
+                    body: `✅ Sent: ${sentCount}\n⏭️ Skipped (Paid): ${skippedCount}${failureDetails}`,
+                    meta: {
+                        sent: sentCount,
+                        failed: failCount,
+                        skipped: skippedCount,
+                        failures: failedRecipients,
+                        timestamp: new Date().toISOString()
+                    }
                 });
             } catch (e) {
-                console.error('Failed to create in-app notification:', e.message);
+                console.error('Failed to create report notification:', e.message);
             }
         })();
     } catch (err) {

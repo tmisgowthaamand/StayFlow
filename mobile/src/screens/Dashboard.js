@@ -4,6 +4,7 @@ import { Colors, Spacing, Shadows, Typography, BorderRadius, Gradients } from '.
 import { LinearGradient } from 'expo-linear-gradient';
 import Header from '../components/Header';
 import StatCard from '../components/StatCard';
+import BulkStatusModal from '../components/BulkStatusModal';
 import { getDashboardStats, getTenants, notifyAll } from '../api/api';
 import {
     Wallet, Users, Home, TrendingUp, Zap,
@@ -52,6 +53,7 @@ const Dashboard = () => {
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
+    const [isBulkStatusVisible, setIsBulkStatusVisible] = useState(false);
     const navigation = useNavigation();
     const { t } = useLanguage();
 
@@ -133,12 +135,11 @@ const Dashboard = () => {
                         try {
                             setLoading(true);
                             await notifyAll();
-                            Alert.alert(t('success'), t('announcement_sent'));
+                            setIsBulkStatusVisible(true);
                         } catch (e) {
                             Alert.alert(t('error'), e.message);
                         } finally {
                             setLoading(false);
-                            onRefresh();
                         }
                     }
                 }
@@ -392,6 +393,12 @@ const Dashboard = () => {
                     </Animated.View>
                 </View>
             </Modal>
+
+            <BulkStatusModal
+                visible={isBulkStatusVisible}
+                onClose={() => setIsBulkStatusVisible(false)}
+                onComplete={() => onRefresh()}
+            />
         </View>
     );
 };

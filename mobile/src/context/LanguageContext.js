@@ -172,6 +172,7 @@ const translations = {
         add_media: "Add media or document",
         send_to_all: "Send to All",
         announcement_sent: "Announcement sending started! Residents will receive it shortly.",
+        notify_all_started: "Bulk notification process started. You will receive a summary report in your notifications once complete.",
         announcement_failed: "Announcement channel failed: ",
         network_error: "Network Error",
         send_message: "Send Message",

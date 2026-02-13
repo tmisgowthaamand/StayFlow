@@ -23,6 +23,7 @@ const getTypeConfig = (type) => {
         payment_received: NOTIFICATION_TYPES.PAYMENT_RECEIVED,
         new_registration: NOTIFICATION_TYPES.NEW_REGISTRATION,
         bulk_notify: NOTIFICATION_TYPES.BULK_NOTIFY,
+        bulk_notify_report: NOTIFICATION_TYPES.BULK_NOTIFY_REPORT,
         eb_split: NOTIFICATION_TYPES.EB_SPLIT,
         announcement: NOTIFICATION_TYPES.ANNOUNCEMENT,
     };
@@ -54,7 +55,12 @@ const NotificationCard = memo(({ item, index, onRead, onDelete }) => {
                                 <Text style={[styles.notifTitle, !item.read && styles.unreadText]} numberOfLines={1}>{item.title}</Text>
                                 <Text style={styles.timeText}>{formatNotificationTime(item.timestamp)}</Text>
                             </View>
-                            <Text style={styles.notifBody} numberOfLines={2}>{item.body}</Text>
+                            <Text
+                                style={[styles.notifBody, item.type === 'bulk_notify_report' && styles.reportText]}
+                                numberOfLines={item.type === 'bulk_notify_report' ? undefined : 2}
+                            >
+                                {item.body}
+                            </Text>
                             {(item.type === 'announcement' || item.meta?.imageUrl) && item.meta?.imageUrl && (
                                 <Image source={{ uri: item.meta.imageUrl }} style={styles.attachedImage} resizeMode="cover" />
                             )}
@@ -162,6 +168,7 @@ const styles = StyleSheet.create({
     unreadText: { color: Colors.text, fontWeight: '700' },
     timeText: { ...Typography.tiny, color: Colors.textMuted },
     notifBody: { ...Typography.tiny, color: Colors.textSecondary, lineHeight: 14 },
+    reportText: { color: Colors.text, lineHeight: 18, marginTop: 4, fontWeight: '500' },
     attachedImage: {
         width: '100%',
         height: 150,

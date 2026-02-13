@@ -44,6 +44,13 @@ export const NOTIFICATION_TYPES = {
         gradient: ['#F59E0B', '#D97706'],
         color: '#F59E0B',
     },
+    BULK_NOTIFY_REPORT: {
+        key: 'bulk_notify_report',
+        label: 'Bulk Bills Report',
+        icon: 'Megaphone',
+        gradient: ['#10B981', '#3B82F6'],
+        color: '#10B981',
+    },
     EB_SPLIT: {
         key: 'eb_split',
         label: 'EB Bill Split',

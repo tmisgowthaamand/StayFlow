@@ -110,6 +110,16 @@ export const notifyAll = async () => {
     }
 };
 
+export const getBulkStatus = async () => {
+    try {
+        const response = await api.get('/bulk-status');
+        return response.data;
+    } catch (error) {
+        console.error('Fetch bulk status failed:', error.message);
+        throw error;
+    }
+};
+
 export const generateInvoice = async (phone, name) => {
     try {
         const response = await api.post('/generate-invoice', { phone, name });

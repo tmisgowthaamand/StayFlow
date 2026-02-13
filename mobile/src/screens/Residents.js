@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, FlatList, TouchableOpacity, TextInput, Activity
 import { Colors, Spacing, Shadows, Typography, BorderRadius, Gradients } from '../theme/theme';
 import { LinearGradient } from 'expo-linear-gradient';
 import Header from '../components/Header';
+import BulkStatusModal from '../components/BulkStatusModal';
 import { useNavigation } from '@react-navigation/native';
 import { useLanguage } from '../context/LanguageContext';
 import { getTenants, notifyTenant, markPaidManual, deleteTenant, notifyAll, generateInvoice } from '../api/api';
@@ -74,6 +75,7 @@ const Residents = ({ route }) => {
     const [loading, setLoading] = useState(true);
     const [selectedTenant, setSelectedTenant] = useState(null);
     const [searchQuery, setSearchQuery] = useState('');
+    const [isBulkStatusVisible, setIsBulkStatusVisible] = useState(false);
     const navigation = useNavigation();
     const { t } = useLanguage();
 
@@ -295,7 +297,7 @@ const Residents = ({ route }) => {
                                             try {
                                                 setLoading(true);
                                                 await notifyAll();
-                                                Alert.alert(t('success'), t('announcement_sent')); // Re-using translation
+                                                setIsBulkStatusVisible(true);
                                             } catch (e) {
                                                 Alert.alert(t('error'), e.message);
                                             } finally {
@@ -382,6 +384,12 @@ const Residents = ({ route }) => {
                     </View>
                 </TouchableOpacity>
             </Modal>
+
+            <BulkStatusModal
+                visible={isBulkStatusVisible}
+                onClose={() => setIsBulkStatusVisible(false)}
+                onComplete={() => fetchTenants()}
+            />
         </View>
     );
 };
