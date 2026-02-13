@@ -25,7 +25,12 @@
         "barStyle": "light-content",
         "translucent": true
       },
-      "package": "com.stayflow.mobile"
+      "package": "com.stayflow.mobile",
+      "googleServicesFile": "./google-services.json"
+    },
+    "notification": {
+      "icon": "./assets/notification-icon.png",
+      "color": "#6C63FF"
     },
     "web": {
       "favicon": "./assets/favicon.png"
