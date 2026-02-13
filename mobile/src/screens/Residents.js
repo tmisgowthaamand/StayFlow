@@ -37,9 +37,17 @@ const ResidentItem = memo(({ item, index, onMenuPress, onRemind }) => {
                         </View>
                     </View>
 
-                    <TouchableOpacity style={styles.optionsBtn} onPress={onMenuPress}>
-                        <MoreVertical size={20} color={Colors.textMuted} />
-                    </TouchableOpacity>
+                    <View style={styles.cardActionsHeader}>
+                        <TouchableOpacity style={styles.headerIconBtn} onPress={() => navigation.navigate('EditTenant', { tenant: item })}>
+                            <Edit size={18} color={Colors.cool} />
+                        </TouchableOpacity>
+                        <TouchableOpacity style={styles.headerIconBtn} onPress={() => onRemind(item)}>
+                            <Bell size={18} color={Colors.warning} />
+                        </TouchableOpacity>
+                        <TouchableOpacity style={styles.optionsBtn} onPress={onMenuPress}>
+                            <MoreVertical size={20} color={Colors.textMuted} />
+                        </TouchableOpacity>
+                    </View>
                 </View>
 
                 <View style={styles.statsGrid}>
@@ -54,18 +62,7 @@ const ResidentItem = memo(({ item, index, onMenuPress, onRemind }) => {
                     </View>
                 </View>
 
-                <View style={styles.actionsRow}>
-                    <TouchableOpacity style={[styles.btn, styles.secondaryBtn]} onPress={() => navigation.navigate('EditTenant', { tenant: item })}>
-                        <Edit size={16} color={Colors.primaryLight} />
-                        <Text style={styles.btnTextSecondary}>{t('edit')}</Text>
-                    </TouchableOpacity>
-
-                    <TouchableOpacity style={[styles.btn, styles.primaryBtn]} onPress={() => onRemind(item)}>
-                        <LinearGradient colors={Gradients.cool} style={StyleSheet.absoluteFill} />
-                        <Send size={16} color="#fff" />
-                        <Text style={styles.btnTextPrimary}>{t('remind')}</Text>
-                    </TouchableOpacity>
-                </View>
+                {/* Actions Row removed for cleaner UI as buttons moved to header */}
             </Animated.View>
         </AnimatedListItem>
     );
@@ -350,14 +347,17 @@ const Residents = ({ route }) => {
                             <Text style={styles.menuSubtitle}>Room {selectedTenant?.Room}</Text>
                         </View>
 
+                        <TouchableOpacity style={styles.menuItem} onPress={() => {
+                            setSelectedTenant(null);
+                            navigation.navigate('EditTenant', { tenant: selectedTenant });
+                        }}>
+                            <Edit size={20} color={Colors.cool} />
+                            <Text style={styles.menuText}>{t('edit')}</Text>
+                        </TouchableOpacity>
+
                         <TouchableOpacity style={styles.menuItem} onPress={() => handleAction('PAID')}>
                             <CheckCircle size={20} color={Colors.secondary} />
                             <Text style={styles.menuText}>{t('mark_paid')}</Text>
-                        </TouchableOpacity>
-
-                        <TouchableOpacity style={styles.menuItem} onPress={() => handleAction('REMIND')}>
-                            <Bell size={20} color={Colors.warning} />
-                            <Text style={styles.menuText}>{t('remind')}</Text>
                         </TouchableOpacity>
 
                         <TouchableOpacity style={styles.menuItem} onPress={() => {
@@ -449,7 +449,9 @@ const styles = StyleSheet.create({
     nameText: { ...Typography.h4, color: Colors.text, fontSize: 17 },
     metaRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 2 },
     metaText: { ...Typography.bodySmall, color: Colors.textSecondary },
-    optionsBtn: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
+    optionsBtn: { width: 32, height: 32, alignItems: 'center', justifyContent: 'center' },
+    cardActionsHeader: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+    headerIconBtn: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center', borderRadius: 18, backgroundColor: 'rgba(255,255,255,0.05)' },
 
     // Stats Grid
     statsGrid: {

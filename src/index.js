@@ -580,47 +580,8 @@ app.post('/api/verify-transaction', async (req, res) => {
     }
 });
 
-// ==================== NOTIFICATION APIs ====================
-app.get('/api/notifications', async (req, res) => {
-    try {
-        const notifications = await Notification.find().sort({ timestamp: -1 }).limit(100);
-        res.json(notifications);
-    } catch (err) {
-        res.status(500).json({ error: err.message });
-    }
-});
+// Redundant notification routes removed (already at the bottom)
 
-app.get('/api/notifications/unread-count', async (req, res) => {
-    try {
-        const count = await Notification.countDocuments({ read: false });
-        res.json({ count });
-    } catch (err) {
-        res.status(500).json({ error: err.message });
-    }
-});
-
-app.post('/api/notifications/mark-read', async (req, res) => {
-    try {
-        const { id } = req.body;
-        if (id) {
-            await Notification.findByIdAndUpdate(id, { read: true });
-        } else {
-            await Notification.updateMany({ read: false }, { read: true });
-        }
-        res.json({ success: true });
-    } catch (err) {
-        res.status(500).json({ error: err.message });
-    }
-});
-
-app.delete('/api/notifications', async (req, res) => {
-    try {
-        await Notification.deleteMany({});
-        res.json({ success: true });
-    } catch (err) {
-        res.status(500).json({ error: err.message });
-    }
-});
 
 // Initialize WWeb for Free Automation
 wweb.init();
@@ -898,7 +859,7 @@ app.get('/api/tenants', async (req, res) => {
         res.json(tenants);
     } catch (err) {
         console.error('API Tenants Error:', err.message);
-        res.status(500).json({ error: err.message });
+        res.status(500).json({ error: 'Failed to fetch tenants: ' + err.message });
     }
 });
 
@@ -1400,7 +1361,10 @@ app.post('/api/eb-bills', async (req, res) => {
 
 app.get('/api/dashboard-stats', async (req, res) => {
     try { res.json(await sheetsService.getDashboardStats()); }
-    catch (err) { res.status(500).json({ error: err.message }); }
+    catch (err) {
+        console.error('Dashboard Stats Error:', err.message);
+        res.status(500).json({ error: 'Failed to fetch stats: ' + err.message });
+    }
 });
 
 app.get('/api/config', (req, res) => {

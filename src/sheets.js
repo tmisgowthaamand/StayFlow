@@ -99,11 +99,11 @@ class SheetsService {
         } catch (err) {
             this.doc = null;
             console.error('Google Sheets Init FAILED (loadInfo):', err.message);
+            const errorMsg = `Google Sheets Init FAILED: ${err.message}`;
             if (err.message.includes('Signature') || err.message.includes('grant')) {
-                console.error('JWT Error Details:', err.response?.data);
-                throw new Error(`Invalid JWT Connection: ${err.message}. Please verify the Private Key and Service Account Email.`);
+                throw new Error(`Invalid JWT Connection: ${err.message}. Check service-account.json.`);
             }
-            throw err;
+            throw new Error(errorMsg);
         }
 
 
@@ -529,6 +529,7 @@ class SheetsService {
 
     async getTenantsJSON() {
         await this.init();
+        if (!this.sheet) throw new Error('Tenants sheet not found after initialization.');
         const rows = await this.sheet.getRows();
         return rows.map(row => {
             const data = {};
@@ -717,13 +718,17 @@ class SheetsService {
         );
 
         const totalRevenue = thisMonthPayments.length > 0
-            ? thisMonthPayments.reduce((sum, h) => sum + parseFloat(h.get('Amount') || '0'), 0)
-            : totalRevenueFromTenants; // Fallback to Tenants sheet if History is empty for the month
+            ? thisMonthPayments.reduce((sum, h) => {
+                const val = parseFloat((h.get('Amount') || '0').toString().replace(/[^\d.]/g, ''));
+                return sum + (isNaN(val) ? 0 : val);
+            }, 0)
+            : totalRevenueFromTenants;
 
         // Expected revenue
-        const expectedRevenue = activeTenants.reduce((sum, t) =>
-            sum + parseFloat(t.get('Total Amount') || '0'), 0
-        );
+        const expectedRevenue = activeTenants.reduce((sum, t) => {
+            const val = parseFloat((t.get('Total Amount') || '0').toString().replace(/[^\d.]/g, ''));
+            return sum + (isNaN(val) ? 0 : val);
+        }, 0);
 
         return {
             totalTenants: activeTenants.length,
