@@ -115,9 +115,9 @@ async function validateInputWithAI(step, input) {
     }
 }
 
-function setTenantContext(phone, name) {
-    if (!userState[phone]) userState[phone] = {};
-    userState[phone].contextName = name;
+async function setTenantContext(phone, name) {
+    const session = await getSession(phone) || {};
+    await updateSession(phone, { ...session, contextName: name });
 }
 
 function normalizePhone(phone) {
@@ -613,13 +613,13 @@ async function handleIncomingMessage(phone, body, messageId = null, image = null
             const cashRent = parseFloat(tenantForCash.get('Monthly Rent') || 0);
             const cashEB = parseFloat(tenantForCash.get('EB Amount') || 0);
             const cashTotal = cashRent + cashEB;
-            userState[phone] = { step: 'CASH_AMOUNT', contextName: tenantForCash.get('Name'), expectedTotal: cashTotal };
+            await updateSession(phone, { step: 'CASH_AMOUNT', contextName: tenantForCash.get('Name'), expectedTotal: cashTotal });
             await sendMessage(phone, `💵 *Cash Payment*\n\n🏠 Rent: ₹${cashRent}\n⚡ EB: ₹${cashEB}\n💰 *Total Due: ₹${cashTotal}*\n\nPlease enter the *amount paid*.\nExample: *${cashTotal}*\n\n⚠️ _Invoice will be generated after admin verification._`);
             break;
         }
         case config.commands.HELP:
-            await sendButtons(phone, `🆘 *Need Help?*\n\nPlease select your issue category:`, ["🔧 Maintenance", "💰 Payment", "📋 Other"]);
-            userState[phone] = { step: 'HELP_CATEGORY' };
+            await sendButtons(phone, `How can we help you today?`, ['🛠️ Maintenance', '💰 Payment Issue', '👤 Profile Update', '🚪 Vacate Room', '❌ Cancel']);
+            await updateSession(phone, { step: 'HELP_CATEGORY' });
             break;
         case 'ADVANCE':
             await handleAdvance(phone);
@@ -686,7 +686,7 @@ async function handleIncomingMessage(phone, body, messageId = null, image = null
             await handleSendReminder(phone);
             break;
         case 'ANNOUNCE':
-            userState[phone] = { step: 'ANNOUNCE_MSG' };
+            await updateSession(phone, { step: 'ANNOUNCE_MSG' });
             await sendMessage(phone, `What is the announcement?`);
             break;
 
@@ -920,7 +920,7 @@ async function handleIncomingMessage(phone, body, messageId = null, image = null
             const cashRent = parseFloat(tenantCash.get('Monthly Rent') || 0);
             const cashEB = parseFloat(tenantCash.get('EB Amount') || 0);
             const cashTotal = cashRent + cashEB;
-            userState[phone] = { step: 'CASH_AMOUNT', contextName: tenantCash.get('Name'), expectedTotal: cashTotal };
+            await updateSession(phone, { step: 'CASH_AMOUNT', contextName: tenantCash.get('Name'), expectedTotal: cashTotal });
             await sendMessage(phone, `💵 *Cash Payment*\n\n🏠 Rent: ₹${cashRent}\n⚡ EB: ₹${cashEB}\n━━━━━━━━━━━━━━━━━━━━\n💰 *Total Due: ₹${cashTotal}*\n\nPlease enter the *exact amount paid*.\nExample: *${cashTotal}*`);
             break;
         }
@@ -929,7 +929,7 @@ async function handleIncomingMessage(phone, body, messageId = null, image = null
         case '❌ CANCEL':
         case 'CANCEL': {
             await sendMessage(phone, '❌ Payment cancelled. You can type *RENT* anytime to view your bill and pay.');
-            delete userState[phone];
+            await updateSession(phone, null);
             break;
         }
 
@@ -1119,7 +1119,7 @@ async function handleSmartChat(phone, body, cleanBody) {
 
         // Pay query
         if (payKeywords.some(k => cleanBody.includes(k))) {
-            userState[phone] = { step: 'PAYMENT_METHOD', contextName: name };
+            await updateSession(phone, { step: 'PAYMENT_METHOD', contextName: name });
             await sendMessage(phone, `💰 *Payment - ${name}*\n\n🏠 Rent: ₹${rent}\n⚡ EB: ₹${eb}\n━━━━━━━━━━━━━━━━━━━━\n💵 *Total Due: ₹${total}*\n\n*How will you pay?*\n\n1️⃣ *Razorpay* - Secure Online Payment\n2️⃣ *CASH* - Paid by cash\n\nReply *1* or *2*`);
             return;
         }
@@ -1195,7 +1195,8 @@ ${tenantContext}`;
 
 async function handleSmartPayment(phone, body) {
     const clean = body.trim().toUpperCase();
-    const contextName = userState[phone]?.contextName;
+    const session = await getSession(phone);
+    const contextName = session?.contextName;
     const tenant = await sheetsService.getTenantByPhone(phone, contextName);
     if (!tenant) return false;
 
@@ -1220,7 +1221,7 @@ async function handleSmartPayment(phone, body) {
 
     // ===== "PAID BY CASH" — Cash payment flow =====
     if (clean.includes('CASH')) {
-        userState[phone] = { step: 'CASH_AMOUNT', contextName: tenant.get('Name'), expectedTotal: total };
+        await updateSession(phone, { step: 'CASH_AMOUNT', contextName: tenant.get('Name'), expectedTotal: total });
         await sendMessage(phone, `💵 *Cash Payment*\n\n🏠 Rent: ₹${rent}\n⚡ EB: ₹${eb}\n━━━━━━━━━━━━━━━━━━━━\n💰 *Total Due: ₹${total}*\n\nPlease enter the *exact amount paid*.\nExample: *${total}*`);
         return true;
     }
@@ -1266,7 +1267,8 @@ async function handleSmartPayment(phone, body) {
 // should be exported or defined here. For brevity, I'll export the main ones.
 
 async function handleRent(phone) {
-    const tenant = await sheetsService.getTenantByPhone(phone, userState[phone]?.contextName);
+    const session = await getSession(phone);
+    const tenant = await sheetsService.getTenantByPhone(phone, session?.contextName);
     if (!tenant) {
         await sendMessage(phone, "Please JOIN first.");
         return;
@@ -1306,7 +1308,7 @@ async function handleRent(phone) {
     if (isVerified) {
         await sendMedia(phone, filePath, caption + `\n\n✅ *Payment Status: VALID*`, null, 'StayFlow_Invoice.pdf');
     } else {
-        userState[phone] = { step: 'PAYMENT_METHOD', contextName: name };
+        await updateSession(phone, { step: 'PAYMENT_METHOD', contextName: name });
         await sendMedia(phone, filePath, caption + `\n\n━━━━━━━━━━━━━━━━━━━━\n*Select payment method to proceed* 👇`, ["💳 Pay Now UPI", "💵 Pay Cash", "❌ Cancel"], 'StayFlow_Invoice.pdf');
         // Send Contact Us CTA as a follow-up
         const adminPhone = config.ownerPhone || '';
@@ -1315,7 +1317,8 @@ async function handleRent(phone) {
 }
 
 async function handleEB(phone) {
-    const tenant = await sheetsService.getTenantByPhone(phone, userState[phone]?.contextName);
+    const session = await getSession(phone);
+    const tenant = await sheetsService.getTenantByPhone(phone, session?.contextName);
     if (!tenant) return;
     const eb = tenant.get('EB Amount') || '0';
     await sendMessage(phone, `⚡ Your Electricity Bill for this month is *₹${eb}*. This is included in your total rent.`);
@@ -1347,7 +1350,7 @@ async function handleMenuRent(phone) {
     if (!isVerified) {
         // Show Razorpay + Cash + Cancel buttons
         await sendButtons(phone, rentMsg, ['💳 Pay via Razorpay', '💵 Pay Cash', '❌ Cancel']);
-        userState[phone] = { step: 'PAYMENT_METHOD', contextName: name };
+        await updateSession(phone, { step: 'PAYMENT_METHOD', contextName: name });
     } else {
         // Already paid — show contact only
         await sendButtons(phone, rentMsg, ['📞 Contact']);
@@ -1376,7 +1379,7 @@ async function handleMenuEBBill(phone) {
     const isVerified = status === 'PAID' || status === 'VALID';
     if (!isVerified) {
         await sendButtons(phone, ebMsg, ['💳 Pay via Razorpay', '💵 Pay Cash', '❌ Cancel']);
-        userState[phone] = { step: 'PAYMENT_METHOD', contextName: name };
+        await updateSession(phone, { step: 'PAYMENT_METHOD', contextName: name });
     } else {
         await sendButtons(phone, ebMsg, ['📞 Contact']);
     }
@@ -1543,7 +1546,8 @@ async function handleStatementMonth(phone, year, month) {
 }
 
 async function handleStatus(phone) {
-    const tenant = await sheetsService.getTenantByPhone(phone, userState[phone]?.contextName);
+    const session = await getSession(phone);
+    const tenant = await sheetsService.getTenantByPhone(phone, session?.contextName);
     if (!tenant) return;
     const status = tenant.get('Status');
     const emoji = status === 'PAID' ? '✅' : '⏳';
@@ -1551,14 +1555,16 @@ async function handleStatus(phone) {
 }
 
 async function handleAdvance(phone) {
-    const tenant = await sheetsService.getTenantByPhone(phone, userState[phone]?.contextName);
+    const session = await getSession(phone);
+    const tenant = await sheetsService.getTenantByPhone(phone, session?.contextName);
     if (!tenant) return;
     const advance = tenant.get('Advance');
     await sendMessage(phone, `💰 You have an advance of *₹${advance}* with us.`);
 }
 
 async function handleTenantVacateRequest(phone) {
-    const tenant = await sheetsService.getTenantByPhone(phone, userState[phone]?.contextName);
+    const session = await getSession(phone);
+    const tenant = await sheetsService.getTenantByPhone(phone, session?.contextName);
     if (!tenant) return;
     await sendMessage(phone, `We are sorry to see you go! 😔\nYour request to vacate Room *${tenant.get('Room')}* has been sent to the admin. We will process it shortly.`);
     if (config.ownerPhone) {
@@ -1827,7 +1833,9 @@ async function handleRazorpaySuccess(phone, amount, trxId, paymentMode = 'UPI (R
 }
 
 async function handleOnboarding(phone, input, image) {
-    const state = userState[phone];
+    const state = await getSession(phone);
+    if (!state) return;
+
     switch (state.step) {
 
         // ========== PAYMENT FLOW STATES ==========
@@ -1839,10 +1847,10 @@ async function handleOnboarding(phone, input, image) {
 
             if (isCancel) {
                 await sendMessage(phone, '❌ Payment cancelled. Type *RENT* anytime to view your bill.');
-                delete userState[phone];
+                await updateSession(phone, null);
             } else if (isRazorpay) {
                 const tenant = await sheetsService.getTenantByPhone(phone, state.contextName);
-                if (!tenant) { await sendMessage(phone, 'Tenant not found.'); delete userState[phone]; return; }
+                if (!tenant) { await sendMessage(phone, 'Tenant not found.'); await updateSession(phone, null); return; }
                 const rent = parseFloat(tenant.get('Monthly Rent') || 0);
                 const eb = parseFloat(tenant.get('EB Amount') || 0);
                 const total = rent + eb;
@@ -1856,10 +1864,10 @@ async function handleOnboarding(phone, input, image) {
                 } else {
                     await sendMessage(phone, `❌ Online payment is currently unavailable. Please contact admin.`);
                 }
-                delete userState[phone];
+                await updateSession(phone, null);
             } else if (isCash) {
                 const tenant = await sheetsService.getTenantByPhone(phone, state.contextName);
-                if (!tenant) { await sendMessage(phone, 'Tenant not found.'); delete userState[phone]; return; }
+                if (!tenant) { await sendMessage(phone, 'Tenant not found.'); await updateSession(phone, null); return; }
                 const rent = parseFloat(tenant.get('Monthly Rent') || 0);
                 const eb = parseFloat(tenant.get('EB Amount') || 0);
                 const total = rent + eb;
@@ -1888,7 +1896,7 @@ async function handleOnboarding(phone, input, image) {
         case 'CASH_DATE': {
             const pDate = input.trim();
             const tenant = await sheetsService.getTenantByPhone(phone, state.contextName);
-            if (!tenant) { delete userState[phone]; return; }
+            if (!tenant) { await updateSession(phone, null); return; }
 
             const rent = parseFloat(tenant.get('Monthly Rent') || 0);
             const eb = parseFloat(tenant.get('EB Amount') || 0);
@@ -1918,13 +1926,13 @@ async function handleOnboarding(phone, input, image) {
                 console.error('Failed to create in-app notification:', e.message);
             }
 
-            delete userState[phone];
+            await updateSession(phone, null);
             break;
         }
 
         case 'HELP_CATEGORY': {
             const category = input.trim().replace(/[^\w\s]/g, '').trim() || 'General';
-            userState[phone] = { step: 'HELP_REASON', helpCategory: category };
+            await updateSession(phone, { ...state, step: 'HELP_REASON', helpCategory: category });
             await sendMessage(phone, `📝 *Category: ${category}*\n\nPlease describe your issue in detail.\n\n_Example: "Water leaking from bathroom ceiling in Room 5"_`);
             break;
         }
@@ -1953,14 +1961,14 @@ async function handleOnboarding(phone, input, image) {
                 console.error('Failed to create in-app notification:', e.message);
             }
 
-            delete userState[phone];
+            await updateSession(phone, null);
             break;
         }
 
         case 'ANNOUNCE_MSG': {
             if (phone !== config.ownerPhone) {
                 await sendMessage(phone, '❌ Only admin can send announcements.');
-                delete userState[phone];
+                await updateSession(phone, null);
                 return;
             }
             const allTenants = await sheetsService.getAllTenants();
@@ -1975,7 +1983,7 @@ async function handleOnboarding(phone, input, image) {
                 } catch (e) { console.error(`Announce error for ${tPhone}:`, e.message); }
             }
             await sendMessage(phone, `✅ Announcement sent to ${sentCount} tenants.`);
-            delete userState[phone];
+            await updateSession(phone, null);
             break;
         }
 
@@ -2044,12 +2052,12 @@ async function handleOnboarding(phone, input, image) {
                 await sendMedia(config.ownerPhone, regPath, `📝 Registration copy: ${state.name}`, null, 'StayFlow_Registration.pdf');
             }
 
-            delete userState[phone];
+            await updateSession(phone, null);
             break;
 
         default:
             await sendMessage(phone, "I didn't understand that. Type *HI* to see what I can do!");
-            delete userState[phone];
+            await updateSession(phone, null);
             break;
     }
 }

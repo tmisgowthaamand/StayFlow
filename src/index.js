@@ -1111,7 +1111,7 @@ app.post('/api/notify-tenant', async (req, res) => {
         if (!tenant) return res.status(404).json({ error: 'Tenant not found' });
 
         const name = tenant.get('Name');
-        setTenantContext(phone, name);
+        await setTenantContext(phone, name);
         const rent = (tenant.get('Monthly Rent') || '0').toString().replace(/[^\d.]/g, '');
         const eb = (tenant.get('EB Amount') || '0').toString().replace(/[^\d.]/g, '');
         const total = parseFloat(rent) + parseFloat(eb);
