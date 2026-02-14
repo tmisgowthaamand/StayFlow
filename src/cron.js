@@ -1,7 +1,21 @@
 import cron from 'node-cron';
+import fs from 'fs';
+import path from 'path';
 import sheetsService from './sheets.js';
 import * as bot from './bot.js';
 import config from './config.js';
+import { exportAllData } from './db.js';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// Requirement 8: Monetary precision helper
+const toPaise = (val) => {
+    if (!val) return 0;
+    const clean = val.toString().replace(/[^\d.]/g, '');
+    return Math.round(parseFloat(clean) * 100);
+};
 
 function setupCron() {
     // 1. Send Bill on the 1st of every month at 9:00 AM
@@ -14,14 +28,15 @@ function setupCron() {
 
                 const phone = tenant.get('Phone');
                 const name = tenant.get('Name');
-                const rent = tenant.get('Monthly Rent');
-                const eb = tenant.get('EB Amount') || 0;
-                const total = parseFloat(rent) + parseFloat(eb);
+                const rentPaise = toPaise(tenant.get('Monthly Rent'));
+                const ebPaise = toPaise(tenant.get('EB Amount'));
+                const totalPaise = rentPaise + ebPaise;
+                const total = totalPaise / 100;
 
                 const upiLink = `upi://pay?pa=${config.upiId}&pn=${encodeURIComponent(config.businessName)}&am=${total}&cu=INR`;
                 const razorpayLink = await bot.createRazorpayLink(phone, name, total, tenant.get('Room'));
 
-                let msg = `🚀 *STAYFLOW: New Monthly Bill*\n\nHi ${name},\nYour bill for the new month has been generated:\n\nRent: ₹${rent}\nEB: ₹${eb}\nTotal: ₹${total}\n\nDue Date: ${config.rentDueDate}th`;
+                let msg = `🚀 *STAYFLOW: New Monthly Bill*\n\nHi ${name},\nYour bill for the new month has been generated:\n\nRent: ₹${rentPaise / 100}\nEB: ₹${ebPaise / 100}\nTotal: ₹${total}\n\nDue Date: ${config.rentDueDate}th`;
 
                 if (razorpayLink) {
                     msg += `\n\n💳 *Pay Online:* ${razorpayLink}`;
@@ -45,7 +60,8 @@ function setupCron() {
             for (const tenant of unpaid) {
                 const phone = tenant.get('Phone');
                 const name = tenant.get('Name');
-                const total = parseFloat(tenant.get('Total Amount') || 0);
+                const totalPaise = toPaise(tenant.get('Total Amount'));
+                const total = totalPaise / 100;
                 const razorpayLink = await bot.createRazorpayLink(phone, name, total, tenant.get('Room'));
 
                 let msg = `🔔 *Friendly Reminder*\n\nHi ${name}, your rent payment of *₹${total}* is due by the ${config.rentDueDate}th.`;
@@ -72,7 +88,8 @@ function setupCron() {
             for (const tenant of unpaid) {
                 const phone = tenant.get('Phone');
                 const name = tenant.get('Name');
-                const total = parseFloat(tenant.get('Total Amount') || 0);
+                const totalPaise = toPaise(tenant.get('Total Amount'));
+                const total = totalPaise / 100;
                 const razorpayLink = await bot.createRazorpayLink(phone, name, total, tenant.get('Room'));
 
                 let msg = `⚠️ *FINAL REMINDER*\n\nHi ${name}, today is the last date to pay your rent of *₹${total}* without late fees.`;
@@ -89,7 +106,23 @@ function setupCron() {
         }
     });
 
-    // 4. Full Sync with MongoDB every 6 hours (to catch manual edits in Google Sheet)
+    // 4. Daily Database Backup at 3:00 AM (Requirement 10)
+    cron.schedule('0 3 * * *', async () => {
+        console.log('Running Daily Database Backup...');
+        try {
+            const backupData = await exportAllData();
+            const backupDir = path.join(__dirname, '../backups');
+            if (!fs.existsSync(backupDir)) fs.mkdirSync(backupDir);
+
+            const fileName = `backup-${new Date().toISOString().split('T')[0]}.json`;
+            fs.writeFileSync(path.join(backupDir, fileName), JSON.stringify(backupData, null, 2));
+            console.log(`[BACKUP] Successfully saved to ${fileName}`);
+        } catch (err) {
+            console.error('Cron Error (Backup):', err.message);
+        }
+    });
+
+    // 5. Full Sync with MongoDB every 6 hours
     cron.schedule('0 */6 * * *', async () => {
         console.log('Running Full MongoDB Sync Cron...');
         try {
@@ -100,7 +133,7 @@ function setupCron() {
         }
     });
 
-    console.log('🕒 Automation System Active: Notifications scheduled for 1st, 3rd, 5th, and auto-sync every 6h.');
+    console.log('🕒 Automation System Active: Daily Backups (3AM), Sync (6h), and Bills (1,3,5th).');
 }
 
 export default setupCron;

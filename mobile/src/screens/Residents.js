@@ -185,7 +185,8 @@ const Residents = ({ route }) => {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',
-                            'Accept': 'application/json'
+                            'Accept': 'application/json',
+                            'x-api-key': 'stayflow_dev_key_123'
                         },
                         body: JSON.stringify({ phone: selectedTenant.Phone, name: selectedTenant.Name })
                     });
@@ -229,7 +230,9 @@ const Residents = ({ route }) => {
                             console.log("Fetching PDF data from:", encodedUrl);
 
                             try {
-                                const fileResp = await fetch(encodedUrl);
+                                const fileResp = await fetch(encodedUrl, {
+                                    headers: { 'x-api-key': 'stayflow_dev_key_123' }
+                                });
                                 const fileBlob = await fileResp.blob();
                                 const reader = new FileReader();
                                 reader.readAsDataURL(fileBlob);

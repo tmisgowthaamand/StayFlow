@@ -5,6 +5,9 @@ const API_BASE_URL = 'https://stayflow-hnm3.onrender.com/api/';
 const api = axios.create({
     baseURL: API_BASE_URL,
     timeout: 30000,
+    headers: {
+        'x-api-key': 'stayflow_dev_key_123'
+    }
 });
 
 export const getTenants = async () => {

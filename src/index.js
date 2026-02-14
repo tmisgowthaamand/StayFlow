@@ -1,4 +1,5 @@
 import express from 'express';
+import { rateLimit } from 'express-rate-limit';
 import mongoose from 'mongoose';
 import bodyParser from 'body-parser';
 import cors from 'cors';
@@ -26,6 +27,26 @@ const __dirname = path.dirname(__filename);
 // auto-syncs to MongoDB. No need for separate sync calls.
 
 const app = express();
+
+// PHASE 2 REQ 7: Rate Limiting
+const apiLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 100,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: 'Too many requests from this IP' }
+});
+
+const paymentLimiter = rateLimit({
+    windowMs: 60 * 60 * 1000,
+    max: 10,
+    message: { error: 'Payment attempt limit reached.' }
+});
+
+app.use('/api/', apiLimiter);
+app.use('/api/verify-payment', paymentLimiter);
+app.use('/api/mark-paid', paymentLimiter);
+app.use('/api/razorpay-webhook', (req, res, next) => next()); // No limit on webhooks
 app.use(cors({
     origin: (config.allowedOrigins.length > 0 && config.allowedOrigins[0] !== '') ? config.allowedOrigins : '*',
     methods: ['GET', 'POST', 'PUT', 'DELETE'],
@@ -721,7 +742,26 @@ app.post('/api/bulk-update-eb', authenticate, async (req, res) => {
     }
 });
 
-const upload = multer({ dest: 'uploads/' });
+// PHASE 2 REQ 5: Secure File Uploads
+const storage = multer.diskStorage({
+    destination: 'uploads/',
+    filename: (req, file, cb) => {
+        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+        cb(null, file.fieldname + '-' + uniqueSuffix + path.extname(file.originalname));
+    }
+});
+
+const upload = multer({
+    storage: storage,
+    limits: { fileSize: 2 * 1024 * 1024 }, // 2MB Limit
+    fileFilter: (req, file, cb) => {
+        const allowedTypes = /jpeg|jpg|png|pdf/;
+        const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
+        const mimetype = allowedTypes.test(file.mimetype);
+        if (extname && mimetype) return cb(null, true);
+        cb(new Error('Only JPEG, PNG and PDF files are allowed!'));
+    }
+});
 
 app.post('/api/upload-aadhaar', authenticate, upload.single('aadhaar'), async (req, res) => {
     try {
@@ -1104,7 +1144,7 @@ app.post('/api/generate-invoice', async (req, res) => {
     }
 });
 
-app.post('/api/notify-tenant', async (req, res) => {
+app.post('/api/notify-tenant', authenticate, async (req, res) => {
     try {
         const { phone, name: requestedName } = req.body;
         const tenant = await sheetsService.getTenantByPhone(phone, requestedName);
@@ -1282,7 +1322,7 @@ app.post('/api/delete-tenant', authenticate, async (req, res) => {
     }
 });
 
-app.post('/api/sync-to-mongo', async (req, res) => {
+app.post('/api/sync-to-mongo', authenticate, async (req, res) => {
     try {
         const count = await sheetsService.syncAllToMongo();
         res.json({ success: true, count });
@@ -1300,7 +1340,7 @@ app.get('/api/archived-tenants', authenticate, async (req, res) => {
     }
 });
 
-app.post(['/api/announcement', '/api/broadcast'], upload.single('file'), async (req, res) => {
+app.post(['/api/announcement', '/api/broadcast'], authenticate, upload.single('file'), async (req, res) => {
     try {
         const { message, phone, name } = req.body;
         const file = req.file;
@@ -1377,7 +1417,7 @@ app.get('/api/notifications', authenticate, async (req, res) => {
     }
 });
 
-app.get('/api/notifications/unread-count', async (req, res) => {
+app.get('/api/notifications/unread-count', authenticate, async (req, res) => {
     try {
         const count = await Notification.countDocuments({ read: false });
         res.json({ count });
@@ -1386,7 +1426,7 @@ app.get('/api/notifications/unread-count', async (req, res) => {
     }
 });
 
-app.post('/api/notifications/mark-read', async (req, res) => {
+app.post('/api/notifications/mark-read', authenticate, async (req, res) => {
     try {
         const { id } = req.body;
         if (id) {
@@ -1400,7 +1440,7 @@ app.post('/api/notifications/mark-read', async (req, res) => {
     }
 });
 
-app.delete('/api/notifications', async (req, res) => {
+app.delete('/api/notifications', authenticate, async (req, res) => {
     try {
         await Notification.deleteMany({});
         res.json({ success: true });
@@ -1409,12 +1449,12 @@ app.delete('/api/notifications', async (req, res) => {
     }
 });
 
-app.get('/api/locations', async (req, res) => {
+app.get('/api/locations', authenticate, async (req, res) => {
     try { res.json(await sheetsService.getAllLocations()); }
     catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.post('/api/locations', async (req, res) => {
+app.post('/api/locations', authenticate, async (req, res) => {
     try {
         const { name, address, totalRooms, floors, totalBeds, notes } = req.body;
         await sheetsService.addLocation({ name, address, totalRooms, floors, totalBeds, notes });
@@ -1422,7 +1462,7 @@ app.post('/api/locations', async (req, res) => {
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.get('/api/eb-bills', async (req, res) => {
+app.get('/api/eb-bills', authenticate, async (req, res) => {
     try {
         const { location } = req.query;
         res.json(await sheetsService.getEBBillsByLocation(location || 'Main Branch'));
@@ -1457,7 +1497,7 @@ app.get('/api/dashboard-stats', authenticate, async (req, res) => {
     }
 });
 
-app.get('/api/config', (req, res) => {
+app.get('/api/config', authenticate, (req, res) => {
     res.json({
         businessName: config.businessName,
         upiId: config.upiId,

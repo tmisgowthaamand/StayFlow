@@ -510,8 +510,10 @@ class SheetsService {
                     {
                         room: t.Room || '', bed: t.Bed || '', floor: t.Floor || '',
                         location: t.Location || '', sharingType: t['Sharing Type'] || '',
-                        advance: t.Advance || '', monthlyRent: t['Monthly Rent'] || '',
-                        ebAmount: t['EB Amount'] || '', totalAmount: t['Total Amount'] || '',
+                        advance: parseFloat((t.Advance || '0').toString().replace(/[^\d.]/g, '')) || 0,
+                        monthlyRent: parseFloat((t['Monthly Rent'] || '0').toString().replace(/[^\d.]/g, '')) || 0,
+                        ebAmount: parseFloat((t['EB Amount'] || '0').toString().replace(/[^\d.]/g, '')) || 0,
+                        totalAmount: parseFloat((t['Total Amount'] || '0').toString().replace(/[^\d.]/g, '')) || 0,
                         status: t.Status || '', joinDate: t['Join Date'] || '',
                         paidDate: t['Paid Date'] || '', aadhaarImage: t['Aadhaar Image'] || ''
                     },

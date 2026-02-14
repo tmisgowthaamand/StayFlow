@@ -8,7 +8,7 @@ import { fileURLToPath } from 'url';
 import config from './config.js';
 import sheetsService from './sheets.js';
 import pdfService from './pdfService.js';
-import { Log, Media, Notification, Session } from './db.js';
+import { Log, Media, Notification, Session, Payment, Tenant } from './db.js';
 // We'll use dynamic import for wweb to avoid circular dependency issues at top level
 // import wweb from './wweb.js';
 
@@ -119,6 +119,13 @@ async function setTenantContext(phone, name) {
     const session = await getSession(phone) || {};
     await updateSession(phone, { ...session, contextName: name });
 }
+
+// Helper for monetary precision (Requirement 8 - store as paise)
+const toPaise = (val) => {
+    if (!val) return 0;
+    const clean = val.toString().replace(/[^\d.]/g, '');
+    return Math.round(parseFloat(clean) * 100);
+};
 
 function normalizePhone(phone) {
     if (!phone) return '';
@@ -1711,6 +1718,11 @@ async function handleVerifyPayment(ownerPhone, tenantPhone) {
     // Confirm to owner
     await sendMessage(ownerPhone, `✅ *Payment Verified*\nTenant: ${name}\nRoom: ${room}\nMode: ${paymentMode}\nAmount: ₹${amount}\nTXN: ${trxId}\n\nStatus: VALID\n📄 Invoice sent to tenant.`);
 
+    // PHASE 1 REQ 4: Sync MongoDB
+    try {
+        await Payment.findOneAndUpdate({ trxId }, { status: 'VALID' });
+    } catch (e) { logToFile(`Mongo sync failed in verify: ${e.message}`); }
+
     // 🔔 Create In-App Notification
     try {
         await Notification.create({
@@ -1745,6 +1757,11 @@ async function handleRejectPayment(ownerPhone, tenantPhone) {
 
     // Confirm to owner
     await sendMessage(ownerPhone, `❌ *Payment Rejected*\nTenant: ${name}\nRoom: ${room}\nTXN: ${trxId}\nStatus: INVALID\n\n_No invoice generated._`);
+
+    // PHASE 1 REQ 4: Sync MongoDB
+    try {
+        await Payment.findOneAndUpdate({ trxId }, { status: 'INVALID' });
+    } catch (e) { logToFile(`Mongo sync failed in reject: ${e.message}`); }
 }
 
 // ==================== RAZORPAY PAYMENT VERIFICATION ====================
@@ -1754,7 +1771,7 @@ async function handleRazorpaySuccess(phone, amount, trxId, paymentMode = 'UPI (R
     const cleanPhone = normalizePhone(phone);
     const tenant = await sheetsService.getTenantByPhone(cleanPhone);
     if (!tenant) {
-        console.error(`Razorpay success but tenant not found: ${phone}`);
+        logToFile(`Razorpay success but tenant not found: ${phone}`);
         return;
     }
 
@@ -1762,36 +1779,57 @@ async function handleRazorpaySuccess(phone, amount, trxId, paymentMode = 'UPI (R
     const room = tenant.get('Room') || 'N/A';
     const rent = parseFloat((tenant.get('Monthly Rent') || '0').toString().replace(/[^\d.]/g, ''));
     const eb = parseFloat((tenant.get('EB Amount') || '0').toString().replace(/[^\d.]/g, ''));
-    const expectedTotal = rent + eb;
+    // Enforce Database-Level Idempotency (Requirement 2 & 4)
+    try {
+        const payment = await Payment.create({
+            trxId,
+            phone: cleanPhone,
+            name,
+            amountPaise: toPaise(amount),
+            mode: 'RAZORPAY',
+            status: 'VALID',
+            date: new Date().toLocaleDateString('en-GB'),
+            meta: extraDetails
+        });
 
-    console.log(`[PAYMENT VERIFY] ${name} (${cleanPhone}) | Paid: ₹${amount} | Expected: ₹${expectedTotal}`);
-
-    // Check for duplicate processing (Idempotency)
-    const existingLog = await Log.findOne({ "details.trxId": trxId });
-    if (existingLog) {
-        console.warn(`[IDEMPOTENCY] Transaction ${trxId} already processed.`);
-        return;
+        if (!payment) return;
+    } catch (err) {
+        if (err.code === 11000) {
+            logToFile(`[IDEMPOTENCY] Transaction ${trxId} already processed.`);
+            return;
+        }
+        throw err;
     }
 
-    // AMOUNT VALIDATION (Blocking "Pay ₹1" exploit)
-    if (Math.abs(amount - expectedTotal) > 1) { // 1 INR tolerance for float issues
-        console.error(`[FRAUD ALERT] Amount mismatch for ${name}: Paid ₹${amount}, Expected ₹${expectedTotal}`);
+    const rentPaise = toPaise(tenant.get('Monthly Rent'));
+    const ebPaise = toPaise(tenant.get('EB Amount'));
+    const expectedTotalPaise = rentPaise + ebPaise;
+    const paidPaise = toPaise(amount);
+
+    logToFile(`[PAYMENT VERIFY] ${name} | Paid: ${paidPaise}p | Expected: ${expectedTotalPaise}p`);
+
+    // PHASE 1 REQ 3: Amount Validation (Blocking "Pay ₹1" exploit)
+    if (Math.abs(paidPaise - expectedTotalPaise) > 100) { // 1 INR tolerance
+        logToFile(`[FRAUD ALERT] Mismatch for ${name}: Paid ${paidPaise}p, Expected ${expectedTotalPaise}p`);
+
+        // Update payment status (it was created as VALID, now PENDING if fraud detected)
+        await Payment.findOneAndUpdate({ trxId }, { status: 'PENDING' });
 
         await Log.create({
             phone: cleanPhone,
             action: 'PAYMENT_FRAUD_BLOCK',
-            details: { trxId, paid: amount, expected: expectedTotal, tenant: name }
+            details: { trxId, paid: amount, expected: expectedTotalPaise / 100, tenant: name }
         });
 
-        await sendMessage(cleanPhone, `⚠️ *Payment Amount Mismatch*\n\nYou paid ₹${amount}, but your total due is ₹${expectedTotal}.\n\nYour payment has been logged, but your status remains PENDING. Please contact the administrator to resolve this.`);
+        await sendMessage(cleanPhone, `⚠️ *Payment Amount Mismatch*\n\nYou paid ₹${amount}, but your total due is ₹${expectedTotalPaise / 100}.\n\nYour payment has been logged, but your status remains PENDING. Please contact the administrator.`);
 
         if (config.ownerPhone) {
-            await sendMessage(config.ownerPhone, `🚨 *FRAUD ALERT*\nTenant: ${name}\nRoom: ${room}\nPaid: ₹${amount}\nExpected: ₹${expectedTotal}\nTXN: ${trxId}\n\n_Payment blocked automatically._`);
+            await sendMessage(config.ownerPhone, `🚨 *FRAUD ALERT*\nTenant: ${name}\nRoom: ${room}\nPaid: ₹${amount}\nExpected: ₹${expectedTotalPaise / 100}\nTXN: ${trxId}`);
         }
         return;
     }
 
-    // Mark as PAID (auto-verified by Razorpay)
+    // Mark as PAID (Secondary)
     await sheetsService.updateTenant(cleanPhone, {
         'Status': 'PAID',
         'Payment Mode': paymentMode,
@@ -1799,15 +1837,7 @@ async function handleRazorpaySuccess(phone, amount, trxId, paymentMode = 'UPI (R
         'Paid Date': new Date().toLocaleDateString()
     });
 
-    // Log to History and Payments sheets
     await sheetsService.logPayment(tenant, amount.toString(), paymentMode, trxId, 'PAID');
-
-    // Update Log for Idempotency
-    await Log.create({
-        phone: cleanPhone,
-        action: 'PAYMENT_VERIFIED',
-        details: { trxId, amount, tenant: name }
-    });
 
     // Generate Invoice PDF
     const { filePath } = await pdfService.generateInvoice({
@@ -1819,10 +1849,8 @@ async function handleRazorpaySuccess(phone, amount, trxId, paymentMode = 'UPI (R
         Order_ID: extraDetails.order_id || ''
     });
 
-    // Send to tenant via WhatsApp
     await sendMessage(cleanPhone, `✅ *Payment Successful!*\n\nHi ${name},\n\n📋 *Breakdown:*\n🏠 Rent: ₹${rent}\n⚡ EB: ₹${eb}\n💰 *Total Paid: ₹${amount}*\n\n💳 Mode: ${paymentMode}\n🔖 TXN ID: ${trxId}\n📅 Date: ${new Date().toLocaleDateString()}\n\nThank you for choosing StayFlow! 🙏`);
     await sendMedia(cleanPhone, filePath, '📄 Your payment receipt', null, 'StayFlow_Invoice.pdf');
-
     // Notify owner
     if (config.ownerPhone) {
         await sendMessage(config.ownerPhone, `✅ *Payment — Verified*\nTenant: ${name}\nRoom: ${room}\nAmount: ₹${amount}\nTXN: ${trxId}\nStatus: PAID\n\n_Invoice sent automatically._`);
@@ -1836,8 +1864,8 @@ async function handleRazorpaySuccess(phone, amount, trxId, paymentMode = 'UPI (R
             body: `₹${amount} received via UPI — Room ${room}`,
             meta: { tenantName: name, room, amount: amount, mode: paymentMode, trxId }
         });
-    } catch (e) {
-        console.error('Failed to create in-app notification:', e.message);
+    } catch (err) {
+        logToFile(`Secondary Verification Error: ${err.message}`);
     }
 }
 
@@ -1877,14 +1905,14 @@ async function handleOnboarding(phone, input, image) {
             } else if (isCash) {
                 const tenant = await sheetsService.getTenantByPhone(phone, state.contextName);
                 if (!tenant) { await sendMessage(phone, 'Tenant not found.'); await updateSession(phone, null); return; }
-                const rent = parseFloat(tenant.get('Monthly Rent') || 0);
-                const eb = parseFloat(tenant.get('EB Amount') || 0);
-                const total = rent + eb;
+                const rentPaise = toPaise(tenant.get('Monthly Rent'));
+                const ebPaise = toPaise(tenant.get('EB Amount'));
+                const totalPaise = rentPaise + ebPaise;
                 state.step = 'CASH_AMOUNT';
-                state.expectedTotal = total;
+                state.expectedTotalPaise = totalPaise;
                 await updateSession(phone, state);
 
-                await sendMessage(phone, `💵 *Cash Payment*\n\n🏠 Rent: ₹${rent}\n⚡ EB: ₹${eb}\n━━━━━━━━━━━━━━━━━━━━\n💰 *Total Due (Rent + EB): ₹${total}*\n\nPlease enter the *exact amount paid*.\nExample: *${total}*\n\n⚠️ _Invoice will be generated after admin verification._`);
+                await sendMessage(phone, `💵 *Cash Payment*\n\n🏠 Rent: ₹${rentPaise / 100}\n⚡ EB: ₹${ebPaise / 100}\n━━━━━━━━━━━━━━━━━━━━\n💰 *Total Due: ₹${totalPaise / 100}*\n\nPlease enter the *exact amount paid*.\nExample: *${totalPaise / 100}*`);
             } else {
                 await sendButtons(phone, '❌ Please select a payment method:', ["💳 Pay via Razorpay", "💵 Pay Cash", "❌ Cancel"]);
             }
@@ -1897,7 +1925,15 @@ async function handleOnboarding(phone, input, image) {
                 await sendMessage(phone, '❌ Please enter a valid number (e.g., 6500).');
                 return;
             }
-            state.amountPaid = amount;
+
+            // PHASE 1 REQ 3: Block underpayment
+            const paidPaise = toPaise(input);
+            if (paidPaise < state.expectedTotalPaise) {
+                await sendMessage(phone, `❌ *Underpayment is not allowed.*\n\nYour total bill is *₹${state.expectedTotalPaise / 100}*. Please enter the exactly paid amount.\n\nType *CANCEL* if you want to restart.`);
+                return;
+            }
+
+            state.amountPaidPaise = paidPaise;
             state.step = 'CASH_DATE';
             await updateSession(phone, state);
             await sendMessage(phone, `📅 *Step 2: Date of Payment*\n\nPlease enter the date you paid cash (e.g., *Today*).`);
@@ -1913,13 +1949,29 @@ async function handleOnboarding(phone, input, image) {
             const eb = parseFloat(tenant.get('EB Amount') || 0);
             const trxId = `CASH-${Date.now().toString().slice(-6)}`;
 
-            await sheetsService.updateTenant(phone, {
-                'Status': 'PENDING', 'Payment Mode': 'CASH',
-                'Transaction ID': trxId, 'Paid Date': pDate
-            }, state.contextName);
-            await sheetsService.logPayment(tenant, state.amountPaid.toString(), 'CASH', trxId, 'PENDING');
+            try {
+                // PHASE 1 REQ 4: Mongo as primary record
+                await Payment.create({
+                    trxId,
+                    phone,
+                    name: tenant.get('Name'),
+                    amountPaise: state.amountPaidPaise,
+                    mode: 'CASH',
+                    status: 'PENDING',
+                    date: pDate
+                });
 
-            await sendMessage(phone, `⏳ *Cash Payment Submitted*\n\nHi ${tenant.get('Name')},\n\n📋 *Breakdown:*\n🏠 Rent: ₹${rent}\n⚡ EB: ₹${eb}\n💰 *Amount Paid: ₹${state.amountPaid}*\n\n💵 Mode: CASH\n🔖 Ref: ${trxId}\n📅 Date: ${pDate}\n\n⚠️ _Your payment is pending admin verification. Invoice will be sent after confirmation._ 🙏`);
+                await sheetsService.updateTenant(phone, {
+                    'Status': 'PENDING', 'Payment Mode': 'CASH',
+                    'Transaction ID': trxId, 'Paid Date': pDate
+                }, state.contextName);
+                await sheetsService.logPayment(tenant, (state.amountPaidPaise / 100).toString(), 'CASH', trxId, 'PENDING');
+
+                await sendMessage(phone, `⏳ *Cash Payment Submitted*\n\nHi ${tenant.get('Name')},\n\n📋 *Breakdown:*\n🏠 Rent: ₹${rent}\n⚡ EB: ₹${eb}\n💰 *Amount Paid: ₹${state.amountPaid}*\n\n💵 Mode: CASH\n🔖 Ref: ${trxId}\n📅 Date: ${pDate}\n\n⚠️ _Your payment is pending admin verification. Invoice will be sent after confirmation._ 🙏`);
+            } catch (err) {
+                logToFile(`Cash Payment Failed: ${err.message}`);
+                await sendMessage(phone, `❌ Error recording payment. Please try again later.`);
+            }
 
             if (config.ownerPhone) {
                 await sendMessage(config.ownerPhone, `💵 *Cash Payment — Needs Verification*\nTenant: ${tenant.get('Name')}\nPhone: ${phone}\nRoom: ${tenant.get('Room')}\nRent: ₹${rent} | EB: ₹${eb}\nAmount: ₹${state.amountPaid}\nRef: ${trxId}\nDate: ${pDate}\n\n✅ Reply: *VERIFY CASH ${phone}*`);

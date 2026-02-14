@@ -19,7 +19,9 @@ const PDFViewer = ({ route, navigation }) => {
             const fetchPdf = async () => {
                 try {
                     console.log("Fetching PDF from:", targetUrl);
-                    const response = await fetch(targetUrl);
+                    const response = await fetch(targetUrl, {
+                        headers: { 'x-api-key': 'stayflow_dev_key_123' }
+                    });
 
                     const contentType = response.headers.get('content-type');
                     console.log("Content-Type:", contentType);
@@ -129,7 +131,7 @@ const PDFViewer = ({ route, navigation }) => {
     // Decision Logic
     const useDirectUrl = Platform.OS === 'ios';
     const source = useDirectUrl
-        ? { uri: targetUrl }
+        ? { uri: targetUrl, headers: { 'x-api-key': 'stayflow_dev_key_123' } }
         : { html: getViewerHtml() };
 
     // Fallback if Android fetch fails is handled by error state logic above (not shown here to keep diff clean, but logic exists)
