@@ -72,6 +72,7 @@ const Log = mongoose.model('Log', logSchema);
 const Media = mongoose.model('Media', mediaSchema);
 const Tenant = mongoose.model('Tenant', tenantSchema);
 const Notification = mongoose.model('Notification', notificationSchema);
+const Session = mongoose.model('Session', sessionSchema);
 const Payment = mongoose.model('Payment', paymentSchema);
 
 /**
