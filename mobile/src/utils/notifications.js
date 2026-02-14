@@ -7,6 +7,7 @@ import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Notifications from 'expo-notifications';
 import * as Device from 'expo-device';
+import Constants from 'expo-constants';
 
 const STORAGE_KEY = '@stayflow_notifications';
 const DELETED_IDS_KEY = '@stayflow_deleted_ids';
@@ -121,7 +122,7 @@ export const formatFullDateTime = (timestamp) => {
     });
 };
 
-import { getNotifications as fetchServerNotifications, markNotificationsAsRead, clearAllNotifications as clearServerNotifications, getUnreadNotificationCount } from '../api/api';
+import { getNotifications as fetchServerNotifications, markNotificationsAsRead, clearAllNotifications as clearServerNotifications, getUnreadNotificationCount, registerPushToken } from '../api/api';
 
 // ─── Core CRUD ─────────────────────────────────────────────────
 
@@ -248,6 +249,19 @@ export const requestNotificationPermissions = async () => {
                 vibrationPattern: [0, 250, 250, 250],
                 lightColor: '#6C63FF',
             });
+        }
+
+        // --- NEW: Register Push Token for Remote Notifications ---
+        if (Device.isDevice) {
+            try {
+                const tokenResponse = await Notifications.getExpoPushTokenAsync({
+                    projectId: Constants.expoConfig?.extra?.eas?.projectId || Constants.easConfig?.projectId,
+                });
+                console.log('✅ Registered Push Token:', tokenResponse.data);
+                await registerPushToken(tokenResponse.data, Platform.OS);
+            } catch (tokenErr) {
+                console.warn('Failed to get push token:', tokenErr.message);
+            }
         }
 
         return true;

@@ -17,7 +17,8 @@ import setupCron from './cron.js';
 import sheetsService from './sheets.js';
 import wweb from './wweb.js';
 import pdfService from './pdfService.js';
-import { Log, Media, Tenant, Notification } from './db.js';
+import { Log, Media, Tenant, Notification, PushToken } from './db.js';
+import { sendPushNotification } from './pushService.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -471,17 +472,21 @@ app.post('/api/verify-transaction', async (req, res) => {
         const webhookLog = await Log.findOne({
             action: 'RAZORPAY_WEBHOOK',
             $and: [
-                { $or: [
-                    { 'details.payload.payment.entity.notes.phone': phone },
-                    { 'details.payload.payment_link.entity.notes.phone': phone }
-                ]},
-                { $or: [
-                    { 'details.payload.payment.entity.id': { $regex: trxId, $options: 'i' } },
-                    { 'details.payload.payment_link.entity.id': { $regex: trxId, $options: 'i' } },
-                    { 'details.payload.payment.entity.acquirer_data.rrn': trxId },
-                    { 'details.payload.payment.entity.acquirer_data.upi_transaction_id': trxId },
-                    { 'details.payload.payment.entity.vpa': trxId }
-                ]}
+                {
+                    $or: [
+                        { 'details.payload.payment.entity.notes.phone': phone },
+                        { 'details.payload.payment_link.entity.notes.phone': phone }
+                    ]
+                },
+                {
+                    $or: [
+                        { 'details.payload.payment.entity.id': { $regex: trxId, $options: 'i' } },
+                        { 'details.payload.payment_link.entity.id': { $regex: trxId, $options: 'i' } },
+                        { 'details.payload.payment.entity.acquirer_data.rrn': trxId },
+                        { 'details.payload.payment.entity.acquirer_data.upi_transaction_id': trxId },
+                        { 'details.payload.payment.entity.vpa': trxId }
+                    ]
+                }
             ]
         }).sort({ timestamp: -1 });
 
@@ -1300,12 +1305,18 @@ app.post('/api/mark-paid', authenticate, async (req, res) => {
 
         // 🔔 Create In-App Notification
         try {
+            const title = `Payment Recorded: ${name}`;
+            const body = `₹${amount} recorded via ${mode} — Room ${tenant.get('Room')}`;
+
             await Notification.create({
                 type: 'payment_received',
-                title: `Payment Recorded: ${name}`,
-                body: `₹${amount} recorded via ${mode} — Room ${tenant.get('Room')}`,
+                title,
+                body,
                 meta: { tenantName: name, room: tenant.get('Room'), amount, mode }
             });
+
+            // 🚀 Send Remote Push Notification (Drop-down)
+            await sendPushNotification(title, body, { type: 'payment_received', tenantName: name, room: tenant.get('Room'), amount, mode });
         } catch (e) {
             console.error('Failed to create in-app notification:', e.message);
         }
@@ -1524,6 +1535,29 @@ app.get('/api/dashboard-stats', authenticate, async (req, res) => {
         res.status(500).json({ error: 'Failed to fetch stats: ' + err.message });
     }
 });
+
+// ==================== PUSH NOTIFICATIONS ====================
+
+/**
+ * Register a mobile device's Expo Push Token
+ */
+app.post('/api/register-push-token', authenticate, async (req, res) => {
+    try {
+        const { token, platform } = req.body;
+        if (!token) return res.status(400).json({ error: 'Token is required' });
+
+        await PushToken.findOneAndUpdate(
+            { token },
+            { token, platform, lastUsed: new Date() },
+            { upsert: true, new: true }
+        );
+
+        res.json({ success: true, message: 'Push token registered' });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
 
 app.get('/api/config', authenticate, (req, res) => {
     res.json({

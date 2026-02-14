@@ -113,6 +113,17 @@ export const notifyAll = async () => {
     }
 };
 
+export const registerPushToken = async (token, platform) => {
+    try {
+        const response = await api.post('/register-push-token', { token, platform });
+        return response.data;
+    } catch (error) {
+        console.error('Register push token failed:', error.message);
+        throw error;
+    }
+};
+
+
 export const getBulkStatus = async () => {
     try {
         const response = await api.get('/bulk-status');

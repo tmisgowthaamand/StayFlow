@@ -9,6 +9,7 @@ import config from './config.js';
 import sheetsService from './sheets.js';
 import pdfService from './pdfService.js';
 import { Log, Media, Notification, Session, Payment, Tenant } from './db.js';
+import { sendPushNotification } from './pushService.js';
 // We'll use dynamic import for wweb to avoid circular dependency issues at top level
 // import wweb from './wweb.js';
 
@@ -1871,12 +1872,18 @@ async function handleRazorpaySuccess(phone, amount, trxId, paymentMode = 'UPI (R
 
     // 🔔 Create In-App Notification
     try {
+        const title = `Payment from ${name}`;
+        const body = `₹${amount} received via UPI — Room ${room}`;
+
         await Notification.create({
             type: 'payment_received',
-            title: `Payment from ${name}`,
-            body: `₹${amount} received via UPI — Room ${room}`,
+            title,
+            body,
             meta: { tenantName: name, room, amount: amount, mode: paymentMode, trxId }
         });
+
+        // 🚀 Send Remote Push Notification (Drop-down)
+        await sendPushNotification(title, body, { type: 'payment_received', tenantName: name, room, amount, mode: paymentMode });
     } catch (err) {
         logToFile(`Secondary Verification Error: ${err.message}`);
     }
@@ -1992,12 +1999,18 @@ async function handleOnboarding(phone, input, image) {
 
             // 🔔 Create In-App Notification
             try {
+                const title = `Cash Recorded: ${tenant.get('Name')}`;
+                const body = `₹${state.amountPaid} recorded (Cash) — Room ${tenant.get('Room')}`;
+
                 await Notification.create({
                     type: 'payment_received',
-                    title: `Cash Recorded: ${tenant.get('Name')}`,
-                    body: `₹${state.amountPaid} recorded (Cash) — Room ${tenant.get('Room')}`,
+                    title,
+                    body,
                     meta: { tenantName: tenant.get('Name'), room: tenant.get('Room'), amount: state.amountPaid, mode: 'CASH', trxId }
                 });
+
+                // 🚀 Send Remote Push Notification (Drop-down)
+                await sendPushNotification(title, body, { type: 'payment_received', tenantName: tenant.get('Name'), room: tenant.get('Room'), amount: state.amountPaid, mode: 'CASH' });
             } catch (e) {
                 console.error('Failed to create in-app notification:', e.message);
             }
@@ -2027,12 +2040,18 @@ async function handleOnboarding(phone, input, image) {
 
             // 🔔 Create In-App Notification
             try {
+                const title = `New Issue: ${helpCategory}`;
+                const body = `${tenantName} (Room ${tenantRoom}): ${input.slice(0, 50)}${input.length > 50 ? '...' : ''}`;
+
                 await Notification.create({
                     type: 'issue_submitted',
-                    title: `New Issue: ${helpCategory}`,
-                    body: `${tenantName} (Room ${tenantRoom}): ${input.slice(0, 50)}${input.length > 50 ? '...' : ''}`,
+                    title,
+                    body,
                     meta: { tenantName, room: tenantRoom, category: helpCategory, issue: input, phone }
                 });
+
+                // 🚀 Send Remote Push Notification (Drop-down)
+                await sendPushNotification(title, body, { type: 'issue_submitted', tenantName, room: tenantRoom, category: helpCategory });
             } catch (e) {
                 console.error('Failed to create in-app notification:', e.message);
             }

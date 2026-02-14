@@ -68,12 +68,19 @@ const paymentSchema = new mongoose.Schema({
     timestamp: { type: Date, default: Date.now }
 });
 
+const pushTokenSchema = new mongoose.Schema({
+    token: { type: String, unique: true, required: true },
+    platform: String,
+    lastUsed: { type: Date, default: Date.now }
+});
+
 const Log = mongoose.model('Log', logSchema);
 const Media = mongoose.model('Media', mediaSchema);
 const Tenant = mongoose.model('Tenant', tenantSchema);
 const Notification = mongoose.model('Notification', notificationSchema);
 const Session = mongoose.model('Session', sessionSchema);
 const Payment = mongoose.model('Payment', paymentSchema);
+const PushToken = mongoose.model('PushToken', pushTokenSchema);
 
 /**
  * PHASE 3 REQ 10: Automated Backups
@@ -86,4 +93,4 @@ async function exportAllData() {
     return { tenants, payments, logs, timestamp: new Date().toISOString() };
 }
 
-export { Log, Media, Tenant, Notification, Session, Payment, exportAllData };
+export { Log, Media, Tenant, Notification, Session, Payment, PushToken, exportAllData };
