@@ -73,7 +73,8 @@ System is certified for live resident traffic. 100% SUCCESSFUL IN PRODUCTION.
 | Route | Method | Auth Status | Result |
 | :--- | :--- | :--- | :--- |
 | `/api/update-bill` | POST | **SECURED (API KEY)** | ✅ PASS |
-| `/api/verify-transaction` | POST | **SECURED (API KEY)** | ✅ PASS |
+| `/api/verify-transaction` | POST | **SECURED (Phone+TRX Match)** | ✅ PASS |
+| `/api/verify-razorpay-payment` | POST | **SECURED (HMAC Signature)** | ✅ PASS |
 | `/api/notify-tenant` | POST | **SECURED (API KEY)** | ✅ PASS |
 | `/api/media/:id` | GET | **SECURED (API KEY)** | ✅ PASS |
 | `/api/uploads` | GET | **SECURED (API/UA Check)** | ✅ PASS |

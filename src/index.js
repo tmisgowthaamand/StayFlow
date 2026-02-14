@@ -44,7 +44,7 @@ const paymentLimiter = rateLimit({
 });
 
 app.use('/api/', apiLimiter);
-app.use('/api/verify-payment', paymentLimiter);
+app.use('/api/verify-transaction', paymentLimiter);
 app.use('/api/mark-paid', paymentLimiter);
 app.use('/api/razorpay-webhook', (req, res, next) => next()); // No limit on webhooks
 app.use(cors({
@@ -403,7 +403,7 @@ app.post('/webhook/razorpay', async (req, res) => {
 
 // ==================== TRANSACTION VERIFICATION API ====================
 // Called from confirmation.html to verify a transaction ID
-app.post('/api/verify-transaction', authenticate, async (req, res) => {
+app.post('/api/verify-transaction', async (req, res) => {
     try {
         let { phone, trxId } = req.body;
         if (!trxId) return res.status(400).json({ error: 'Transaction ID is required' });
@@ -426,8 +426,8 @@ app.post('/api/verify-transaction', authenticate, async (req, res) => {
             const sheetTrxId = tenant.get('Transaction ID');
             console.log(`[VERIFY] Found tenant: ${tenant.get('Name')} | Status: ${sheetStatus} | Sheet TRX: ${sheetTrxId}`);
 
-            // If already PAID, and either ID matches or we found them by phone, consider it success
-            if (sheetStatus === 'PAID') {
+            // If already PAID, and TRX matches, consider it success
+            if (sheetStatus === 'PAID' && (sheetTrxId === trxId || trxId === sheetTrxId)) {
                 console.log(`[VERIFY] Tenant already marked PAID. Proceeding.`);
                 const tName = tenant.get('Name') || '';
                 const tRoom = tenant.get('Room') || 'N/A';
@@ -467,17 +467,21 @@ app.post('/api/verify-transaction', authenticate, async (req, res) => {
             }
         }
 
-        // 2. Check Razorpay Webhook Data in MongoDB logs (More flexible match)
-        // Search by TRX ID, Payment ID, or any relevant Razorpay field
+        // 2. Check Razorpay Webhook Data in MongoDB logs (STRICT PHONE + TRX MATCH)
         const webhookLog = await Log.findOne({
             action: 'RAZORPAY_WEBHOOK',
-            $or: [
-                { 'details.payload.payment.entity.id': { $regex: trxId, $options: 'i' } },
-                { 'details.payload.payment_link.entity.id': { $regex: trxId, $options: 'i' } },
-                { 'details.payload.payment.entity.acquirer_data.rrn': trxId },
-                { 'details.payload.payment.entity.acquirer_data.upi_transaction_id': trxId },
-                { 'details.payload.payment.entity.vpa': trxId },
-                { 'details.payload.payment.entity.notes.phone': phone }
+            $and: [
+                { $or: [
+                    { 'details.payload.payment.entity.notes.phone': phone },
+                    { 'details.payload.payment_link.entity.notes.phone': phone }
+                ]},
+                { $or: [
+                    { 'details.payload.payment.entity.id': { $regex: trxId, $options: 'i' } },
+                    { 'details.payload.payment_link.entity.id': { $regex: trxId, $options: 'i' } },
+                    { 'details.payload.payment.entity.acquirer_data.rrn': trxId },
+                    { 'details.payload.payment.entity.acquirer_data.upi_transaction_id': trxId },
+                    { 'details.payload.payment.entity.vpa': trxId }
+                ]}
             ]
         }).sort({ timestamp: -1 });
 
