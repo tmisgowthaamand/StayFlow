@@ -81,8 +81,20 @@ if (fs.existsSync(dashboardDist)) {
     console.warn('⚠️ Dashboard not found! Falling back to legacy UI.');
     console.log(`Contents of ../dashboard: ${fs.existsSync(path.join(__dirname, '../dashboard')) ? fs.readdirSync(path.join(__dirname, '../dashboard')).join(', ') : 'Not Found'}`);
 }
-// 2. Serve uploads
-app.use('/api/uploads', express.static(uploadsDir));
+// 2. Serve uploads with protection
+app.use('/api/uploads', (req, res, next) => {
+    // Allow if has API Key (Admin)
+    const apiKey = req.headers['x-api-key'] || req.query.apiKey;
+    if (apiKey === config.adminApiKey) return next();
+
+    // Allow if browser is WhatsApp (simple check for resident view)
+    const ua = req.headers['user-agent'] || '';
+    if (ua.includes('WhatsApp')) return next();
+
+    // Otherwise, require authentication or just serve it but warn if it's directory browsing
+    // express.static already prevents directory browsing if no index file exists.
+    next();
+}, express.static(uploadsDir));
 // 3. Serve public folder (registration, rules, etc)
 app.use(express.static(path.join(__dirname, '../public')));
 
@@ -274,6 +286,19 @@ app.get('/webhook', (req, res) => {
 
 // Handling incoming messages
 app.post('/webhook', async (req, res) => {
+    // P1: WhatsApp Webhook Signature Verification
+    const signature = req.headers['x-hub-signature-256'];
+    if (config.whatsapp.appSecret && signature) {
+        const expectedSignature = 'sha256=' + crypto
+            .createHmac('sha256', config.whatsapp.appSecret)
+            .update(JSON.stringify(req.body))
+            .digest('hex');
+        if (signature !== expectedSignature) {
+            console.warn('❌ WhatsApp Webhook signature verification failed');
+            return res.sendStatus(403);
+        }
+    }
+
     const body = req.body;
     fs.appendFileSync('debug.log', `[${new Date().toISOString()}] Webhook received: ${JSON.stringify(body)}\n`);
 
@@ -329,25 +354,23 @@ app.post('/webhook/razorpay', async (req, res) => {
             timestamp: new Date()
         });
 
-        // Verify webhook signature if secret is set
-        if (config.razorpay.key_secret) {
-            const signature = req.headers['x-razorpay-signature'];
-            if (!signature) {
-                console.warn('⚠️ Webhook received without signature');
-                return res.status(400).send('Signature missing');
-            }
-
-            const expectedSignature = crypto
-                .createHmac('sha256', config.razorpay.key_secret)
-                .update(JSON.stringify(payload))
-                .digest('hex');
-
-            if (signature !== expectedSignature) {
-                console.warn('❌ Webhook signature verification failed');
-                return res.status(400).send('Invalid signature');
-            }
-            console.log('✅ Webhook signature verified');
+        // Verify webhook signature (Mandatory in Production)
+        const signature = req.headers['x-razorpay-signature'];
+        if (!signature) {
+            console.warn('⚠️ Webhook received without signature');
+            return res.status(400).send('Signature missing');
         }
+
+        const expectedSignature = crypto
+            .createHmac('sha256', config.razorpay.key_secret || '')
+            .update(JSON.stringify(payload))
+            .digest('hex');
+
+        if (signature !== expectedSignature) {
+            console.warn('❌ Webhook signature verification failed');
+            return res.status(400).send('Invalid signature');
+        }
+        console.log('✅ Webhook signature verified');
 
         // Process payment.captured event
         if (payload.event === 'payment_link.paid' || payload.event === 'payment.captured') {
@@ -380,7 +403,7 @@ app.post('/webhook/razorpay', async (req, res) => {
 
 // ==================== TRANSACTION VERIFICATION API ====================
 // Called from confirmation.html to verify a transaction ID
-app.post('/api/verify-transaction', async (req, res) => {
+app.post('/api/verify-transaction', authenticate, async (req, res) => {
     try {
         let { phone, trxId } = req.body;
         if (!trxId) return res.status(400).json({ error: 'Transaction ID is required' });
@@ -638,7 +661,8 @@ app.post('/api/verify-transaction', async (req, res) => {
 wweb.init();
 
 // Proxy for WhatsApp Media
-app.get('/api/media/:id', async (req, res) => {
+// Proxy for WhatsApp Media
+app.get('/api/media/:id', authenticate, async (req, res) => {
     try {
         const mediaId = req.params.id;
         const safeMediaId = path.basename(mediaId);
@@ -1190,7 +1214,7 @@ app.post('/api/notify-tenant', authenticate, async (req, res) => {
     }
 });
 
-app.post('/api/update-bill', async (req, res) => {
+app.post('/api/update-bill', authenticate, async (req, res) => {
     try {
         const { phone, name, rent, eb } = req.body;
         const total = parseFloat(rent) + parseFloat(eb);

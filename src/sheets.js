@@ -18,6 +18,20 @@ class SheetsService {
         this.ebBillsSheet = null;
         this.paymentsSheet = null;
         this.notificationsLog = null;
+        this.lock = Promise.resolve();
+    }
+
+    async _withLock(fn) {
+        const nextLock = this.lock.then(async () => {
+            try {
+                return await fn();
+            } catch (err) {
+                console.error('[SHEETS-LOCK] Error in locked operation:', err.message);
+                throw err;
+            }
+        });
+        this.lock = nextLock.catch(() => { });
+        return nextLock;
     }
 
     normalizePhone(phone) {
@@ -281,92 +295,96 @@ class SheetsService {
     }
 
     async verifyPayment(phone) {
-        await this.init();
-        const tenant = await this.getTenantByPhone(phone);
-        if (!tenant) return false;
+        return this._withLock(async () => {
+            await this.init();
+            const tenant = await this.getTenantByPhone(phone);
+            if (!tenant) return false;
 
-        const currentMonthYear = `${["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"][new Date().getMonth()]}-${new Date().getFullYear()}`;
+            const currentMonthYear = `${["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"][new Date().getMonth()]}-${new Date().getFullYear()}`;
 
-        // 1. Find Pending Payment in Payments Sheet
-        const pRows = await this.paymentsSheet.getRows();
-        const pRow = pRows.find(r => r.get('Phone') === phone && r.get('Status') === 'PENDING');
+            // 1. Find Pending Payment in Payments Sheet
+            const pRows = await this.paymentsSheet.getRows();
+            const pRow = pRows.find(r => r.get('Phone') === phone && r.get('Status') === 'PENDING');
 
-        let trxId = tenant.get('Transaction ID');
-        let amount = tenant.get('Total Amount') || '0';
-        let mode = tenant.get('Payment Mode') || 'UPI (Manual)';
-        let pDate = tenant.get('Paid Date') || new Date().toLocaleDateString();
+            let trxId = tenant.get('Transaction ID');
+            let amount = tenant.get('Total Amount') || '0';
+            let mode = tenant.get('Payment Mode') || 'UPI (Manual)';
+            let pDate = tenant.get('Paid Date') || new Date().toLocaleDateString();
 
-        if (pRow) {
-            trxId = pRow.get('Transaction ID') || trxId;
-            amount = pRow.get('Total Amount') || amount;
-            mode = pRow.get('Payment Mode') || mode;
-            pDate = pRow.get('Paid Date') || pDate;
+            if (pRow) {
+                trxId = pRow.get('Transaction ID') || trxId;
+                amount = pRow.get('Total Amount') || amount;
+                mode = pRow.get('Payment Mode') || mode;
+                pDate = pRow.get('Paid Date') || pDate;
 
-            pRow.set('Status', 'PAID');
-            await pRow.save();
-        }
+                pRow.set('Status', 'PAID');
+                await pRow.save();
+            }
 
-        // 2. Update Tenant Status in main sheet
-        tenant.set('Status', 'PAID');
-        tenant.set('Transaction ID', trxId);
-        tenant.set('Paid Date', pDate);
-        await tenant.save();
+            // 2. Update Tenant Status in main sheet
+            tenant.set('Status', 'PAID');
+            tenant.set('Transaction ID', trxId);
+            tenant.set('Paid Date', pDate);
+            await tenant.save();
 
-        // 3. Sync to MongoDB
-        await this._syncToMongo(phone);
+            // 3. Sync to MongoDB
+            await this._syncToMongo(phone);
 
-        // 4. Add to History (if not already there)
-        const hRows = await this.historySheet.getRows();
-        const exists = hRows.some(r => r.get('TRX_ID') === trxId && trxId !== 'PENDING');
-        if (!exists && trxId) {
-            await this.historySheet.addRow({
-                'Name': tenant.get('Name'),
-                'Phone': tenant.get('Phone'),
-                'Room': tenant.get('Room'),
-                'Month': ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"][new Date().getMonth()],
-                'Year': new Date().getFullYear(),
-                'Amount': amount,
-                'Mode': mode,
-                'TRX_ID': trxId,
-                'Date': pDate
-            });
-        }
+            // 4. Add to History (if not already there)
+            const hRows = await this.historySheet.getRows();
+            const exists = hRows.some(r => r.get('TRX_ID') === trxId && trxId !== 'PENDING');
+            if (!exists && trxId) {
+                await this.historySheet.addRow({
+                    'Name': tenant.get('Name'),
+                    'Phone': tenant.get('Phone'),
+                    'Room': tenant.get('Room'),
+                    'Month': ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"][new Date().getMonth()],
+                    'Year': new Date().getFullYear(),
+                    'Amount': amount,
+                    'Mode': mode,
+                    'TRX_ID': trxId,
+                    'Date': pDate
+                });
+            }
 
-        return {
-            name: tenant.get('Name'),
-            room: tenant.get('Room'),
-            amount: amount,
-            mode: mode,
-            trxId: trxId,
-            date: pDate
-        };
+            return {
+                name: tenant.get('Name'),
+                room: tenant.get('Room'),
+                amount: amount,
+                mode: mode,
+                trxId: trxId,
+                date: pDate
+            };
+        });
     }
 
     async rejectPayment(phone) {
-        await this.init();
-        const tenant = await this.getTenantByPhone(phone);
-        if (!tenant) return false;
+        return this._withLock(async () => {
+            await this.init();
+            const tenant = await this.getTenantByPhone(phone);
+            if (!tenant) return false;
 
-        const trxId = tenant.get('Transaction ID');
+            const trxId = tenant.get('Transaction ID');
 
-        // 1. Update Payments Sheet record
-        if (trxId) {
-            const rows = await this.paymentsSheet.getRows();
-            const row = rows.find(r => r.get('Transaction ID') === trxId);
-            if (row) {
-                row.set('Status', 'INVALID');
-                await row.save();
+            // 1. Update Payments Sheet record
+            if (trxId) {
+                const rows = await this.paymentsSheet.getRows();
+                const row = rows.find(r => r.get('Transaction ID') === trxId);
+                if (row) {
+                    row.set('Status', 'INVALID');
+                    await row.save();
+                }
             }
-        }
 
-        // 2. Update Tenant Status
-        tenant.set('Status', 'INVALID');
-        await tenant.save();
+            // 2. Update Tenant Status
+            tenant.set('Status', 'INVALID');
+            await tenant.save();
 
-        // 3. Sync to MongoDB
-        await this._syncToMongo(phone);
+            // 3. Sync to MongoDB
+            await this._syncToMongo(phone);
 
-        return true;
+            return true;
+        });
     }
 
     async getHistoryByPhone(phone) {
@@ -422,48 +440,50 @@ class SheetsService {
     }
 
     async addTenant(tenantData) {
-        await this.init();
+        return this._withLock(async () => {
+            await this.init();
 
-        // CHECK FOR DUPLICATE TENANT
-        const existing = await this.getTenantByPhone(tenantData.phone);
-        if (existing) {
-            console.warn(`[DUPLICATE REGISTER] Tenant ${tenantData.phone} already exists.`);
-            throw new Error(`A resident with phone number ${tenantData.phone} is already registered.`);
-        }
+            // CHECK FOR DUPLICATE TENANT
+            const existing = await this.getTenantByPhone(tenantData.phone);
+            if (existing) {
+                console.warn(`[DUPLICATE REGISTER] Tenant ${tenantData.phone} already exists.`);
+                throw new Error(`A resident with phone number ${tenantData.phone} is already registered.`);
+            }
 
-        console.log('Attempting to add tenant:', tenantData.name);
-        const rowData = {
-            'Name': tenantData.name,
-            'Phone': tenantData.phone,
-            'Room': tenantData.room,
-            'Bed': tenantData.bed || 'N/A',
-            'Floor': tenantData.floor || '1',
-            'Sharing Type': tenantData.sharingType,
-            'Location': tenantData.location || 'Main Branch',
-            'Advance': tenantData.advance,
-            'Aadhaar Image': tenantData.aadhaarImage || '',
-            'Registration Form': tenantData.registrationForm || '',
-            'Monthly Rent': tenantData.monthlyRent,
-            'EB Amount': '0',
-            'Total Amount': tenantData.monthlyRent,
-            'Status': 'ACTIVE',
-            'Join Date': new Date().toLocaleDateString(),
-        };
-        try {
-            const row = await this.sheet.addRow(rowData);
-            console.log('Successfully added row for:', tenantData.name);
+            console.log('Attempting to add tenant:', tenantData.name);
+            const rowData = {
+                'Name': tenantData.name,
+                'Phone': tenantData.phone,
+                'Room': tenantData.room,
+                'Bed': tenantData.bed || 'N/A',
+                'Floor': tenantData.floor || '1',
+                'Sharing Type': tenantData.sharingType,
+                'Location': tenantData.location || 'Main Branch',
+                'Advance': tenantData.advance,
+                'Aadhaar Image': tenantData.aadhaarImage || '',
+                'Registration Form': tenantData.registrationForm || '',
+                'Monthly Rent': tenantData.monthlyRent,
+                'EB Amount': '0',
+                'Total Amount': tenantData.monthlyRent,
+                'Status': 'ACTIVE',
+                'Join Date': new Date().toLocaleDateString(),
+            };
+            try {
+                const row = await this.sheet.addRow(rowData);
+                console.log('Successfully added row for:', tenantData.name);
 
-            // Update location occupancy
-            await this.updateLocationOccupancy(tenantData.location || 'Main Branch');
+                // Update location occupancy
+                await this.updateLocationOccupancy(tenantData.location || 'Main Branch');
 
-            // Auto-sync new tenant to MongoDB
-            await this._syncToMongo(tenantData.phone, tenantData.name);
+                // Auto-sync new tenant to MongoDB
+                await this._syncToMongo(tenantData.phone, tenantData.name);
 
-            return row;
-        } catch (err) {
-            console.error('Error in addRow:', err.message);
-            throw err;
-        }
+                return row;
+            } catch (err) {
+                console.error('Error in addRow:', err.message);
+                throw err;
+            }
+        });
     }
 
     // ==================== MONGODB SYNC HELPER ====================
@@ -530,19 +550,21 @@ class SheetsService {
     }
 
     async updateTenant(phone, updates, name = null) {
-        const row = await this.getTenantByPhone(phone, name);
-        if (row) {
-            Object.keys(updates).forEach(key => {
-                row.set(key, updates[key]);
-            });
-            await row.save();
+        return this._withLock(async () => {
+            const row = await this.getTenantByPhone(phone, name);
+            if (row) {
+                Object.keys(updates).forEach(key => {
+                    row.set(key, updates[key]);
+                });
+                await row.save();
 
-            // Auto-sync to MongoDB
-            await this._syncToMongo(phone, name);
+                // Auto-sync to MongoDB
+                await this._syncToMongo(phone, name);
 
-            return true;
-        }
-        return false;
+                return true;
+            }
+            return false;
+        });
     }
 
     async getAllTenants() {
