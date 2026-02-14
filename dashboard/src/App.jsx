@@ -21,6 +21,7 @@ const API_BASE_URL = import.meta.env.VITE_API_URL ||
     : '');
 
 axios.defaults.baseURL = API_BASE_URL;
+axios.defaults.headers.common['X-API-Key'] = import.meta.env.VITE_ADMIN_API_KEY || 'stayflow_dev_key_123';
 
 const getFullUrl = (path) => {
   if (!path) return '';
