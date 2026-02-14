@@ -547,8 +547,17 @@ async function handleIncomingMessage(phone, body, messageId = null, image = null
     const session = await getSession(phone);
     if (session) {
         logToFile(`User ${phone} is in state: ${JSON.stringify(session)}`);
-        await handleOnboarding(phone, body, image);
-        return;
+
+        // Escape keywords to reset session if stuck
+        const escapeKeywords = ['HI', 'HELLO', 'NAMASTE', 'HEY', 'HAI', 'CANCEL', 'STOP', 'QUIT', 'EXIT', 'RENT', 'STATUS', 'PAID'];
+        if (escapeKeywords.includes(cleanBody)) {
+            logToFile(`User ${phone} requested escape keyword: ${cleanBody}. Resetting session.`);
+            await updateSession(phone, null);
+            // Continue to main switch below
+        } else {
+            await handleOnboarding(phone, body, image);
+            return;
+        }
     }
 
     // AUTHENTICATION FOR ADMIN COMMANDS
@@ -1824,8 +1833,8 @@ async function handleRazorpaySuccess(phone, amount, trxId, paymentMode = 'UPI (R
         await Notification.create({
             type: 'payment_received',
             title: `Payment from ${name}`,
-            body: `₹${total} received via UPI — Room ${room}`,
-            meta: { tenantName: name, room, amount: total, mode: paymentMode, trxId }
+            body: `₹${amount} received via UPI — Room ${room}`,
+            meta: { tenantName: name, room, amount: amount, mode: paymentMode, trxId }
         });
     } catch (e) {
         console.error('Failed to create in-app notification:', e.message);
@@ -1873,6 +1882,7 @@ async function handleOnboarding(phone, input, image) {
                 const total = rent + eb;
                 state.step = 'CASH_AMOUNT';
                 state.expectedTotal = total;
+                await updateSession(phone, state);
 
                 await sendMessage(phone, `💵 *Cash Payment*\n\n🏠 Rent: ₹${rent}\n⚡ EB: ₹${eb}\n━━━━━━━━━━━━━━━━━━━━\n💰 *Total Due (Rent + EB): ₹${total}*\n\nPlease enter the *exact amount paid*.\nExample: *${total}*\n\n⚠️ _Invoice will be generated after admin verification._`);
             } else {
@@ -1889,6 +1899,7 @@ async function handleOnboarding(phone, input, image) {
             }
             state.amountPaid = amount;
             state.step = 'CASH_DATE';
+            await updateSession(phone, state);
             await sendMessage(phone, `📅 *Step 2: Date of Payment*\n\nPlease enter the date you paid cash (e.g., *Today*).`);
             break;
         }
@@ -1992,6 +2003,7 @@ async function handleOnboarding(phone, input, image) {
             const val = await validateInputWithAI('NAME', input);
             if (!val.isValid) { await sendMessage(phone, `❌ ${val.message}`); return; }
             state.name = input; state.step = 'PHONE_NUMBER';
+            await updateSession(phone, state);
             await sendMessage(phone, `Confirm your Phone Number`);
             break;
         }
@@ -1999,6 +2011,7 @@ async function handleOnboarding(phone, input, image) {
             const val = await validateInputWithAI('PHONE_NUMBER', input);
             if (!val.isValid) { await sendMessage(phone, `❌ ${val.message}`); return; }
             state.userPhone = input; state.step = 'ROOM';
+            await updateSession(phone, state);
             await sendMessage(phone, `Room Number`);
             break;
         }
@@ -2006,6 +2019,7 @@ async function handleOnboarding(phone, input, image) {
             const val = await validateInputWithAI('ROOM', input);
             if (!val.isValid) { await sendMessage(phone, `❌ ${val.message}`); return; }
             state.room = input; state.step = 'SHARING_TYPE';
+            await updateSession(phone, state);
             await sendMessage(phone, `Choose Sharing Type:\n1. One (9000)\n2. Two (7000)\n3. Three (6500)\n4. Four (6500)`);
             break;
         }
@@ -2013,10 +2027,12 @@ async function handleOnboarding(phone, input, image) {
             const m = { '1': 9000, '2': 7000, '3': 6500, '4': 6500 };
             if (!m[input]) { await sendMessage(phone, `Invalid choice.`); return; }
             state.monthlyRent = m[input]; state.sharingType = input + ' Sharing'; state.step = 'ADVANCE';
+            await updateSession(phone, state);
             await sendMessage(phone, `Advance Paid`);
             break;
         case 'ADVANCE':
             state.advance = input; state.step = 'AADHAAR_UPLOAD';
+            await updateSession(phone, state);
             await sendMessage(phone, `Please upload Aadhaar image.`);
             break;
         case 'AADHAAR_UPLOAD':
