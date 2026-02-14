@@ -80,7 +80,8 @@ const Registrations = () => {
         try {
             setLoading(true);
             const data = await getTenants();
-            const sorted = data.sort((a, b) => new Date(b['Join Date'] || 0) - new Date(a['Join Date'] || 0));
+            const validData = Array.isArray(data) ? data : [];
+            const sorted = validData.sort((a, b) => (a.Name || '').localeCompare(b.Name || ''));
             setTenants(sorted);
         } catch (error) { console.error(error); Alert.alert('Error', 'Failed to fetch registrations'); }
         finally { setLoading(false); setRefreshing(false); }

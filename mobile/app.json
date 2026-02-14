@@ -31,6 +31,12 @@
     },
     "plugins": [
       "expo-asset"
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "0c828233-29dd-49ab-9db4-565fbca03b3e"
+      }
+    },
+    "owner": "goeswar98"
   }
 }

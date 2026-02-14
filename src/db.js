@@ -11,6 +11,8 @@ const logSchema = new mongoose.Schema({
     details: mongoose.Schema.Types.Mixed,
     timestamp: { type: Date, default: Date.now }
 });
+// Index for tracking unique events like Razorpay Webhook IDs
+logSchema.index({ "details.id": 1 }, { unique: true, sparse: true });
 
 const mediaSchema = new mongoose.Schema({
     phone: String,
@@ -22,7 +24,7 @@ const mediaSchema = new mongoose.Schema({
 
 const tenantSchema = new mongoose.Schema({
     name: String,
-    phone: String,
+    phone: { type: String, unique: true },
     room: String,
     bed: String,
     floor: String,
@@ -48,9 +50,16 @@ const notificationSchema = new mongoose.Schema({
     timestamp: { type: Date, default: Date.now }
 });
 
+const sessionSchema = new mongoose.Schema({
+    phone: { type: String, unique: true },
+    state: mongoose.Schema.Types.Mixed,
+    updatedAt: { type: Date, default: Date.now, expires: 3600 } // TTL 1 hour
+});
+
 const Log = mongoose.model('Log', logSchema);
 const Media = mongoose.model('Media', mediaSchema);
 const Tenant = mongoose.model('Tenant', tenantSchema);
 const Notification = mongoose.model('Notification', notificationSchema);
+const Session = mongoose.model('Session', sessionSchema);
 
-export { Log, Media, Tenant, Notification };
+export { Log, Media, Tenant, Notification, Session };

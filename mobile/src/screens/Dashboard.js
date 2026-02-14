@@ -1,5 +1,7 @@
 import React, { useEffect, useState, useCallback, memo, useRef, useMemo } from 'react';
 import { View, ScrollView, StyleSheet, RefreshControl, Text, TouchableOpacity, Animated, Dimensions, Alert, Modal, Platform } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { CommonActions } from '@react-navigation/native';
 import { Colors, Spacing, Shadows, Typography, BorderRadius, Gradients } from '../theme/theme';
 import { LinearGradient } from 'expo-linear-gradient';
 import Header from '../components/Header';
@@ -19,6 +21,7 @@ import {
     SkeletonCard, useMeshFloat, useGlowPulse, DecryptedText, SplitText
 } from '../utils/animations';
 import { useLanguage } from '../context/LanguageContext';
+import { notifyBulkInvoice } from '../utils/notifications';
 // ─── Main Dashboard ─────────────────────────────────────────────
 const ActivityItem = memo(({ item, index }) => {
     const isPaid = item.Status === 'PAID' || item.Status === 'VALID';
@@ -135,6 +138,7 @@ const Dashboard = () => {
                         try {
                             setLoading(true);
                             await notifyAll();
+                            notifyBulkInvoice(active.length);
                             setIsBulkStatusVisible(true);
                         } catch (e) {
                             Alert.alert(t('error'), e.message);
@@ -145,6 +149,22 @@ const Dashboard = () => {
                 }
             ]
         );
+    };
+
+    const handleSignOut = async () => {
+        try {
+            // Instant feedback
+            setIsMenuVisible(false);
+            await AsyncStorage.removeItem('userToken');
+            navigation.dispatch(
+                CommonActions.reset({
+                    index: 0,
+                    routes: [{ name: 'Login' }],
+                })
+            );
+        } catch (e) {
+            Alert.alert(t('error'), 'Failed to sign out');
+        }
     };
 
     const closeMenu = () => {
@@ -381,7 +401,7 @@ const Dashboard = () => {
                                 </ScrollView>
 
                                 <View style={styles.menuFooter}>
-                                    <TouchableOpacity style={styles.logoutBtn} onPress={closeMenu}>
+                                    <TouchableOpacity style={styles.logoutBtn} onPress={handleSignOut}>
                                         <LogOut size={18} color={Colors.accent} />
                                         <Text style={styles.logoutText}>{t('sign_out')}</Text>
                                     </TouchableOpacity>

@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, Switch, TouchableOpacity, Alert, Modal, TextInput } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { CommonActions } from '@react-navigation/native';
 import { Colors, Spacing, Shadows, Typography, BorderRadius } from '../theme/theme';
 import Header from '../components/Header';
 import { Bell, Moon, Sun, Lock, Globe, ChevronRight, LogOut, Database, User, X } from 'lucide-react-native';
@@ -48,22 +50,39 @@ const GeneralSettings = () => {
     const [langModal, setLangModal] = useState(false);
 
     // Profile State
-    const [name, setName] = useState("Admin User");
-    const [email, setEmail] = useState("admin@stayflow.com");
+    const [name, setName] = useState("");
+    const [email, setEmail] = useState("");
 
     // Password State
     const [oldPass, setOldPass] = useState("");
     const [newPass, setNewPass] = useState("");
 
-    const handleSignOut = () => {
-        Alert.alert("Sign Out", "Are you sure you want to log out?", [
-            { text: "Cancel", style: "cancel" },
-            {
-                text: "Sign Out",
-                style: "destructive",
-                onPress: () => navigation.reset({ index: 0, routes: [{ name: 'Login' }] })
+    React.useEffect(() => {
+        const loadProfile = async () => {
+            try {
+                const storedName = await AsyncStorage.getItem('userDisplayName') || 'Admin User';
+                const storedEmail = await AsyncStorage.getItem('userEmail') || 'admin@stayflow.com';
+                setName(storedName);
+                setEmail(storedEmail);
+            } catch (e) {
+                console.error("Failed to load profile", e);
             }
-        ]);
+        };
+        loadProfile();
+    }, []);
+
+    const handleSignOut = async () => {
+        try {
+            await AsyncStorage.removeItem('userToken');
+            navigation.dispatch(
+                CommonActions.reset({
+                    index: 0,
+                    routes: [{ name: 'Login' }],
+                })
+            );
+        } catch (e) {
+            Alert.alert(t('error'), "Failed to sign out");
+        }
     };
 
     const handleClearCache = () => {
@@ -73,21 +92,49 @@ const GeneralSettings = () => {
         }, 1500);
     };
 
-    const handleUpdateProfile = () => {
-        setProfileModal(false);
-        Alert.alert("Success", "Profile updated successfully!");
+    const handleUpdateProfile = async () => {
+        try {
+            await AsyncStorage.setItem('userDisplayName', name);
+            await AsyncStorage.setItem('userEmail', email);
+            setProfileModal(false);
+            Alert.alert("Success", "Profile updated successfully!");
+        } catch (e) {
+            Alert.alert("Error", "Failed to save profile");
+        }
     };
 
-    const handleChangePassword = () => {
-        if (oldPass !== 'admin') {
-            Alert.alert("Error", "Incorrect current password.");
-            return;
+    const handleChangePassword = async () => {
+        try {
+            const storedPassword = await AsyncStorage.getItem('userPassword') || 'admin';
+
+            if (oldPass !== storedPassword) {
+                Alert.alert("Error", "Incorrect current password.");
+                return;
+            }
+
+            if (newPass.length < 4) {
+                Alert.alert("Error", "New password must be at least 4 characters.");
+                return;
+            }
+
+            await AsyncStorage.setItem('userPassword', newPass);
+
+            setPasswordModal(false);
+            setOldPass("");
+            setNewPass("");
+            Alert.alert("Success", "Password changed successfully! Please login again.");
+
+            // Remove token and go to login
+            await AsyncStorage.removeItem('userToken');
+            navigation.dispatch(
+                CommonActions.reset({
+                    index: 0,
+                    routes: [{ name: 'Login' }],
+                })
+            );
+        } catch (e) {
+            Alert.alert("Error", "Failed to change password");
         }
-        setPasswordModal(false);
-        setOldPass("");
-        setNewPass("");
-        Alert.alert("Success", "Password changed successfully! Please login again.");
-        navigation.reset({ index: 0, routes: [{ name: 'Login' }] });
     };
 
     const changeLang = (langCode) => {

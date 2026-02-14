@@ -39,6 +39,15 @@ if (!fs.existsSync(uploadsDir)) {
     fs.mkdirSync(uploadsDir);
 }
 
+// Authentication Middleware
+const authenticate = (req, res, next) => {
+    const apiKey = req.headers['x-api-key'];
+    if (!apiKey || apiKey !== config.adminApiKey) {
+        return res.status(401).json({ error: 'Unauthorized: Invalid or missing API Key' });
+    }
+    next();
+};
+
 // Serve dashboard, uploads, and public files statically
 const dashboardDist = path.join(__dirname, '../dashboard/dist');
 console.log(`Checking for dashboard build at: ${dashboardDist}`);
@@ -108,17 +117,31 @@ app.get('/api/payment-info', async (req, res) => {
 // POST /api/create-order — Create a Razorpay Order for embedded checkout
 app.post('/api/create-order', async (req, res) => {
     try {
-        const { phone, name, amount, room } = req.body;
+        const { phone, name, room } = req.body;
 
         if (!razorpayInstance) {
             return res.status(503).json({ error: 'Payment gateway not configured. Please contact admin.' });
         }
 
-        if (!phone || !amount || amount <= 0) {
-            return res.status(400).json({ error: 'Invalid payment details' });
+        if (!phone) {
+            return res.status(400).json({ error: 'Phone number is required' });
         }
 
-        const amountInPaise = Math.round(parseFloat(amount) * 100);
+        // FETCH ACTUAL AMOUNT FROM SHEETS TO PREVENT "PAY ₹1" EXPLOIT
+        const tenant = await sheetsService.getTenantByPhone(phone, name);
+        if (!tenant) {
+            return res.status(404).json({ error: 'Resident record not found. Please contact admin.' });
+        }
+
+        const rent = parseFloat((tenant.get('Monthly Rent') || '0').toString().replace(/[^\d.]/g, ''));
+        const eb = parseFloat((tenant.get('EB Amount') || '0').toString().replace(/[^\d.]/g, ''));
+        const actualTotal = rent + eb;
+
+        if (actualTotal <= 0) {
+            return res.status(400).json({ error: 'No pending dues found for this resident.' });
+        }
+
+        const amountInPaise = Math.round(actualTotal * 100);
 
         const order = await razorpayInstance.orders.create({
             amount: amountInPaise,
@@ -126,12 +149,12 @@ app.post('/api/create-order', async (req, res) => {
             receipt: `SF-${phone.slice(-4)}-${Date.now().toString().slice(-6)}`,
             notes: {
                 phone: phone,
-                tenant_name: name || 'Tenant',
-                room: room || 'N/A'
+                tenant_name: tenant.get('Name') || 'Tenant',
+                room: tenant.get('Room') || 'N/A'
             }
         });
 
-        console.log(`[RAZORPAY ORDER] Created: ${order.id} for ${phone} | ₹${amount}`);
+        console.log(`[RAZORPAY ORDER] Created: ${order.id} for ${phone} | ₹${actualTotal}`);
 
         res.json({
             orderId: order.id,
@@ -286,16 +309,23 @@ app.post('/webhook/razorpay', async (req, res) => {
         });
 
         // Verify webhook signature if secret is set
-        const webhookSecret = config.razorpay?.key_secret;
-        if (webhookSecret && req.headers['x-razorpay-signature']) {
-            const expectedSignature = crypto
-                .createHmac('sha256', webhookSecret)
-                .update(JSON.stringify(req.body))
-                .digest('hex');
-            if (expectedSignature !== req.headers['x-razorpay-signature']) {
-                console.error('Razorpay webhook signature mismatch!');
-                return res.status(400).json({ error: 'Invalid signature' });
+        if (config.razorpay.key_secret) {
+            const signature = req.headers['x-razorpay-signature'];
+            if (!signature) {
+                console.warn('⚠️ Webhook received without signature');
+                return res.status(400).send('Signature missing');
             }
+
+            const expectedSignature = crypto
+                .createHmac('sha256', config.razorpay.key_secret)
+                .update(JSON.stringify(payload))
+                .digest('hex');
+
+            if (signature !== expectedSignature) {
+                console.warn('❌ Webhook signature verification failed');
+                return res.status(400).send('Invalid signature');
+            }
+            console.log('✅ Webhook signature verified');
         }
 
         // Process payment.captured event
@@ -629,7 +659,7 @@ app.get('/api/media/:id', async (req, res) => {
     }
 });
 
-app.post('/api/update-eb', async (req, res) => {
+app.post('/api/update-eb', authenticate, async (req, res) => {
     try {
         const { room, totalEB } = req.body;
         await handleUpdateEB(config.ownerPhone, room, totalEB);
@@ -640,7 +670,7 @@ app.post('/api/update-eb', async (req, res) => {
 });
 
 // POST /api/bulk-update-eb — Bulk update EB amounts for multiple tenants (Monthly Billing tab)
-app.post('/api/bulk-update-eb', async (req, res) => {
+app.post('/api/bulk-update-eb', authenticate, async (req, res) => {
     try {
         const { updates } = req.body;  // [{ phone, name, eb }]
         if (!updates || !Array.isArray(updates) || updates.length === 0) {
@@ -693,7 +723,7 @@ app.post('/api/bulk-update-eb', async (req, res) => {
 
 const upload = multer({ dest: 'uploads/' });
 
-app.post('/api/upload-aadhaar', upload.single('aadhaar'), async (req, res) => {
+app.post('/api/upload-aadhaar', authenticate, upload.single('aadhaar'), async (req, res) => {
     try {
         const { phone } = req.body;
         const file = req.file;
@@ -848,7 +878,7 @@ app.post('/webhook/google-form', async (req, res) => {
     }
 });
 
-app.get('/api/tenants', async (req, res) => {
+app.get('/api/tenants', authenticate, async (req, res) => {
     try {
         console.log('--- Fetching Tenants for Dashboard ---');
         const tenants = await sheetsService.getTenantsJSON();
@@ -863,7 +893,7 @@ app.get('/api/tenants', async (req, res) => {
     }
 });
 
-app.post('/api/add-tenant', async (req, res) => {
+app.post('/api/add-tenant', authenticate, async (req, res) => {
     try {
         const tenantData = req.body;
 
@@ -919,7 +949,7 @@ let lastBulkTask = {
 
 app.get('/api/bulk-status', (req, res) => res.json(lastBulkTask));
 
-app.post('/api/trigger-notifications', async (req, res) => {
+app.post('/api/trigger-notifications', authenticate, async (req, res) => {
     try {
         // Re-read fresh data from Google Sheets 
         const tenants = await sheetsService.getAllTenants();
@@ -1136,7 +1166,7 @@ app.post('/api/update-bill', async (req, res) => {
     }
 });
 
-app.post('/api/update-and-notify', async (req, res) => {
+app.post('/api/update-and-notify', authenticate, async (req, res) => {
     try {
         const { oldPhone, newPhone, name, rent, eb, sharingType, location, oldName, status, room } = req.body;
         const phoneToUse = oldPhone || req.body.phone;
@@ -1168,7 +1198,7 @@ app.post('/api/update-and-notify', async (req, res) => {
     }
 });
 
-app.post('/api/mark-paid', async (req, res) => {
+app.post('/api/mark-paid', authenticate, async (req, res) => {
     try {
         const { phone, name, amount, mode } = req.body;
         // 1. Update Google Sheets (Auto-syncs to MongoDB)
@@ -1218,7 +1248,7 @@ app.post('/api/mark-paid', async (req, res) => {
     }
 });
 
-app.post('/api/delete-tenant', async (req, res) => {
+app.post('/api/delete-tenant', authenticate, async (req, res) => {
     try {
         const { phone, name } = req.body;
 
@@ -1261,7 +1291,7 @@ app.post('/api/sync-to-mongo', async (req, res) => {
     }
 });
 
-app.get('/api/archived-tenants', async (req, res) => {
+app.get('/api/archived-tenants', authenticate, async (req, res) => {
     try {
         const tenants = await Tenant.find().sort({ archivedAt: -1 });
         res.json(tenants);
@@ -1338,7 +1368,7 @@ app.post(['/api/announcement', '/api/broadcast'], upload.single('file'), async (
     }
 });
 
-app.get('/api/notifications', async (req, res) => {
+app.get('/api/notifications', authenticate, async (req, res) => {
     try {
         const notifications = await Notification.find().sort({ timestamp: -1 }).limit(100);
         res.json(notifications);
@@ -1399,7 +1429,7 @@ app.get('/api/eb-bills', async (req, res) => {
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.post('/api/eb-bills', async (req, res) => {
+app.post('/api/eb-bills', authenticate, async (req, res) => {
     try {
         const { monthYear, location, totalUnits, ratePerUnit, notes } = req.body;
         const result = await sheetsService.addEBBill({ monthYear, location, totalUnits, ratePerUnit, notes });
@@ -1419,7 +1449,7 @@ app.post('/api/eb-bills', async (req, res) => {
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.get('/api/dashboard-stats', async (req, res) => {
+app.get('/api/dashboard-stats', authenticate, async (req, res) => {
     try { res.json(await sheetsService.getDashboardStats()); }
     catch (err) {
         console.error('Dashboard Stats Error:', err.message);
@@ -1439,14 +1469,34 @@ app.get('/api/config', (req, res) => {
     });
 });
 
-app.get('/api/health', (req, res) => {
-    res.json({
-        status: 'ok',
-        version: '1.0.1',
-        time: new Date().toISOString(),
-        mongodb: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected',
-        wwebReady: wweb.ready
-    });
+app.get('/api/health', async (req, res) => {
+    try {
+        // 1. Check MongoDB
+        const dbStatus = mongoose.connection.readyState === 1 ? 'connected' : 'disconnected';
+
+        // 2. Check Sheets
+        let sheetsStatus = 'disconnected';
+        try {
+            await sheetsService.init();
+            await sheetsService.sheet.getRows({ limit: 1 });
+            sheetsStatus = 'connected';
+        } catch (e) {
+            console.error('Health Check: Sheets Failed', e.message);
+        }
+
+        const isHealthy = dbStatus === 'connected' && sheetsStatus === 'connected';
+
+        res.status(isHealthy ? 200 : 503).json({
+            status: isHealthy ? 'ok' : 'unhealthy',
+            version: '1.1.0',
+            time: new Date().toISOString(),
+            mongodb: dbStatus,
+            sheets: sheetsStatus,
+            wwebReady: wweb.ready
+        });
+    } catch (err) {
+        res.status(500).json({ status: 'error', message: err.message });
+    }
 });
 
 app.get('/', (req, res) => {

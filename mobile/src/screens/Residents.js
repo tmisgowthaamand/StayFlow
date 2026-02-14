@@ -9,57 +9,57 @@ import { useLanguage } from '../context/LanguageContext';
 import { getTenants, notifyTenant, markPaidManual, deleteTenant, notifyAll, generateInvoice } from '../api/api';
 import { Search, Bell, Phone, CheckCircle, Trash2, Edit, FileText, Send, Zap, MoreVertical, MapPin, Star, Users } from 'lucide-react-native';
 import { usePressAnimation, SkeletonCard, AnimatedListItem } from '../utils/animations';
+import { notifyInvoiceSent, notifyPaymentReceived } from '../utils/notifications';
+import { useTheme } from '../context/ThemeContext';
 
 // ─── Premium Resident Card ─────────────────────────────────────
 const ResidentItem = memo(({ item, index, onMenuPress, onRemind }) => {
     const isPaid = item.Status === 'PAID' || item.Status === 'VALID';
     const navigation = useNavigation();
     const { t } = useLanguage();
+    const { colors } = useTheme();
     const { scaleStyle, onPressIn, onPressOut } = usePressAnimation(0.98);
 
     const statusColor = isPaid ? Colors.secondary : item.Status === 'PENDING' ? Colors.warning : Colors.danger;
 
     return (
         <AnimatedListItem index={index}>
-            <Animated.View style={[styles.card, scaleStyle]} onTouchStart={onPressIn} onTouchEnd={onPressOut} onTouchCancel={onPressOut}>
+            <Animated.View style={[styles.card, scaleStyle, { backgroundColor: colors.backgroundAlt, borderColor: colors.border }]} onTouchStart={onPressIn} onTouchEnd={onPressOut} onTouchCancel={onPressOut}>
                 <View style={styles.cardHeader}>
                     <View style={styles.avatarWrapper}>
                         <LinearGradient colors={isPaid ? Gradients.secondary : Gradients.primary} style={styles.avatarInner}>
                             <Text style={styles.avatarText}>{item.Name?.[0] || '?'}</Text>
                         </LinearGradient>
-                        <View style={[styles.statusIndicator, { backgroundColor: statusColor }]} />
+                        <View style={[styles.statusIndicator, { backgroundColor: statusColor, borderColor: colors.backgroundAlt }]} />
                     </View>
 
                     <View style={styles.headerText}>
-                        <Text style={styles.nameText}>{item.Name}</Text>
+                        <Text style={[styles.nameText, { color: colors.text }]}>{item.Name}</Text>
                         <View style={styles.metaRow}>
-                            <MapPin size={12} color={Colors.textSecondary} />
-                            <Text style={styles.metaText}>{t('room')} {item.Room}</Text>
+                            <MapPin size={12} color={colors.textSecondary} />
+                            <Text style={[styles.metaText, { color: colors.textSecondary }]}>{t('room')} {item.Room}</Text>
                         </View>
                     </View>
 
                     <View style={styles.cardActionsHeader}>
-                        <TouchableOpacity style={styles.headerIconBtn} onPress={() => navigation.navigate('EditTenant', { tenant: item })}>
-                            <Edit size={18} color={Colors.cool} />
+                        <TouchableOpacity style={[styles.headerIconBtn, { backgroundColor: 'rgba(245, 158, 11, 0.1)' }]} onPress={() => onRemind(item)}>
+                            <Bell size={18} color={colors.warning} />
                         </TouchableOpacity>
-                        <TouchableOpacity style={styles.headerIconBtn} onPress={() => onRemind(item)}>
-                            <Bell size={18} color={Colors.warning} />
-                        </TouchableOpacity>
-                        <TouchableOpacity style={styles.optionsBtn} onPress={onMenuPress}>
-                            <MoreVertical size={20} color={Colors.textMuted} />
+                        <TouchableOpacity style={[styles.headerIconBtn, { backgroundColor: colors.primary + '15' }]} onPress={onMenuPress}>
+                            <MoreVertical size={20} color={colors.primary} />
                         </TouchableOpacity>
                     </View>
                 </View>
 
-                <View style={styles.statsGrid}>
+                <View style={[styles.statsGrid, { backgroundColor: colors.surface, borderColor: colors.border }]}>
                     <View style={styles.statItem}>
-                        <Text style={styles.statLabel}>{t('rent')}</Text>
-                        <Text style={styles.statValue}>₹{item['Monthly Rent'] || '0'}</Text>
+                        <Text style={[styles.statLabel, { color: colors.textMuted }]}>{t('rent')}</Text>
+                        <Text style={[styles.statValue, { color: colors.text }]}>₹{item['Monthly Rent'] || '0'}</Text>
                     </View>
-                    <View style={styles.gridDivider} />
+                    <View style={[styles.gridDivider, { backgroundColor: colors.border }]} />
                     <View style={styles.statItem}>
-                        <Text style={styles.statLabel}>{t('phone')}</Text>
-                        <Text style={styles.statValue}>{item.Phone || t('na')}</Text>
+                        <Text style={[styles.statLabel, { color: colors.textMuted }]}>{t('phone')}</Text>
+                        <Text style={[styles.statValue, { color: colors.text }]}>{item.Phone || t('na')}</Text>
                     </View>
                 </View>
 
@@ -78,6 +78,7 @@ const Residents = ({ route }) => {
     const [isBulkStatusVisible, setIsBulkStatusVisible] = useState(false);
     const navigation = useNavigation();
     const { t } = useLanguage();
+    const { colors } = useTheme();
 
     const fetchTenants = useCallback(async () => {
         try {
@@ -126,6 +127,7 @@ const Residents = ({ route }) => {
                         try {
                             setLoading(true);
                             await markPaidManual(phone, name, amount, mode);
+                            notifyPaymentReceived(name, 'Room Billing', amount, mode);
                             Alert.alert("Success", `Marked as Paid via ${mode}. Invoice sent to resident.`);
                             fetchTenants();
                         } catch (e) {
@@ -147,6 +149,7 @@ const Residents = ({ route }) => {
             if (action === 'REMIND') {
                 setSelectedTenant(null);
                 await notifyTenant(selectedTenant.Phone, selectedTenant.Name);
+                notifyInvoiceSent(selectedTenant.Name, selectedTenant.Room, selectedTenant['Monthly Rent'] || '0');
                 Alert.alert(t('success'), t('reminder_sent'));
             } else if (action === 'PAID') {
                 const tenantName = selectedTenant.Name;
@@ -307,6 +310,7 @@ const Residents = ({ route }) => {
         try {
             setLoading(true);
             await notifyTenant(tenant.Phone, tenant.Name);
+            notifyInvoiceSent(tenant.Name, tenant.Room, tenant['Monthly Rent'] || '0');
             Alert.alert(t('success'), t('reminder_sent'));
         } catch (e) {
             Alert.alert(t('error'), e.message);
@@ -315,8 +319,31 @@ const Residents = ({ route }) => {
         }
     };
 
+    const handleNotifyAll = async () => {
+        Alert.alert(
+            t('notify_all'),
+            t('notify_all_confirm'),
+            [
+                { text: t('cancel'), style: 'cancel' },
+                {
+                    text: t('send'), onPress: async () => {
+                        try {
+                            setLoading(true);
+                            await notifyAll();
+                            setIsBulkStatusVisible(true);
+                        } catch (e) {
+                            Alert.alert(t('error'), e.message);
+                        } finally {
+                            setLoading(false);
+                        }
+                    }
+                }
+            ]
+        );
+    };
+
     return (
-        <View style={styles.container}>
+        <View style={[styles.container, { backgroundColor: colors.background }]}>
             <Header
                 title={t('residents')}
                 subtitle={t('management')}
@@ -329,28 +356,7 @@ const Residents = ({ route }) => {
                 <View style={styles.topActions}>
                     <TouchableOpacity
                         style={styles.notifyAllBtn}
-                        onPress={() => {
-                            Alert.alert(
-                                t('notify_all'),
-                                t('notify_all_confirm'),
-                                [
-                                    { text: t('cancel'), style: 'cancel' },
-                                    {
-                                        text: t('send'), onPress: async () => {
-                                            try {
-                                                setLoading(true);
-                                                await notifyAll();
-                                                setIsBulkStatusVisible(true);
-                                            } catch (e) {
-                                                Alert.alert(t('error'), e.message);
-                                            } finally {
-                                                setLoading(false);
-                                            }
-                                        }
-                                    }
-                                ]
-                            );
-                        }}
+                        onPress={handleNotifyAll}
                     >
                         <LinearGradient
                             colors={Gradients.cool}
@@ -372,9 +378,9 @@ const Residents = ({ route }) => {
                     keyExtractor={(it, idx) => (it._id || idx).toString()}
                     renderItem={({ item, index }) => <ResidentItem item={item} index={index} onMenuPress={() => setSelectedTenant(item)} onRemind={handleRemind} />}
                     contentContainerStyle={styles.listArea}
-                    refreshControl={<RefreshControl refreshing={loading} onRefresh={fetchTenants} tintColor={Colors.primary} />}
+                    refreshControl={<RefreshControl refreshing={loading} onRefresh={fetchTenants} tintColor={colors.primary} />}
                     showsVerticalScrollIndicator={false}
-                    ListEmptyComponent={<View style={styles.emptyContainer}><Text style={styles.emptyText}>{t('no_residents')}</Text></View>}
+                    ListEmptyComponent={<View style={styles.emptyContainer}><Text style={[styles.emptyText, { color: colors.textMuted }]}>{t('no_residents')}</Text></View>}
                 />
             )}
 
@@ -386,43 +392,43 @@ const Residents = ({ route }) => {
                 animationType="fade"
             >
                 <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setSelectedTenant(null)}>
-                    <View style={styles.menuContainer}>
-                        <View style={styles.menuHeader}>
-                            <Text style={styles.menuTitle}>{selectedTenant?.Name}</Text>
-                            <Text style={styles.menuSubtitle}>Room {selectedTenant?.Room}</Text>
+                    <View style={[styles.menuContainer, { backgroundColor: colors.surfaceElevated, borderColor: colors.border }]}>
+                        <View style={[styles.menuHeader, { borderBottomColor: colors.border }]}>
+                            <Text style={[styles.menuTitle, { color: colors.text }]}>{selectedTenant?.Name}</Text>
+                            <Text style={[styles.menuSubtitle, { color: colors.textSecondary }]}>Room {selectedTenant?.Room}</Text>
                         </View>
 
                         <TouchableOpacity style={styles.menuItem} onPress={() => {
                             setSelectedTenant(null);
                             navigation.navigate('EditTenant', { tenant: selectedTenant });
                         }}>
-                            <Edit size={20} color={Colors.cool} />
-                            <Text style={styles.menuText}>{t('edit')}</Text>
+                            <Edit size={20} color={colors.primary} />
+                            <Text style={[styles.menuText, { color: colors.text }]}>{t('edit')}</Text>
                         </TouchableOpacity>
 
                         <TouchableOpacity style={styles.menuItem} onPress={() => handleAction('PAID')}>
-                            <CheckCircle size={20} color={Colors.secondary} />
-                            <Text style={styles.menuText}>{t('mark_paid')}</Text>
+                            <CheckCircle size={20} color={colors.secondary} />
+                            <Text style={[styles.menuText, { color: colors.text }]}>{t('mark_paid')}</Text>
                         </TouchableOpacity>
 
                         <TouchableOpacity style={styles.menuItem} onPress={() => {
                             setSelectedTenant(null);
                             navigation.navigate('Announcements', { recipient: selectedTenant });
                         }}>
-                            <Send size={20} color={Colors.cool} />
-                            <Text style={styles.menuText}>{t('send_message')}</Text>
+                            <Send size={20} color={colors.primary} />
+                            <Text style={[styles.menuText, { color: colors.text }]}>{t('send_message')}</Text>
                         </TouchableOpacity>
 
                         <TouchableOpacity style={styles.menuItem} onPress={() => handleAction('PREVIEW')}>
-                            <FileText size={20} color={Colors.primary} />
-                            <Text style={styles.menuText}>{t('preview_invoice')}</Text>
+                            <FileText size={20} color={colors.primary} />
+                            <Text style={[styles.menuText, { color: colors.text }]}>{t('preview_invoice')}</Text>
                         </TouchableOpacity>
 
-                        <View style={styles.menuDivider} />
+                        <View style={[styles.menuDivider, { backgroundColor: colors.border }]} />
 
                         <TouchableOpacity style={styles.menuItem} onPress={() => handleAction('DELETE')}>
-                            <Trash2 size={20} color={Colors.danger} />
-                            <Text style={[styles.menuText, { color: Colors.danger }]}>{t('remove_resident')}</Text>
+                            <Trash2 size={20} color={colors.danger} />
+                            <Text style={[styles.menuText, { color: colors.danger }]}>{t('remove_resident')}</Text>
                         </TouchableOpacity>
                     </View>
                 </TouchableOpacity>
@@ -433,7 +439,7 @@ const Residents = ({ route }) => {
                 onClose={() => setIsBulkStatusVisible(false)}
                 onComplete={() => fetchTenants()}
             />
-        </View>
+        </View >
     );
 };
 

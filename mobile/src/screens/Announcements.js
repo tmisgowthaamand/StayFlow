@@ -7,7 +7,7 @@ import { sendAnnouncement } from '../api/api';
 import { Megaphone, Paperclip, X, Send, Image as ImageIcon } from 'lucide-react-native';
 import * as DocumentPicker from 'expo-document-picker';
 import { useFadeSlideIn, usePressAnimation, AnimatedListItem } from '../utils/animations';
-import { notifyAnnouncement } from '../utils/notifications';
+import { notifyAnnouncement, notifyDirectMessage } from '../utils/notifications';
 import { useLanguage } from '../context/LanguageContext';
 
 const Announcements = ({ navigation, route }) => {
@@ -52,6 +52,8 @@ const Announcements = ({ navigation, route }) => {
             // Only notify globally if it was a broadcast
             if (!recipient) {
                 notifyAnnouncement(message, 'residents', serverImageUrl || (attachment?.mimeType?.startsWith('image/') ? attachment.uri : null));
+            } else {
+                notifyDirectMessage(recipient.Name, message);
             }
 
             Alert.alert(t('success'), recipient ? t('message_sent') : t('announcement_sent'));

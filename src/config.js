@@ -36,6 +36,7 @@ const config = {
         })(),
     },
     mongoUri: process.env.MONGODB_URI || 'mongodb://localhost:27017/stayflow',
+    adminApiKey: process.env.ADMIN_API_KEY || 'stayflow_dev_key_123',
     geminiApiKey: process.env.GEMINI_API_KEY,
     groqApiKey: process.env.GROQ_API_KEY,
     googleMapsApiKey: process.env.GOOGLE_MAPS_API_KEY,
@@ -55,5 +56,22 @@ const config = {
         HELP: 'HELP'
     }
 };
+
+// CRITICAL ENV VALIDATION (Operational Readiness)
+const requiredEnv = [
+    'MONGODB_URI',
+    'GOOGLE_SHEET_ID',
+    'GOOGLE_SERVICE_ACCOUNT_EMAIL',
+    'GOOGLE_PRIVATE_KEY',
+    'OWNER_PHONE',
+    'RAZORPAY_KEY_ID',
+    'RAZORPAY_KEY_SECRET'
+];
+
+const missing = requiredEnv.filter(key => !process.env[key]);
+if (missing.length > 0) {
+    console.error(`\n❌ FATAL: Missing Required Environment Variables:\n${missing.join('\n')}\n`);
+    process.exit(1);
+}
 
 export default config;

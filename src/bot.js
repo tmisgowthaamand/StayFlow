@@ -8,12 +8,9 @@ import { fileURLToPath } from 'url';
 import config from './config.js';
 import sheetsService from './sheets.js';
 import pdfService from './pdfService.js';
-import { Log, Media, Notification } from './db.js';
+import { Log, Media, Notification, Session } from './db.js';
 // We'll use dynamic import for wweb to avoid circular dependency issues at top level
 // import wweb from './wweb.js';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
 
 // Initialize Google Gemini AI
 let geminiModel = null;
@@ -21,8 +18,6 @@ if (config.geminiApiKey) {
     const genAI = new GoogleGenerativeAI(config.geminiApiKey);
     geminiModel = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
     console.log('✅ Google Gemini AI initialized');
-} else {
-    console.warn('⚠️ GEMINI_API_KEY not set - AI chat will be disabled');
 }
 
 let razorpay = null;
@@ -33,7 +28,26 @@ if (config.razorpay.key_id && config.razorpay.key_secret) {
     });
 }
 
-const userState = {};
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// Helper for persistent user state
+async function getSession(phone) {
+    const session = await Session.findOne({ phone });
+    return session ? session.state : null;
+}
+
+async function updateSession(phone, state) {
+    if (state === null) {
+        await Session.deleteOne({ phone });
+    } else {
+        await Session.findOneAndUpdate(
+            { phone },
+            { state, updatedAt: new Date() },
+            { upsert: true }
+        );
+    }
+}
 
 async function createRazorpayLink(phone, name, amount, room = 'N/A') {
     if (!razorpay || amount <= 0) return null;
@@ -530,9 +544,18 @@ async function handleIncomingMessage(phone, body, messageId = null, image = null
     }).catch(err => logToFile(`Logging to MongoDB failed: ${err.message}`));
 
     logToFile(`Current CleanBody: ${cleanBody}`);
-    if (userState[phone]) {
-        logToFile(`User ${phone} is in state: ${JSON.stringify(userState[phone])}`);
+    const session = await getSession(phone);
+    if (session) {
+        logToFile(`User ${phone} is in state: ${JSON.stringify(session)}`);
         await handleOnboarding(phone, body, image);
+        return;
+    }
+
+    // AUTHENTICATION FOR ADMIN COMMANDS
+    const isAdminCommand = ['TOTAL TENANTS', 'PAID LIST', 'PENDING LIST', 'DASHBOARD', 'SEND BILL', 'SEND REMINDER', 'ANNOUNCE'].includes(cleanBody);
+    if (isAdminCommand && phone.toString().slice(-10) !== config.ownerPhone.toString().slice(-10)) {
+        logToFile(`Unauthorized Admin Command Attempt by ${phone}: ${cleanBody}`);
+        await sendMessage(phone, "❌ Unauthorized. This command is only for administrators.");
         return;
     }
 
@@ -1722,13 +1745,34 @@ async function handleRazorpaySuccess(phone, amount, trxId, paymentMode = 'UPI (R
 
     const name = tenant.get('Name');
     const room = tenant.get('Room') || 'N/A';
-    const rent = parseFloat(tenant.get('Monthly Rent') || 0);
-    const eb = parseFloat(tenant.get('EB Amount') || 0);
-    const total = amount || (rent + eb);
+    const rent = parseFloat((tenant.get('Monthly Rent') || '0').toString().replace(/[^\d.]/g, ''));
+    const eb = parseFloat((tenant.get('EB Amount') || '0').toString().replace(/[^\d.]/g, ''));
+    const expectedTotal = rent + eb;
 
-    // Check if already marked as PAID to avoid duplicate processing
-    if (tenant.get('Status') === 'PAID' && tenant.get('Transaction ID') === trxId) {
-        console.log(`Payment already processed for ${name} [${trxId}]`);
+    console.log(`[PAYMENT VERIFY] ${name} (${cleanPhone}) | Paid: ₹${amount} | Expected: ₹${expectedTotal}`);
+
+    // Check for duplicate processing (Idempotency)
+    const existingLog = await Log.findOne({ "details.trxId": trxId });
+    if (existingLog) {
+        console.warn(`[IDEMPOTENCY] Transaction ${trxId} already processed.`);
+        return;
+    }
+
+    // AMOUNT VALIDATION (Blocking "Pay ₹1" exploit)
+    if (Math.abs(amount - expectedTotal) > 1) { // 1 INR tolerance for float issues
+        console.error(`[FRAUD ALERT] Amount mismatch for ${name}: Paid ₹${amount}, Expected ₹${expectedTotal}`);
+
+        await Log.create({
+            phone: cleanPhone,
+            action: 'PAYMENT_FRAUD_BLOCK',
+            details: { trxId, paid: amount, expected: expectedTotal, tenant: name }
+        });
+
+        await sendMessage(cleanPhone, `⚠️ *Payment Amount Mismatch*\n\nYou paid ₹${amount}, but your total due is ₹${expectedTotal}.\n\nYour payment has been logged, but your status remains PENDING. Please contact the administrator to resolve this.`);
+
+        if (config.ownerPhone) {
+            await sendMessage(config.ownerPhone, `🚨 *FRAUD ALERT*\nTenant: ${name}\nRoom: ${room}\nPaid: ₹${amount}\nExpected: ₹${expectedTotal}\nTXN: ${trxId}\n\n_Payment blocked automatically._`);
+        }
         return;
     }
 
@@ -1741,12 +1785,19 @@ async function handleRazorpaySuccess(phone, amount, trxId, paymentMode = 'UPI (R
     });
 
     // Log to History and Payments sheets
-    await sheetsService.logPayment(tenant, total.toString(), paymentMode, trxId, 'PAID');
+    await sheetsService.logPayment(tenant, amount.toString(), paymentMode, trxId, 'PAID');
+
+    // Update Log for Idempotency
+    await Log.create({
+        phone: cleanPhone,
+        action: 'PAYMENT_VERIFIED',
+        details: { trxId, amount, tenant: name }
+    });
 
     // Generate Invoice PDF
     const { filePath } = await pdfService.generateInvoice({
         Name: name, Phone: cleanPhone, Room: room,
-        EB_Amount: eb.toString(), Monthly_Rent: rent.toString(), Total_Amount: total.toString(),
+        EB_Amount: eb.toString(), Monthly_Rent: rent.toString(), Total_Amount: amount.toString(),
         Paid_Date: new Date().toLocaleDateString(), Transaction_ID: trxId, Payment_Mode: paymentMode,
         UPI_ID: extraDetails.vpa || '',
         Payment_ID: extraDetails.payment_id || trxId,
@@ -1754,12 +1805,12 @@ async function handleRazorpaySuccess(phone, amount, trxId, paymentMode = 'UPI (R
     });
 
     // Send to tenant via WhatsApp
-    await sendMessage(cleanPhone, `✅ *Payment Successful via UPI!*\n\nHi ${name},\n\n📋 *Breakdown:*\n🏠 Rent: ₹${rent}\n⚡ EB: ₹${eb}\n💰 *Total Paid: ₹${total}*\n\n💳 Mode: UPI\n🔖 TXN ID: ${trxId}\n📅 Date: ${new Date().toLocaleDateString()}\n\nThank you for choosing StayFlow! 🙏`);
+    await sendMessage(cleanPhone, `✅ *Payment Successful!*\n\nHi ${name},\n\n📋 *Breakdown:*\n🏠 Rent: ₹${rent}\n⚡ EB: ₹${eb}\n💰 *Total Paid: ₹${amount}*\n\n💳 Mode: ${paymentMode}\n🔖 TXN ID: ${trxId}\n📅 Date: ${new Date().toLocaleDateString()}\n\nThank you for choosing StayFlow! 🙏`);
     await sendMedia(cleanPhone, filePath, '📄 Your payment receipt', null, 'StayFlow_Invoice.pdf');
 
     // Notify owner
     if (config.ownerPhone) {
-        await sendMessage(config.ownerPhone, `✅ *UPI Payment — Verified*\nTenant: ${name}\nRoom: ${room}\nAmount: ₹${total}\nTXN: ${trxId}\nStatus: PAID\n\n📄 Invoice sent automatically.`);
+        await sendMessage(config.ownerPhone, `✅ *Payment — Verified*\nTenant: ${name}\nRoom: ${room}\nAmount: ₹${amount}\nTXN: ${trxId}\nStatus: PAID\n\n_Invoice sent automatically._`);
     }
 
     // 🔔 Create In-App Notification

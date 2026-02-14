@@ -25,6 +25,16 @@ import Login from './src/screens/Login';
 import { requestNotificationPermissions } from './src/utils/notifications';
 import { LanguageProvider, useLanguage } from './src/context/LanguageContext';
 import { ThemeProvider } from './src/context/ThemeContext';
+import * as Notifications from 'expo-notifications';
+
+// 🔔 Configure foreground notifications
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldShowAlert: true,
+    shouldPlaySound: true,
+    shouldSetBadge: true,
+  }),
+});
 
 LogBox.ignoreLogs(['expo-notifications', 'Remote notifications', 'Firebase']);
 

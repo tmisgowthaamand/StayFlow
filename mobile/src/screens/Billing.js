@@ -7,6 +7,7 @@ import { getTenants, updateEBBill } from '../api/api';
 import { Zap, Save, CheckCircle2, Search } from 'lucide-react-native';
 import { usePressAnimation, useFadeSlideIn, SkeletonCard, AnimatedListItem } from '../utils/animations';
 import { useLanguage } from '../context/LanguageContext';
+import { notifyPaymentReceived } from '../utils/notifications';
 
 const EBItem = memo(({ item, onSave, index }) => {
     const { t } = useLanguage();
@@ -96,6 +97,7 @@ const Billing = () => {
         try {
             setLoading(true);
             // Placeholder: Add real API call to update EB bill
+            notifyPaymentReceived(tenant.Name, 'EB Bill', amt, 'Update');
             Alert.alert(t('success'), `${t('eb_bill_for')} ${tenant.Name} ${t('updated_to')} ₹${amt}`);
             fetchTenants();
         } catch (e) { Alert.alert(t('error'), t('failed_update_bill')); }

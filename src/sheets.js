@@ -231,6 +231,19 @@ class SheetsService {
 
     async logPayment(tenant, amount, mode, trxId, status = 'PAID') {
         await this.init();
+
+        // --- IDEMPOTENCY CHECK ---
+        const historyRows = await this.historySheet.getRows();
+        const existsInHistory = historyRows.some(r => r.get('TRX_ID') === trxId);
+
+        const paymentRows = await this.paymentsSheet.getRows();
+        const existsInPayments = paymentRows.some(r => r.get('Transaction ID') === trxId);
+
+        if ((existsInHistory || existsInPayments) && trxId) {
+            console.warn(`[SHEETS IDEMPOTENCY] Payment ${trxId} already exists in sheets. Skipping append.`);
+            return;
+        }
+
         const date = new Date();
         const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 
@@ -410,6 +423,14 @@ class SheetsService {
 
     async addTenant(tenantData) {
         await this.init();
+
+        // CHECK FOR DUPLICATE TENANT
+        const existing = await this.getTenantByPhone(tenantData.phone);
+        if (existing) {
+            console.warn(`[DUPLICATE REGISTER] Tenant ${tenantData.phone} already exists.`);
+            throw new Error(`A resident with phone number ${tenantData.phone} is already registered.`);
+        }
+
         console.log('Attempting to add tenant:', tenantData.name);
         const rowData = {
             'Name': tenantData.name,

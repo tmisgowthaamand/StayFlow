@@ -8,8 +8,8 @@ export const useLanguage = () => useContext(LanguageContext);
 const translations = {
     'en': {
         // Auth
-        welcome_back: "Welcome Back",
-        sign_in_subtitle: "Sign in to manage your property",
+        welcome_back: "Welcome to StayFlow",
+        sign_in_subtitle: "Manage your property with ease",
         username: "USERNAME",
         password: "PASSWORD",
         sign_in: "Sign In",
@@ -44,6 +44,7 @@ const translations = {
         general_settings: "General Settings",
         app_info: "App Information",
         sign_out: "Sign Out",
+        sign_out_confirm: "Are you sure you want to log out?",
 
         // Residents
         management: "Management",
@@ -111,6 +112,7 @@ const translations = {
         notifications: "Notifications",
         unread: "Unread",
         mark_all_read: "Mark all as read",
+        delete_all: "Clear all",
         no_notifications: "No notifications yet",
 
         // Registrations

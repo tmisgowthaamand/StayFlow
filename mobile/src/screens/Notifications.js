@@ -113,15 +113,48 @@ const Notifications = ({ navigation }) => {
         setNotifications(prev => prev.map(n => ({ ...n, read: true })));
     }, []);
 
+    const handleClearAll = useCallback(async () => {
+        Alert.alert(
+            "Clear All",
+            "Are you sure you want to delete all notifications?",
+            [
+                { text: "Cancel", style: "cancel" },
+                {
+                    text: "Clear All",
+                    style: "destructive",
+                    onPress: async () => {
+                        try {
+                            setLoading(true);
+                            await clearAllNotifications();
+                            setNotifications([]);
+                        } catch (e) {
+                            Alert.alert("Error", "Failed to clear notifications");
+                        } finally {
+                            setLoading(false);
+                        }
+                    }
+                }
+            ]
+        );
+    }, []);
+
     return (
         <View style={styles.container}>
             <Header title={t('notifications')} onBack={() => navigation.goBack()} showNotifBell={false} />
 
             <View style={styles.actionHeader}>
-                <Text style={styles.countText}>{notifications.filter(n => !n.read).length} {t('unread')}</Text>
-                <TouchableOpacity onPress={handleMarkAllRead}>
-                    <Text style={styles.markAllText}>{t('mark_all_read')}</Text>
-                </TouchableOpacity>
+                <View style={styles.headerLeft}>
+                    <Text style={styles.countText}>{notifications.filter(n => !n.read).length} {t('unread')}</Text>
+                    <TouchableOpacity onPress={handleMarkAllRead}>
+                        <Text style={styles.markAllText}>{t('mark_all_read')}</Text>
+                    </TouchableOpacity>
+                </View>
+                {notifications.length > 0 && (
+                    <TouchableOpacity onPress={handleClearAll} style={styles.clearAllBtn}>
+                        <Trash2 size={16} color={Colors.accent} />
+                        <Text style={styles.clearAllText}>{t('delete_all')}</Text>
+                    </TouchableOpacity>
+                )}
             </View>
 
             {loading ? (
@@ -146,8 +179,11 @@ const Notifications = ({ navigation }) => {
 const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: Colors.background },
     actionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: Spacing.md, paddingVertical: 12 },
+    headerLeft: { flexDirection: 'row', alignItems: 'center', gap: 12 },
     countText: { ...Typography.caption, color: Colors.textSecondary, fontWeight: '700' },
     markAllText: { ...Typography.tiny, color: Colors.primary, fontWeight: '700' },
+    clearAllBtn: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+    clearAllText: { ...Typography.tiny, color: Colors.accent, fontWeight: '700' },
     listContent: { padding: Spacing.md, paddingBottom: 40 },
     card: {
         backgroundColor: Colors.surface,

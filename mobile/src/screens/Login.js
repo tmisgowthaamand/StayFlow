@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, KeyboardAvoidingView, Platform, ActivityIndicator } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, KeyboardAvoidingView, Platform, ActivityIndicator, Image } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Colors, Spacing, Typography, BorderRadius, Gradients, Shadows } from '../theme/theme';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -21,18 +21,21 @@ const Login = () => {
         }
 
         setLoading(true);
-        // Simulate API call
+        // Check for stored password, default to 'admin'
         setTimeout(async () => {
             setLoading(false);
-            if (username.trim() === 'admin' && password.trim() === 'admin') {
-                try {
+            try {
+                const storedPassword = await AsyncStorage.getItem('userPassword') || 'admin';
+                const storedUsername = await AsyncStorage.getItem('userLoginName') || 'admin';
+
+                if (username.trim() === storedUsername && password.trim() === storedPassword) {
                     await AsyncStorage.setItem('userToken', 'dummy-auth-token');
                     navigation.replace('Main');
-                } catch (e) {
-                    Alert.alert("Error", "Failed to save login state");
+                } else {
+                    Alert.alert(t('login_failed'), t('invalid_credentials'));
                 }
-            } else {
-                Alert.alert(t('login_failed'), t('invalid_credentials'));
+            } catch (e) {
+                Alert.alert("Error", "Failed to access login data");
             }
         }, 1500);
     };
@@ -42,12 +45,22 @@ const Login = () => {
             <LinearGradient colors={[Colors.background, '#0f172a']} style={styles.gradient}>
                 <View style={styles.content}>
                     <View style={styles.header}>
-                        <View style={styles.logoBox}>
-                            <LinearGradient colors={Gradients.primary} style={styles.logoGradient}>
-                                <Zap size={32} color="#fff" fill="#fff" />
-                            </LinearGradient>
+                        <View style={styles.logoContainer}>
+                            <Image
+                                source={require('../../assets/icon.png')}
+                                style={styles.brandImage}
+                                resizeMode="contain"
+                            />
+                            <View style={styles.logoOverlay}>
+                                <LinearGradient colors={['transparent', 'rgba(0,0,0,0.3)']} style={styles.logoShadow} />
+                            </View>
                         </View>
-                        <Text style={styles.title}>{t('welcome_back')}</Text>
+                        <View style={styles.titleWrapper}>
+                            <Text style={styles.title}>{t('welcome_back')}</Text>
+                            <View style={styles.brandBadge}>
+                                <Text style={styles.brandBadgeText}>Official Brand</Text>
+                            </View>
+                        </View>
                         <Text style={styles.subtitle}>{t('sign_in_subtitle')}</Text>
                     </View>
 
@@ -107,10 +120,45 @@ const styles = StyleSheet.create({
     content: { width: '100%', maxWidth: 400, alignSelf: 'center' },
 
     header: { alignItems: 'center', marginBottom: 40 },
-    logoBox: { marginBottom: 20, ...Shadows.glow(Colors.primary, 0.5) },
-    logoGradient: { width: 70, height: 70, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
-    title: { ...Typography.h1, color: Colors.text, marginBottom: 8 },
-    subtitle: { ...Typography.body, color: Colors.textSecondary },
+    logoContainer: {
+        width: 100,
+        height: 100,
+        borderRadius: 30,
+        backgroundColor: 'rgba(255,255,255,0.05)',
+        padding: 15,
+        marginBottom: 25,
+        position: 'relative',
+        overflow: 'hidden',
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.1)',
+        ...Shadows.glow(Colors.primary, 0.3)
+    },
+    brandImage: {
+        width: '100%',
+        height: '100%',
+    },
+    logoOverlay: { ...StyleSheet.absoluteFillObject },
+    logoShadow: { flex: 1 },
+    titleWrapper: { alignItems: 'center', marginBottom: 5 },
+    brandBadge: {
+        backgroundColor: 'rgba(16, 185, 129, 0.15)',
+        paddingHorizontal: 10,
+        paddingVertical: 4,
+        borderRadius: 20,
+        marginTop: 4,
+        borderWidth: 1,
+        borderColor: 'rgba(16, 185, 129, 0.3)',
+    },
+    brandBadgeText: {
+        ...Typography.tiny,
+        color: '#10b981',
+        fontWeight: '900',
+        fontSize: 10,
+        letterSpacing: 1,
+        textTransform: 'uppercase'
+    },
+    title: { ...Typography.h1, color: Colors.text, marginBottom: 2, textAlign: 'center' },
+    subtitle: { ...Typography.body, color: Colors.textSecondary, textAlign: 'center' },
 
     form: { gap: 20 },
     inputGroup: { gap: 8 },

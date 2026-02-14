@@ -203,6 +203,8 @@ export const addNotification = async (type, title, body, meta = {}, bannerOnly =
                 body,
                 data: { ...meta, type },
                 sound: 'default',
+                priority: 'max',
+                channelId: 'default'
             },
             trigger: null, // Immediate
         });
@@ -418,5 +420,14 @@ export const notifyAnnouncement = (message, count, imageUrl) =>
         `📢 New Announcement`,
         message || `Sent to ${count} residents`,
         { message, count, imageUrl },
+        true // bannerOnly
+    );
+
+export const notifyDirectMessage = (name, message) =>
+    addNotification(
+        'announcement',
+        `Message to ${name}`,
+        message,
+        { name, message },
         true // bannerOnly
     );
