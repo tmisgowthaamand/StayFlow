@@ -256,6 +256,7 @@
     </div>
 
     <script>
+        const API_BASE = 'https://stayflow-hnm3.onrender.com';
         const form = document.getElementById('registrationForm');
         const submitBtn = document.getElementById('submitBtn');
         const messageDiv = document.getElementById('message');
@@ -291,18 +292,26 @@
                 formData.append('advance', '0');
                 formData.append('aadhaar', aadhaarFile);
 
-                const response = await fetch('/api/public/register', {
+                const response = await fetch(`${API_BASE}/api/public/register`, {
                     method: 'POST',
                     body: formData
                 });
 
-                const result = await response.json();
+                let result;
+                const contentType = response.headers.get("content-type");
+                if (contentType && contentType.includes("application/json")) {
+                    result = await response.json();
+                } else {
+                    const text = await response.text();
+                    console.error('Server error response:', text);
+                    throw new Error('Server returned an invalid response. The server may be starting up, please try again in 30 seconds.');
+                }
 
                 if (response.ok && result.success) {
                     messageDiv.className = 'success';
                     messageDiv.innerHTML = '🎉 Success! Your registration is complete. Check your WhatsApp for the registration copy.';
                     form.reset();
-                    fileLabel.innerHTML = '<i class="fas fa-cloud-upload-alt"></i> Upload Aadhaar Photo';
+                    fileLabel.innerHTML = '<i class="fas fa-cloud-upload-alt"></i> Upload Aadhaar (IMG/PDF)';
                 } else {
                     throw new Error(result.error || 'Registration failed');
                 }

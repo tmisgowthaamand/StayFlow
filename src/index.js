@@ -1676,6 +1676,21 @@ app.get('/', (req, res) => {
     }
 });
 
+// 4. Final Error Handling Middleware (JSON for API)
+app.use((err, req, res, next) => {
+    console.error('SERVER ERROR:', err);
+    if (res.headersSent) {
+        return next(err);
+    }
+    // Handle Multer errors specifically
+    if (err.code === 'LIMIT_FILE_SIZE') {
+        return res.status(400).json({ error: 'File too large! Max limit is 2MB.' });
+    }
+    res.status(err.status || 500).json({
+        error: err.message || 'Internal Server Error'
+    });
+});
+
 app.listen(port, () => {
     console.log(`Server running on port ${port}`);
 });
