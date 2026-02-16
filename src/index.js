@@ -82,20 +82,9 @@ if (fs.existsSync(dashboardDist)) {
     console.warn('⚠️ Dashboard not found! Falling back to legacy UI.');
     console.log(`Contents of ../dashboard: ${fs.existsSync(path.join(__dirname, '../dashboard')) ? fs.readdirSync(path.join(__dirname, '../dashboard')).join(', ') : 'Not Found'}`);
 }
-// 2. Serve uploads with protection
-app.use('/api/uploads', (req, res, next) => {
-    // Allow if has API Key (Admin)
-    const apiKey = req.headers['x-api-key'] || req.query.apiKey;
-    if (apiKey === config.adminApiKey) return next();
+// 2. Serve uploads as public for direct file access (hashed filenames provide security by obscurity)
+app.use('/api/uploads', express.static(uploadsDir));
 
-    // Allow if browser is WhatsApp (simple check for resident view)
-    const ua = req.headers['user-agent'] || '';
-    if (ua.includes('WhatsApp')) return next();
-
-    // Otherwise, require authentication or just serve it but warn if it's directory browsing
-    // express.static already prevents directory browsing if no index file exists.
-    next();
-}, express.static(uploadsDir));
 // 3. Serve public folder (registration, rules, etc)
 app.use(express.static(path.join(__dirname, '../public')));
 
@@ -913,6 +902,84 @@ app.post('/api/web-register', upload.single('aadhaar'), async (req, res) => {
         res.status(500).send('Registration Failed: ' + err.message);
     }
 });
+
+/**
+ * Public AJAX Registration Endpoint
+ * Used by the modern registration form in dashboard/public/register.html
+ */
+app.post('/api/public/register', upload.single('aadhaar'), async (req, res) => {
+    try {
+        const { name, phone, location, sharingType, room, rent, advance } = req.body;
+        const file = req.file;
+
+        if (!name || !phone) {
+            return res.status(400).json({ error: 'Name and phone are required' });
+        }
+
+        console.log(`[PUBLIC REG] Received registration request for ${name} (${phone})`);
+
+        // 1. Generate Registration Form PDF
+        const { fileName: regFile, filePath: regPath } = await pdfService.generateRegistrationForm({
+            name,
+            phone,
+            room: room || 'Pending',
+            sharingType: sharingType || 'N/A',
+            advance: advance || '0',
+            monthlyRent: rent || '0'
+        });
+
+        // 2. Add to Google Sheets (and MongoDB via auto-sync)
+        await sheetsService.init();
+        const tenantData = {
+            name,
+            phone,
+            location: location || 'Main Branch',
+            sharingType: sharingType || 'N/A',
+            room: room || 'Pending',
+            monthlyRent: rent || '0',
+            advance: advance || '0',
+            aadhaarImage: file ? file.filename : '',
+            registrationForm: regFile
+        };
+
+        await sheetsService.addTenant(tenantData);
+
+        // 3. Send WhatsApp Confirmation
+        const detailedRules = `🏢 *PG House Rules & Regulations*\n━━━━━━━━━━━━━━━━━━━━\n⚖️ *DO's:*\n1. Keep your room and shared areas clean and hygienic.\n2. Maintain silence after 10:00 PM for everyone's comfort.\n3. Pay rent by the 5th and EB bills by the 10th of each month.\n\n🚫 *DON'Ts:*\n1. Strictly NO smoking, alcohol, or illegal substances.\n2. No overnight visitors allowed without prior permission.\n\n🤖 *Tip:* Type *HI* to see your dashboard!`;
+
+        try {
+            await sendMessage(phone, `✅ *Registration Successful!*\n\nWelcome ${name}! 🏠 We are excited to have you stay with us.\n\n${detailedRules}`);
+            await sendMedia(phone, regPath, '📄 Your registration copy', null, 'StayFlow_Registration.pdf');
+        } catch (wsErr) {
+            console.warn('WhatsApp notification failed, but registration succeeded:', wsErr.message);
+        }
+
+        if (config.ownerPhone) {
+            try {
+                await sendMessage(config.ownerPhone, `📝 *New Public Registration*\nName: ${name}\nPhone: ${phone}\nRoom: ${room || 'Pending'}`);
+                await sendMedia(config.ownerPhone, regPath, `📝 Registration copy: ${name}`, null, 'StayFlow_Registration.pdf');
+            } catch (e) { }
+        }
+
+        // 4. Create In-App Notification
+        try {
+            await Notification.create({
+                type: 'new_registration',
+                title: `New Resident: ${name}`,
+                body: `Registered for Room ${room || 'Pending'} — ${phone}`,
+                meta: { tenantName: name, room, phone }
+            });
+        } catch (e) {
+            console.error('Failed to create in-app notification:', e.message);
+        }
+
+        res.json({ success: true, message: 'Registration complete!' });
+    } catch (err) {
+        console.error('Public Registration Error:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
 
 app.post('/webhook/google-form', async (req, res) => {
     try {

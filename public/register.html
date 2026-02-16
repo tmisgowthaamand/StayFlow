@@ -1,10 +1,12 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Resident Registration | StayFlow</title>
-    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap"
+        rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
         :root {
@@ -17,11 +19,17 @@
             --text-dim: #94a3b8;
         }
 
-        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Outfit', sans-serif; }
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Outfit', sans-serif;
+        }
+
         body {
             background-color: var(--bg);
             background-image: radial-gradient(circle at top right, rgba(139, 92, 246, 0.15), transparent),
-                              radial-gradient(circle at bottom left, rgba(16, 185, 129, 0.1), transparent);
+                radial-gradient(circle at bottom left, rgba(16, 185, 129, 0.1), transparent);
             color: var(--text-main);
             min-height: 100vh;
             display: flex;
@@ -41,22 +49,58 @@
             box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
         }
 
-        .header { text-align: center; margin-bottom: 35px; }
+        .header {
+            text-align: center;
+            margin-bottom: 35px;
+        }
+
         .logo {
-            width: 60px; height: 60px;
+            width: 60px;
+            height: 60px;
             background: linear-gradient(135deg, var(--primary), #f43f5e);
             border-radius: 18px;
-            display: flex; align-items: center; justify-content: center;
-            font-size: 1.5rem; color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+            color: white;
             margin: 0 auto 15px;
             box-shadow: 0 10px 20px rgba(139, 92, 246, 0.3);
         }
-        h1 { font-size: 1.75rem; font-weight: 800; letter-spacing: -0.5px; margin-bottom: 8px; }
-        .subtitle { color: var(--text-dim); font-size: 0.9rem; }
 
-        .form-group { margin-bottom: 20px; }
-        label { display: block; margin-bottom: 8px; color: var(--text-dim); font-size: 0.85rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
-        input, select {
+        h1 {
+            font-size: 1.75rem;
+            font-weight: 800;
+            letter-spacing: -0.5px;
+            margin-bottom: 8px;
+        }
+
+        .subtitle {
+            color: var(--text-dim);
+            font-size: 0.9rem;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            color: var(--text-dim);
+            font-size: 0.85rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .required {
+            color: #f87171;
+            margin-left: 2px;
+        }
+
+        input,
+        select {
             width: 100%;
             padding: 14px 18px;
             border-radius: 14px;
@@ -67,7 +111,13 @@
             outline: none;
             transition: all 0.3s;
         }
-        input:focus, select:focus { border-color: var(--primary); background: rgba(255, 255, 255, 0.08); box-shadow: 0 0 0 4px rgba(139, 92, 246, 0.15); }
+
+        input:focus,
+        select:focus {
+            border-color: var(--primary);
+            background: rgba(255, 255, 255, 0.08);
+            box-shadow: 0 0 0 4px rgba(139, 92, 246, 0.15);
+        }
 
         .btn {
             width: 100%;
@@ -86,8 +136,16 @@
             gap: 10px;
             margin-top: 10px;
         }
-        .btn:hover { transform: translateY(-2px); box-shadow: 0 10px 20px rgba(139, 92, 246, 0.3); }
-        .btn:disabled { opacity: 0.6; cursor: not-allowed; }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(139, 92, 246, 0.3);
+        }
+
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
 
         .file-input-wrapper {
             position: relative;
@@ -101,11 +159,25 @@
             cursor: pointer;
             transition: 0.3s;
         }
-        .file-input-wrapper:hover { border-color: var(--primary); }
-        .file-input-wrapper input {
-            position: absolute; inset: 0; opacity: 0; cursor: pointer;
+
+        .file-input-wrapper:hover {
+            border-color: var(--primary);
         }
-        .file-input-label { font-size: 0.9rem; color: var(--primary-light); display: flex; align-items: center; gap: 8px; }
+
+        .file-input-wrapper input {
+            position: absolute;
+            inset: 0;
+            opacity: 0;
+            cursor: pointer;
+        }
+
+        .file-input-label {
+            font-size: 0.9rem;
+            color: var(--primary-light);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
 
         #message {
             margin-top: 20px;
@@ -116,10 +188,21 @@
             font-size: 0.9rem;
             font-weight: 600;
         }
-        .success { background: rgba(16, 185, 129, 0.15); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.2); }
-        .error { background: rgba(239, 68, 68, 0.15); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.2); }
+
+        .success {
+            background: rgba(16, 185, 129, 0.15);
+            color: #34d399;
+            border: 1px solid rgba(16, 185, 129, 0.2);
+        }
+
+        .error {
+            background: rgba(239, 68, 68, 0.15);
+            color: #f87171;
+            border: 1px solid rgba(239, 68, 68, 0.2);
+        }
     </style>
 </head>
+
 <body>
     <div class="container">
         <div class="header">
@@ -130,11 +213,11 @@
 
         <form id="registrationForm">
             <div class="form-group">
-                <label>Full Name</label>
+                <label>Full Name <span class="required">*</span></label>
                 <input type="text" id="name" placeholder="John Doe" required>
             </div>
             <div class="form-group">
-                <label>Phone Number</label>
+                <label>Phone Number <span class="required">*</span></label>
                 <input type="tel" id="phone" placeholder="9876543210" required>
             </div>
             <div class="form-group">
@@ -155,11 +238,11 @@
                 </select>
             </div>
             <div class="form-group">
-                <label>Aadhaar Card (Image)</label>
+                <label>Aadhaar Card (Image/PDF) <span class="required">*</span></label>
                 <div class="file-input-wrapper">
-                    <input type="file" id="aadhaar" accept="image/*" required>
+                    <input type="file" id="aadhaar" accept="image/*,application/pdf" required>
                     <div class="file-input-label" id="fileLabel">
-                        <i class="fas fa-cloud-upload-alt"></i> Upload Aadhaar Photo
+                        <i class="fas fa-cloud-upload-alt"></i> Upload Aadhaar (IMG/PDF)
                     </div>
                 </div>
             </div>
@@ -198,32 +281,30 @@
             const aadhaarFile = fileInput.files[0];
 
             try {
-                // 1. Add Tenant
-                const regRes = await fetch('/api/add-tenant', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ name, phone, location, sharingType, room: 'Pending assignment', rent: '0' })
-                });
-
-                if (!regRes.ok) throw new Error('Registration failed');
-
-                // 2. Upload Aadhaar
                 const formData = new FormData();
+                formData.append('name', name);
                 formData.append('phone', phone);
+                formData.append('location', location);
+                formData.append('sharingType', sharingType);
+                formData.append('room', 'Pending');
+                formData.append('rent', '0');
+                formData.append('advance', '0');
                 formData.append('aadhaar', aadhaarFile);
 
-                const uploadRes = await fetch('/api/upload-aadhaar', {
+                const response = await fetch('/api/public/register', {
                     method: 'POST',
                     body: formData
                 });
 
-                if (uploadRes.ok) {
+                const result = await response.json();
+
+                if (response.ok && result.success) {
                     messageDiv.className = 'success';
-                    messageDiv.innerHTML = '🎉 Success! Your registration is complete. We will contact you on WhatsApp soon.';
+                    messageDiv.innerHTML = '🎉 Success! Your registration is complete. Check your WhatsApp for the registration copy.';
                     form.reset();
                     fileLabel.innerHTML = '<i class="fas fa-cloud-upload-alt"></i> Upload Aadhaar Photo';
                 } else {
-                    throw new Error('Aadhaar upload failed');
+                    throw new Error(result.error || 'Registration failed');
                 }
             } catch (err) {
                 messageDiv.className = 'error';
@@ -236,4 +317,5 @@
         });
     </script>
 </body>
+
 </html>
