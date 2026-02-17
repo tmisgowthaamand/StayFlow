@@ -679,6 +679,7 @@ app.get('/api/media/:id', authenticate, async (req, res) => {
 
         console.log(`Media Request: ${safeMediaId}`);
 
+        // 1. Try serving from local disk
         if (fs.existsSync(localPath) && fs.lstatSync(localPath).isFile()) {
             console.log(`Serving local media: ${safeMediaId}`);
             const ext = path.extname(safeMediaId).toLowerCase();
@@ -690,6 +691,55 @@ app.get('/api/media/:id', authenticate, async (req, res) => {
             return res.sendFile(localPath);
         }
 
+        // 2. FALLBACK: On-the-fly PDF Regeneration if missing on disk (common after redeploy)
+        if (safeMediaId.startsWith('registration_') || safeMediaId.startsWith('invoice_')) {
+            console.log(`PDF missing on disk, attempting to regenerate: ${safeMediaId}`);
+            try {
+                // Filename pattern: prefix_phone_timestamp.pdf
+                const parts = safeMediaId.split('_');
+                if (parts.length >= 2) {
+                    const phone = parts[1];
+                    await sheetsService.init();
+                    const tenant = await sheetsService.getTenantByPhone(phone);
+
+                    if (tenant) {
+                        console.log(`Regenerating ${parts[0]} for ${tenant.get('Name')} (${phone})`);
+                        if (parts[0] === 'registration') {
+                            await pdfService.generateRegistrationForm({
+                                name: tenant.get('Name'),
+                                phone: tenant.get('Phone'),
+                                room: tenant.get('Room') || 'Pending',
+                                sharingType: tenant.get('Sharing Type') || 'N/A',
+                                advance: tenant.get('Advance') || '0',
+                                monthlyRent: tenant.get('Monthly Rent') || '0'
+                            });
+                        } else if (parts[0] === 'invoice') {
+                            await pdfService.generateInvoice({
+                                Name: tenant.get('Name'),
+                                Phone: tenant.get('Phone'),
+                                Room: tenant.get('Room') || 'N/A',
+                                EB_Amount: tenant.get('EB Amount') || '0',
+                                Monthly_Rent: tenant.get('Monthly Rent') || '0',
+                                Total_Amount: tenant.get('Total Amount') || '0',
+                                Paid_Date: tenant.get('Paid Date') || 'PENDING',
+                                Transaction_ID: tenant.get('Transaction ID') || 'PENDING',
+                                Payment_Mode: tenant.get('Payment Mode') || 'Pending'
+                            });
+                        }
+
+                        // Verify it was created and serve it
+                        if (fs.existsSync(localPath)) {
+                            console.log(`Successfully regenerated and serving: ${safeMediaId}`);
+                            return res.sendFile(localPath);
+                        }
+                    }
+                }
+            } catch (regErr) {
+                console.error(`Regeneration failed for ${safeMediaId}:`, regErr.message);
+            }
+        }
+
+        // 3. Try fetching from WhatsApp (for images/media sent by user)
         console.log(`Fetching remote media from WhatsApp: ${mediaId}`);
         const urlRes = await axios.get(`https://graph.facebook.com/v17.0/${mediaId}`, {
             headers: { Authorization: `Bearer ${config.whatsapp.token}` }
