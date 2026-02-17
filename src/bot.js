@@ -62,7 +62,7 @@ async function createRazorpayLink(phone, name, amount, room = 'N/A') {
 
         // Fallback: Create external Razorpay link
         try {
-            const baseUrl = config.whatsapp.callbackUrl ? config.whatsapp.callbackUrl.replace('/webhook', '') : 'https://stayflow-hnm3.onrender.com';
+            const baseUrl = config.whatsapp.callbackUrl ? config.whatsapp.callbackUrl.replace('/webhook', '') : 'https://stayflow-x8is.onrender.com';
             const confirmationUrl = `${baseUrl}/confirmation.html?phone=${encodeURIComponent(phone)}`;
 
             const paymentLink = await razorpay.paymentLink.create({

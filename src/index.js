@@ -29,6 +29,22 @@ const __dirname = path.dirname(__filename);
 
 const app = express();
 
+app.use(cors({
+    origin: (origin, callback) => {
+        // If config.allowedOrigins is empty or has only empty strings, allow all
+        const allowed = config.allowedOrigins.filter(o => o && o.trim() !== '');
+        if (!origin || allowed.length === 0 || allowed.includes(origin) || allowed.includes('*')) {
+            callback(null, true);
+        } else {
+            console.warn(`CORS blocked request from origin: ${origin}`);
+            callback(new Error('Not allowed by CORS'));
+        }
+    },
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    credentials: true,
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'x-api-key']
+}));
+
 // PHASE 2 REQ 7: Rate Limiting
 const apiLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,
@@ -48,11 +64,6 @@ app.use('/api/', apiLimiter);
 app.use('/api/verify-transaction', paymentLimiter);
 app.use('/api/mark-paid', paymentLimiter);
 app.use('/api/razorpay-webhook', (req, res, next) => next()); // No limit on webhooks
-app.use(cors({
-    origin: (config.allowedOrigins.length > 0 && config.allowedOrigins[0] !== '') ? config.allowedOrigins : '*',
-    methods: ['GET', 'POST', 'PUT', 'DELETE'],
-    credentials: true
-}));
 app.use(bodyParser.json());
 
 // Ensure uploads directory exists

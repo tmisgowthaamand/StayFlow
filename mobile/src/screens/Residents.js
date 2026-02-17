@@ -181,7 +181,7 @@ const Residents = ({ route }) => {
                     // Use POST since GET failed (undefined ID)
                     console.log("Requesting invoice (POST) for:", selectedTenant.Phone);
 
-                    const response = await fetch('https://stayflow-hnm3.onrender.com/api/generate-invoice', {
+                    const response = await fetch('https://stayflow-x8is.onrender.com/api/generate-invoice', {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',
@@ -210,7 +210,7 @@ const Residents = ({ route }) => {
                         if (base64data) {
                             navigation.navigate('PDFViewer', {
                                 base64Data: base64data,
-                                uri: json.url || `https://stayflow-hnm3.onrender.com/api/generate-invoice?phone=${selectedTenant.Phone}`,
+                                uri: json.url || `https://stayflow-x8is.onrender.com/api/generate-invoice?phone=${selectedTenant.Phone}`,
                                 title: `${t('invoice')} - ${selectedTenant.Name}`,
                                 shareEnabled: true
                             });
@@ -222,7 +222,7 @@ const Residents = ({ route }) => {
                             // Construct absolute URL if relative
                             let pdfUrl = json.url;
                             if (pdfUrl.startsWith('/')) {
-                                pdfUrl = `https://stayflow-hnm3.onrender.com${pdfUrl}`;
+                                pdfUrl = `https://stayflow-x8is.onrender.com${pdfUrl}`;
                             }
 
                             // Ensure URL is encoded (e.g. spaces in filenames)

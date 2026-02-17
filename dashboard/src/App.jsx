@@ -17,7 +17,7 @@ import './App.css';
 // Configure Axios Base URL for Production
 const API_BASE_URL = import.meta.env.VITE_API_URL ||
   (window.location.hostname.includes('vercel.app')
-    ? 'https://stayflow-hnm3.onrender.com'
+    ? 'https://stayflow-x8is.onrender.com'
     : '');
 
 axios.defaults.baseURL = API_BASE_URL;
