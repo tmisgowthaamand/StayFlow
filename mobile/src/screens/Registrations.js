@@ -92,7 +92,8 @@ const Registrations = () => {
 
     const openDocument = useCallback((filename) => {
         if (!filename) { Alert.alert('No Document', 'No registration form attached.'); return; }
-        Linking.openURL(`https://stayflow-x8is.onrender.com/api/uploads/${filename}`).catch(() => Alert.alert('Error', 'Could not open document.'));
+        const apiKey = 'stayflow_dev_key_123';
+        Linking.openURL(`https://stayflow-x8is.onrender.com/api/media/${filename}?key=${apiKey}`).catch(() => Alert.alert('Error', 'Could not open document.'));
     }, []);
 
     const renderItem = useCallback(({ item, index }) => <RegistrationCard item={item} index={index} openDocument={openDocument} />, [openDocument]);
