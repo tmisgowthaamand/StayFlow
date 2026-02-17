@@ -1739,12 +1739,18 @@ async function handleVerifyPayment(ownerPhone, tenantPhone) {
 
     // 🔔 Create In-App Notification
     try {
+        const title = `Payment Verified: ${name}`;
+        const body = `₹${amount} verified via ${paymentMode} — Room ${room}`;
+
         await Notification.create({
             type: 'payment_received',
-            title: `Payment Verified: ${name}`,
-            body: `₹${amount} verified via ${paymentMode} — Room ${room}`,
+            title,
+            body,
             meta: { tenantName: name, room, amount, mode: paymentMode, trxId }
         });
+
+        // 🚀 Send Remote Push Notification (Drop-down)
+        await sendPushNotification(title, body, { type: 'payment_received', tenantName: name, room, amount, mode: paymentMode });
     } catch (e) {
         console.error('Failed to create in-app notification:', e.message);
     }
@@ -1872,8 +1878,8 @@ async function handleRazorpaySuccess(phone, amount, trxId, paymentMode = 'UPI (R
 
     // 🔔 Create In-App Notification
     try {
-        const title = `Payment from ${name}`;
-        const body = `₹${amount} received via UPI — Room ${room}`;
+        const title = `💰 UPI Payment Received`;
+        const body = `₹${amount} received from ${name} (Room ${room})`;
 
         await Notification.create({
             type: 'payment_received',
@@ -2150,6 +2156,21 @@ async function handleOnboarding(phone, input, image) {
             if (config.ownerPhone && targetPhone !== config.ownerPhone) {
                 await sendMessage(config.ownerPhone, `📝 *New Registration Received*\nName: ${state.name}\nRoom: ${state.room}\nPhone: ${targetPhone}`);
                 await sendMedia(config.ownerPhone, regPath, `📝 Registration copy: ${state.name}`, null, 'StayFlow_Registration.pdf');
+            }
+
+            // 🔔 Create In-App Notification (Admin Drop-down)
+            try {
+                const title = `👤 New Resident: ${state.name}`;
+                const body = `Registered for Room ${state.room} • ${targetPhone}`;
+                await Notification.create({
+                    type: 'new_registration',
+                    title,
+                    body,
+                    meta: { tenantName: state.name, room: state.room, phone: targetPhone }
+                });
+                await sendPushNotification(title, body, { type: 'new_registration', tenantName: state.name, room: state.room });
+            } catch (e) {
+                console.error('Failed to create in-app notification:', e.message);
             }
 
             await updateSession(phone, null);

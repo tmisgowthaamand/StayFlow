@@ -33,6 +33,17 @@ export async function sendPushNotification(title, body, data = {}) {
         console.log(`[PUSH] Sent ${messages.length} notifications: ${title}`);
         return response.data;
     } catch (err) {
-        console.error('[PUSH-ERROR]', err.response?.data || err.message);
+        const errorMsg = err.response?.data || err.message;
+        console.error('[PUSH-ERROR]', errorMsg);
+
+        // Log to MongoDB for visibility in dashboard logs
+        try {
+            const { Log } = await import('./db.js');
+            await Log.create({
+                phone: 'SYSTEM',
+                action: 'PUSH_NOTIFICATION_ERROR',
+                details: { title, error: errorMsg }
+            });
+        } catch (dbErr) { }
     }
 }

@@ -211,7 +211,7 @@ const Residents = ({ route }) => {
                         if (base64data) {
                             navigation.navigate('PDFViewer', {
                                 base64Data: base64data,
-                                uri: json.url ? `https://stayflow-x8is.onrender.com${json.url}${json.url.includes('?') ? '&' : '?'}key=${apiKey}` : `https://stayflow-x8is.onrender.com/api/generate-invoice?phone=${selectedTenant.Phone}&key=${apiKey}`,
+                                uri: json.url ? `https://stayflow-x8is.onrender.com${json.url}${json.url.includes('?') ? '&' : '?'}key=${apiKey}&refresh=1` : `https://stayflow-x8is.onrender.com/api/generate-invoice?phone=${selectedTenant.Phone}&key=${apiKey}&refresh=1`,
                                 title: `${t('invoice')} - ${selectedTenant.Name}`,
                                 shareEnabled: true
                             });
@@ -226,8 +226,8 @@ const Residents = ({ route }) => {
                                 pdfUrl = `https://stayflow-x8is.onrender.com${pdfUrl}`;
                             }
 
-                            // Append API key
-                            pdfUrl += (pdfUrl.includes('?') ? '&' : '?') + `key=${apiKey}`;
+                            // Append API key and force refresh
+                            pdfUrl += (pdfUrl.includes('?') ? '&' : '?') + `key=${apiKey}&refresh=1`;
 
                             // Ensure URL is encoded (e.g. spaces in filenames)
                             const encodedUrl = encodeURI(pdfUrl);

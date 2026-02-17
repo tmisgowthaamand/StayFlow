@@ -679,8 +679,8 @@ app.get('/api/media/:id', authenticate, async (req, res) => {
 
         console.log(`Media Request: ${safeMediaId}`);
 
-        // 1. Try serving from local disk
-        if (fs.existsSync(localPath) && fs.lstatSync(localPath).isFile()) {
+        // 1. Try serving from local disk (unless refresh is requested)
+        if (!req.query.refresh && fs.existsSync(localPath) && fs.lstatSync(localPath).isFile()) {
             console.log(`Serving local media: ${safeMediaId}`);
             const ext = path.extname(safeMediaId).toLowerCase();
             if (!ext) {
@@ -900,12 +900,18 @@ app.post('/api/submit-query', async (req, res) => {
 
         // 🔔 Create In-App Notification
         try {
+            const title = `🚩 New Issue: ${category || 'General'}`;
+            const body = `${name} (Room ${room || 'N/A'}): ${description.slice(0, 50)}${description.length > 50 ? '...' : ''}`;
+
             await Notification.create({
                 type: 'issue_submitted',
-                title: `New Issue: ${category || 'General'}`,
-                body: `${name} (Room ${room || 'N/A'}): ${description.slice(0, 50)}${description.length > 50 ? '...' : ''}`,
+                title,
+                body,
                 meta: { tenantName: name, room, category, issue: description, phone }
             });
+
+            // 🚀 Send Remote Push Notification (Drop-down)
+            await sendPushNotification(title, body, { type: 'issue_submitted', tenantName: name, room, category });
         } catch (e) {
             console.error('Failed to create in-app notification:', e.message);
         }
@@ -1026,12 +1032,18 @@ app.post('/api/public/register', upload.single('aadhaar'), async (req, res) => {
 
         // 4. Create In-App Notification
         try {
+            const title = `👤 New Resident: ${name}`;
+            const body = `Registered for Room ${room || 'Pending'} — ${phone}`;
+
             await Notification.create({
                 type: 'new_registration',
-                title: `New Resident: ${name}`,
-                body: `Registered for Room ${room || 'Pending'} — ${phone}`,
+                title,
+                body,
                 meta: { tenantName: name, room, phone }
             });
+
+            // 🚀 Send Remote Push Notification (Drop-down)
+            await sendPushNotification(title, body, { type: 'new_registration', tenantName: name, room, phone });
         } catch (e) {
             console.error('Failed to create in-app notification:', e.message);
         }
@@ -1122,12 +1134,18 @@ app.post('/api/add-tenant', authenticate, async (req, res) => {
 
         // 🔔 Create In-App Notification
         try {
+            const title = `👤 New Resident: ${tenantData.name}`;
+            const body = `Admin added Room ${tenantData.room} • ${tenantData.phone}`;
+
             await Notification.create({
                 type: 'new_registration',
-                title: `New Resident: ${tenantData.name}`,
-                body: `Registered in Room ${tenantData.room} • ${tenantData.phone}`,
+                title,
+                body,
                 meta: { tenantName: tenantData.name, room: tenantData.room, phone: tenantData.phone }
             });
+
+            // 🚀 Send Remote Push Notification (Drop-down)
+            await sendPushNotification(title, body, { type: 'new_registration', tenantName: tenantData.name, room: tenantData.room, phone: tenantData.phone });
         } catch (e) {
             console.error('Failed to create in-app notification:', e.message);
         }
@@ -1239,6 +1257,24 @@ app.post('/api/trigger-notifications', authenticate, async (req, res) => {
                     // Send via WhatsApp
                     await sendMedia(phone, filePath, caption, ["💳 Pay Now", "💵 Pay Cash", "❌ Cancel"]);
 
+                    // 🔔 Create In-App Notification
+                    try {
+                        const title = `Invoice Sent: ${name}`;
+                        const body = `₹${total} invoice sent to Room ${freshTenant.get('Room')}`;
+
+                        await Notification.create({
+                            type: 'invoice_sent',
+                            title,
+                            body,
+                            meta: { tenantName: name, room: freshTenant.get('Room'), amount: total }
+                        });
+
+                        // 🚀 Send Remote Push Notification (Drop-down)
+                        await sendPushNotification(title, body, { type: 'invoice_sent', tenantName: name, room: freshTenant.get('Room'), amount: total });
+                    } catch (e) {
+                        console.error('Failed to create in-app notification:', e.message);
+                    }
+
                     sentCount++;
                     console.log(`[NOTIFY] Sent to ${name} (${sentCount}/${activeTenants.length})`);
                     await new Promise(r => setTimeout(r, 1200));
@@ -1261,11 +1297,14 @@ app.post('/api/trigger-notifications', authenticate, async (req, res) => {
 
             // 🔔 Create In-App Notification (Summary Report)
             try {
-                const failureDetails = failCount > 0 ? `\n❌ Failed: ${failCount} (${failedRecipients.join(', ')})` : '';
+                const title = `📢 Bulk Invoices Report`;
+                const failureDetails = failCount > 0 ? `\n❌ Failed: ${failCount}` : '';
+                const body = `✅ Sent: ${sentCount}\n⏭️ Skipped: ${skippedCount}${failureDetails}`;
+
                 await Notification.create({
                     type: 'bulk_notify_report',
-                    title: `📢 Bulk Invoices Report`,
-                    body: `✅ Sent: ${sentCount}\n⏭️ Skipped (Paid): ${skippedCount}${failureDetails}`,
+                    title,
+                    body,
                     meta: {
                         sent: sentCount,
                         failed: failCount,
@@ -1274,6 +1313,9 @@ app.post('/api/trigger-notifications', authenticate, async (req, res) => {
                         timestamp: new Date().toISOString()
                     }
                 });
+
+                // 🚀 Send Remote Push Notification (Drop-down)
+                await sendPushNotification(title, body, { type: 'bulk_notify_report', sentCount });
             } catch (e) {
                 console.error('Failed to create report notification:', e.message);
             }
@@ -1337,12 +1379,18 @@ app.post('/api/notify-tenant', authenticate, async (req, res) => {
 
         // 🔔 Create In-App Notification
         try {
+            const title = `📄 Invoice Sent: ${name}`;
+            const body = `₹${total} invoice sent to Room ${tenant.get('Room')}`;
+
             await Notification.create({
                 type: 'invoice_sent',
-                title: `Invoice sent to ${name}`,
-                body: `₹${total} invoice sent for Room ${tenant.get('Room')}`,
+                title,
+                body,
                 meta: { tenantName: name, room: tenant.get('Room'), amount: total }
             });
+
+            // 🚀 Send Remote Push Notification (Drop-down)
+            await sendPushNotification(title, body, { type: 'invoice_sent', tenantName: name, room: tenant.get('Room'), amount: total });
         } catch (e) {
             console.error('Failed to create in-app notification:', e.message);
         }

@@ -423,11 +423,15 @@ class PDFService {
         });
 
         // PG Rules Section
-        const rulesY = doc.lastAutoTable.finalY + 15;
-        doc.setFontSize(14);
+        const rulesY = doc.lastAutoTable.finalY + 12;
+        doc.setFont('times', 'bold');
+        doc.setFontSize(13);
+        doc.setTextColor(...vPrimary);
         doc.text('PG House Rules & Regulations', 20, rulesY);
 
+        doc.setFont('times', 'normal');
         doc.setFontSize(10);
+        doc.setTextColor(80, 80, 80);
         const rules = [
             '1. Maintain cleanliness in rooms and common areas.',
             '2. Silence must be observed after 10:00 PM.',
@@ -439,12 +443,15 @@ class PDFService {
             '8. PG property damage will be deductible from advance.',
         ];
 
-        doc.setTextColor(100, 100, 100);
-        doc.setFont('times', 'normal');
         let currentY = rulesY + 10;
         rules.forEach(rule => {
+            // Check if we are near the bottom of the page
+            if (currentY > 260) {
+                doc.addPage();
+                currentY = 20;
+            }
             doc.text(String(rule), 25, currentY);
-            currentY += 7;
+            currentY += 8;
         });
 
         // Footer Disclaimer
@@ -453,11 +460,20 @@ class PDFService {
         const footerMsg1 = 'I hereby agree to abide by the rules and regulations of the PG.';
         const footerMsg2 = 'This is a digital copy for your records.';
 
-        // Dynamic footer positioning to prevent overlap
-        const footerStart = Math.max(currentY + 15, 272);
+        // Ensure footer is at least 20mm after rules, but no higher than 270mm
+        // If it spills past the page, add a new page
+        let footerStart = currentY + 12;
+        if (footerStart > 270) {
+            doc.addPage();
+            footerStart = 40; // Start higher on new page
+        } else {
+            footerStart = Math.max(footerStart, 270);
+        }
+
         doc.text(footerMsg1, 105, footerStart, { align: 'center' });
-        doc.text(footerMsg2, 105, footerStart + 6, { align: 'center' });
-        doc.text(String(config.businessName), 105, footerStart + 12, { align: 'center' });
+        doc.text(footerMsg2, 105, footerStart + 7, { align: 'center' });
+        doc.setFont('times', 'bold');
+        doc.text(String(config.businessName), 105, footerStart + 14, { align: 'center' });
 
         const fileName = tenantData.fileName || `registration_${phone}_${Date.now()}.pdf`;
         const filePath = path.join(__dirname, '../uploads', fileName);
