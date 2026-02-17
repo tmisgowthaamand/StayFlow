@@ -318,20 +318,21 @@ class PDFService {
         doc.text('THANK YOU', margin, tyY);
 
         // ==================== FOOTER ====================
+        const footerLineY = Math.max(tyY + 15, 268);
         doc.setDrawColor(...vSecondary);
         doc.setLineWidth(0.4);
-        doc.line(margin, 268, pageW - margin, 268);
+        doc.line(margin, footerLineY, pageW - margin, footerLineY);
 
         doc.setFont('times', 'italic');
         doc.setFontSize(8);
         doc.setTextColor(...textMid);
-        doc.text('For questions concerning this invoice, please contact', pageW / 2, 274, { align: 'center' });
-        doc.text(String(config.businessName) + ", " + String(config.ownerPhone || 'N/A') + ", UPI: " + String(config.upiId || 'N/A'), pageW / 2, 279, { align: 'center' });
+        doc.text('For questions concerning this invoice, please contact', pageW / 2, footerLineY + 6, { align: 'center' });
+        doc.text(String(config.businessName) + ", " + String(config.ownerPhone || 'N/A') + ", UPI: " + String(config.upiId || 'N/A'), pageW / 2, footerLineY + 11, { align: 'center' });
 
         doc.setFont('times', 'normal');
         doc.setFontSize(8);
         doc.setTextColor(...textMid);
-        doc.text('This is a computer-generated invoice. No signature required.', pageW / 2, 286, { align: 'center' });
+        doc.text('This is a computer-generated invoice. No signature required.', pageW / 2, footerLineY + 18, { align: 'center' });
 
         // ==================== SAVE ====================
         const fileName = tenantData.fileName || `invoice_${Phone}_${Date.now()}.pdf`;
@@ -451,9 +452,12 @@ class PDFService {
         doc.setTextColor(150, 150, 150);
         const footerMsg1 = 'I hereby agree to abide by the rules and regulations of the PG.';
         const footerMsg2 = 'This is a digital copy for your records.';
-        doc.text(footerMsg1, 105, 270, { align: 'center' });
-        doc.text(footerMsg2, 105, 275, { align: 'center' });
-        doc.text(String(config.businessName), 105, 280, { align: 'center' });
+
+        // Dynamic footer positioning to prevent overlap
+        const footerStart = Math.max(currentY + 15, 272);
+        doc.text(footerMsg1, 105, footerStart, { align: 'center' });
+        doc.text(footerMsg2, 105, footerStart + 6, { align: 'center' });
+        doc.text(String(config.businessName), 105, footerStart + 12, { align: 'center' });
 
         const fileName = tenantData.fileName || `registration_${phone}_${Date.now()}.pdf`;
         const filePath = path.join(__dirname, '../uploads', fileName);
