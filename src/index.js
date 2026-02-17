@@ -74,7 +74,7 @@ if (!fs.existsSync(uploadsDir)) {
 
 // Authentication Middleware
 const authenticate = (req, res, next) => {
-    const apiKey = req.headers['x-api-key'];
+    const apiKey = req.headers['x-api-key'] || req.query.key;
     if (!apiKey || apiKey !== config.adminApiKey) {
         return res.status(401).json({ error: 'Unauthorized: Invalid or missing API Key' });
     }

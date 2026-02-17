@@ -21,7 +21,8 @@ const API_BASE_URL = import.meta.env.VITE_API_URL ||
     : '');
 
 axios.defaults.baseURL = API_BASE_URL;
-axios.defaults.headers.common['X-API-Key'] = import.meta.env.VITE_ADMIN_API_KEY || 'stayflow_dev_key_123';
+const ADMIN_API_KEY = import.meta.env.VITE_ADMIN_API_KEY || 'stayflow_dev_key_123';
+axios.defaults.headers.common['X-API-Key'] = ADMIN_API_KEY;
 
 const getFullUrl = (path) => {
   if (!path) return '';
@@ -550,7 +551,7 @@ const App = () => {
                     {t['Aadhaar Image'] ? (
                       <button
                         className="btn btn-glass btn-small"
-                        onClick={() => window.open(getFullUrl(`/api/media/${t['Aadhaar Image']}`), '_blank')}
+                        onClick={() => window.open(getFullUrl(`/api/media/${t['Aadhaar Image']}?key=${ADMIN_API_KEY}`), '_blank')}
                         title="View Document"
                       >
                         <Camera size={14} /> View
@@ -561,7 +562,7 @@ const App = () => {
                     {t['Registration Form'] ? (
                       <button
                         className="btn btn-glass btn-small"
-                        onClick={() => window.open(getFullUrl(`/api/media/${t['Registration Form']}`), '_blank')}
+                        onClick={() => window.open(getFullUrl(`/api/media/${t['Registration Form']}?key=${ADMIN_API_KEY}`), '_blank')}
                         title="View Registration Form"
                         style={{ color: 'var(--primary)' }}
                       >
