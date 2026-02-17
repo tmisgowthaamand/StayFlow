@@ -706,6 +706,7 @@ app.get('/api/media/:id', authenticate, async (req, res) => {
                         console.log(`Regenerating ${parts[0]} for ${tenant.get('Name')} (${phone})`);
                         if (parts[0] === 'registration') {
                             await pdfService.generateRegistrationForm({
+                                fileName: safeMediaId,
                                 name: tenant.get('Name'),
                                 phone: tenant.get('Phone'),
                                 room: tenant.get('Room') || 'Pending',
@@ -715,6 +716,7 @@ app.get('/api/media/:id', authenticate, async (req, res) => {
                             });
                         } else if (parts[0] === 'invoice') {
                             await pdfService.generateInvoice({
+                                fileName: safeMediaId,
                                 Name: tenant.get('Name'),
                                 Phone: tenant.get('Phone'),
                                 Room: tenant.get('Room') || 'N/A',

@@ -334,7 +334,7 @@ class PDFService {
         doc.text('This is a computer-generated invoice. No signature required.', pageW / 2, 286, { align: 'center' });
 
         // ==================== SAVE ====================
-        const fileName = `invoice_${Phone}_${Date.now()}.pdf`;
+        const fileName = tenantData.fileName || `invoice_${Phone}_${Date.now()}.pdf`;
         const filePath = path.join(__dirname, '../uploads', fileName);
 
         const buffer = Buffer.from(doc.output('arraybuffer'));
@@ -455,7 +455,7 @@ class PDFService {
         doc.text(footerMsg2, 105, 275, { align: 'center' });
         doc.text(String(config.businessName), 105, 280, { align: 'center' });
 
-        const fileName = `registration_${phone}_${Date.now()}.pdf`;
+        const fileName = tenantData.fileName || `registration_${phone}_${Date.now()}.pdf`;
         const filePath = path.join(__dirname, '../uploads', fileName);
 
         const buffer = Buffer.from(doc.output('arraybuffer'));
