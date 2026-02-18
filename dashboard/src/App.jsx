@@ -400,17 +400,38 @@ const App = () => {
 
   const renderDashboard = () => (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.4 }}>
-      <div className="stats-grid">
+      <motion.div
+        className="stats-grid"
+        variants={{
+          hidden: { opacity: 0 },
+          show: {
+            opacity: 1,
+            transition: {
+              staggerChildren: 0.1
+            }
+          }
+        }}
+        initial="hidden"
+        animate="show"
+      >
         {stats.map((stat, idx) => (
-          <div key={idx} className="stat-card">
+          <motion.div
+            key={idx}
+            className="stat-card"
+            variants={{
+              hidden: { opacity: 0, y: 20 },
+              show: { opacity: 1, y: 0 }
+            }}
+            whileHover={{ y: -8, transition: { duration: 0.2 } }}
+          >
             <div className="stat-icon-wrap" style={{ backgroundColor: stat.bg, color: stat.color }}>
-              <stat.icon size={22} />
+              <stat.icon size={22} className="floating" />
             </div>
             <p className="stat-label">{stat.label}</p>
             <p className="stat-value">{stat.value}</p>
-          </div>
+          </motion.div>
         ))}
-      </div>
+      </motion.div>
 
       <div className="content-grid">
         <div className="panel">
@@ -430,9 +451,27 @@ const App = () => {
                   <th>Status</th>
                 </tr>
               </thead>
-              <tbody>
+              <motion.tbody
+                initial="hidden"
+                animate="show"
+                variants={{
+                  hidden: { opacity: 0 },
+                  show: {
+                    opacity: 1,
+                    transition: { staggerChildren: 0.05 }
+                  }
+                }}
+              >
                 {activeTenants.slice(0, 6).map((t, i) => (
-                  <tr key={i} className="table-row">
+                  <motion.tr
+                    key={i}
+                    className="table-row"
+                    variants={{
+                      hidden: { opacity: 0, x: -10 },
+                      show: { opacity: 1, x: 0 }
+                    }}
+                    whileHover={{ x: 4, backgroundColor: 'rgba(255,255,255,0.04)' }}
+                  >
                     <td>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                         <div style={{ width: 32, height: 32, borderRadius: 8, background: 'var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold' }}>{t.Name[0]}</div>
@@ -447,9 +486,9 @@ const App = () => {
                         {t.Status}
                       </span>
                     </td>
-                  </tr>
+                  </motion.tr>
                 ))}
-              </tbody>
+              </motion.tbody>
             </table>
           </div>
         </div>
