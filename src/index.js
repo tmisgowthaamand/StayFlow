@@ -741,27 +741,37 @@ app.get('/api/media/:id', authenticate, async (req, res) => {
             }
         }
 
-        // 3. Try fetching from WhatsApp (for images/media sent by user)
-        console.log(`Fetching remote media from WhatsApp: ${mediaId}`);
-        const urlRes = await axios.get(`https://graph.facebook.com/v17.0/${mediaId}`, {
-            headers: { Authorization: `Bearer ${config.whatsapp.token}` }
-        });
+        // 3. Try fetching from WhatsApp (ONLY if it looks like a WhatsApp media ID)
+        // WhatsApp IDs are numeric strings. Local filenames (with extensions) or hashes should not be proxied to WhatsApp.
+        const isWhatsAppId = /^\d+$/.test(mediaId) || mediaId.startsWith('wweb_');
 
-        const mediaUrl = urlRes.data.url;
-        const mediaRes = await axios.get(mediaUrl, {
-            headers: { Authorization: `Bearer ${config.whatsapp.token}` },
-            responseType: 'stream'
-        });
+        if (isWhatsAppId) {
+            console.log(`Fetching remote media from WhatsApp: ${mediaId}`);
+            try {
+                const urlRes = await axios.get(`https://graph.facebook.com/v17.0/${mediaId}`, {
+                    headers: { Authorization: `Bearer ${config.whatsapp.token}` }
+                });
 
-        res.setHeader('Content-Type', mediaRes.headers['content-type']);
-        mediaRes.data.pipe(res);
+                const mediaUrl = urlRes.data.url;
+                const mediaRes = await axios.get(mediaUrl, {
+                    headers: { Authorization: `Bearer ${config.whatsapp.token}` },
+                    responseType: 'stream'
+                });
+
+                res.setHeader('Content-Type', mediaRes.headers['content-type']);
+                return mediaRes.data.pipe(res);
+            } catch (whatsappErr) {
+                console.error(`WhatsApp Media Fetch Failed for ${mediaId}:`, whatsappErr.message);
+                return res.status(404).send(`Media document [${mediaId}] not found on WhatsApp servers.`);
+            }
+        }
+
+        // 4. Default 404 if everything failed
+        console.warn(`Media NOT found: ${safeMediaId}`);
+        res.status(404).send(`Media document [${safeMediaId}] not found on server. If this was a web upload, it may have been cleared by a server restart/redeploy. Please re-upload it via the resident edit profile.`);
     } catch (err) {
         console.error(`Media proxy error for ${req.params.id}:`, err.message);
-        if (err.response && err.response.status === 404) {
-            res.status(404).send('Media not found on local server or WhatsApp');
-        } else {
-            res.status(500).send('Error loading media: ' + err.message);
-        }
+        res.status(500).send('Error loading media: ' + err.message);
     }
 });
 
