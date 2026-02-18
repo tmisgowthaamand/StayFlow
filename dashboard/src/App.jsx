@@ -11,8 +11,103 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, PieChart, Pie, Cell, AreaChart, Area
 } from 'recharts';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence, useMotionValue, useMotionTemplate } from 'framer-motion';
 import './App.css';
+
+// --- ReactBits Inspired Premium Components ---
+
+const SpotlightCard = ({ children, className = "", style = {} }) => {
+  const mouseX = useMotionValue(0);
+  const mouseY = useMotionValue(0);
+
+  function handleMouseMove({ currentTarget, clientX, clientY }) {
+    let { left, top } = currentTarget.getBoundingClientRect();
+    mouseX.set(clientX - left);
+    mouseY.set(clientY - top);
+  }
+
+  return (
+    <motion.div
+      onMouseMove={handleMouseMove}
+      className={`stat-card group ${className}`}
+      style={{ ...style, position: 'relative' }}
+    >
+      <motion.div
+        className="pointer-events-none absolute -inset-px rounded-24 opacity-0 transition duration-500 group-hover:opacity-100"
+        style={{
+          zIndex: 0,
+          background: useMotionTemplate`
+            radial-gradient(
+              400px circle at ${mouseX}px ${mouseY}px,
+              rgba(99, 102, 241, 0.15),
+              transparent 80%
+            )
+          `,
+        }}
+      />
+      <div style={{ position: 'relative', zIndex: 1 }}>
+        {children}
+      </div>
+    </motion.div>
+  );
+};
+
+const SplitText = ({ text, delay = 0 }) => {
+  const characters = text.split("");
+  return (
+    <motion.span
+      initial="hidden"
+      animate="visible"
+      variants={{
+        visible: {
+          transition: {
+            staggerChildren: 0.03,
+            delayChildren: delay,
+          },
+        },
+      }}
+    >
+      {characters.map((char, i) => (
+        <motion.span
+          key={i}
+          variants={{
+            hidden: { opacity: 0, y: 15, filter: 'blur(4px)' },
+            visible: { opacity: 1, y: 0, filter: 'blur(0px)' },
+          }}
+          transition={{ duration: 0.5, ease: [0.2, 0.8, 0.2, 1] }}
+          style={{ display: "inline-block" }}
+        >
+          {char === " " ? "\u00A0" : char}
+        </motion.span>
+      ))}
+    </motion.span>
+  );
+};
+
+const InteractiveGrid = () => {
+  return (
+    <div className="interactive-grid-bg">
+      <div className="grid-overlay"></div>
+    </div>
+  );
+};
+
+const ShinyButton = ({ children, onClick, className = "", style = {} }) => {
+  return (
+    <motion.button
+      whileHover={{ scale: 1.02, y: -2 }}
+      whileTap={{ scale: 0.98 }}
+      onClick={onClick}
+      className={`shiny-btn ${className}`}
+      style={style}
+    >
+      <span className="shiny-btn-inner">
+        {children}
+      </span>
+      <div className="shiny-sweep"></div>
+    </motion.button>
+  );
+};
 
 // Configure Axios Base URL for Production
 const API_BASE_URL = import.meta.env.VITE_API_URL ||
@@ -415,21 +510,19 @@ const App = () => {
         animate="show"
       >
         {stats.map((stat, idx) => (
-          <motion.div
+          <SpotlightCard
             key={idx}
-            className="stat-card"
             variants={{
               hidden: { opacity: 0, y: 20 },
               show: { opacity: 1, y: 0 }
             }}
-            whileHover={{ y: -8, transition: { duration: 0.2 } }}
           >
-            <div className="stat-icon-wrap" style={{ backgroundColor: stat.bg, color: stat.color }}>
+            <div className={`stat-icon-wrap`} style={{ backgroundColor: stat.bg, color: stat.color }}>
               <stat.icon size={22} className="floating" />
             </div>
             <p className="stat-label">{stat.label}</p>
             <p className="stat-value">{stat.value}</p>
-          </motion.div>
+          </SpotlightCard>
         ))}
       </motion.div>
 
@@ -437,9 +530,9 @@ const App = () => {
         <div className="panel">
           <div className="panel-header">
             <h3 className="panel-title">Recent Activity</h3>
-            <button className="btn btn-glass btn-small" onClick={handleNotifyAll}>
+            <ShinyButton className="btn-small" onClick={handleNotifyAll}>
               <Bell size={16} /> Notify All
-            </button>
+            </ShinyButton>
           </div>
           <div className="table-scroll">
             <table className="custom-table">
@@ -548,9 +641,9 @@ const App = () => {
                 />
               </div>
             </div>
-            <button className="btn btn-primary" onClick={() => setShowModal(true)}>
+            <ShinyButton onClick={() => setShowModal(true)}>
               <Plus size={18} /> New Registration
-            </button>
+            </ShinyButton>
           </div>
         </div>
         <div className="table-scroll">
@@ -1378,6 +1471,7 @@ const App = () => {
 
   return (
     <div className={`dashboard-container ${sidebarOpen ? 'sidebar-open' : ''}`}>
+      <InteractiveGrid />
       <AnimatePresence>
         {sidebarOpen && (
           <motion.div
@@ -1426,7 +1520,7 @@ const App = () => {
               <Menu size={24} />
             </button>
             <div className="header-meta">
-              <h1>{activeTab.charAt(0).toUpperCase() + activeTab.slice(1)}</h1>
+              <h1><SplitText text={activeTab.charAt(0).toUpperCase() + activeTab.slice(1)} /></h1>
               <p>Welcome back, Owner. Here's what's happening at StayFlow.</p>
             </div>
           </div>
