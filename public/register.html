@@ -10,13 +10,24 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
         :root {
-            --primary: #8b5cf6;
-            --secondary: #10b981;
-            --bg: #0b0f1a;
-            --card-bg: rgba(30, 41, 59, 0.7);
-            --glass-border: rgba(255, 255, 255, 0.1);
+            /* Material 3 / Stitch Inspired Tokens */
+            --md-primary: #6366f1;
+            --md-primary-container: #e0e0ff;
+            --md-on-primary-container: #00006e;
+            --md-surface: #0a0c10;
+            --md-surface-variant: #1e293b;
+            --md-on-surface-variant: #94a3b8;
+            --md-outline: rgba(255, 255, 255, 0.12);
+            --md-error: #f43f5e;
+            
+            --glass: rgba(15, 23, 42, 0.8);
+            --glass-border: rgba(255, 255, 255, 0.08);
             --text-main: #f8fafc;
             --text-dim: #94a3b8;
+            
+            --radius-xl: 40px;
+            --radius-l: 24px;
+            --radius-m: 16px;
         }
 
         * {
@@ -27,105 +38,190 @@
         }
 
         body {
-            background-color: var(--bg);
-            background-image: radial-gradient(circle at top right, rgba(139, 92, 246, 0.15), transparent),
-                radial-gradient(circle at bottom left, rgba(16, 185, 129, 0.1), transparent);
+            background-color: var(--md-surface);
+            background-image: 
+                radial-gradient(circle at 0% 0%, rgba(99, 102, 241, 0.08), transparent 40%),
+                radial-gradient(circle at 100% 100%, rgba(16, 185, 129, 0.05), transparent 40%);
             color: var(--text-main);
             min-height: 100vh;
             display: flex;
             align-items: center;
             justify-content: center;
-            padding: 20px;
+            padding: 24px;
+            overflow-x: hidden;
+        }
+
+        /* Ambient Background Elements */
+        .ambient-blob {
+            position: fixed;
+            width: 400px;
+            height: 400px;
+            background: var(--md-primary);
+            filter: blur(120px);
+            opacity: 0.05;
+            z-index: -1;
+            border-radius: 50%;
+            pointer-events: none;
         }
 
         .container {
             width: 100%;
-            max-width: 500px;
-            background: var(--card-bg);
-            backdrop-filter: blur(20px);
+            max-width: 520px;
+            background: var(--glass);
+            backdrop-filter: blur(30px);
+            -webkit-backdrop-filter: blur(30px);
             border: 1px solid var(--glass-border);
-            border-radius: 32px;
-            padding: 40px;
-            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+            border-radius: var(--radius-xl);
+            padding: 48px;
+            box-shadow: 0 40px 80px -20px rgba(0, 0, 0, 0.6);
+            animation: slideUp 0.6s cubic-bezier(0.2, 0.8, 0.2, 1);
+            position: relative;
+            overflow: hidden;
+        }
+
+        @keyframes slideUp {
+            from { opacity: 0; transform: translateY(30px); }
+            to { opacity: 1; transform: translateY(0); }
         }
 
         .header {
             text-align: center;
-            margin-bottom: 35px;
+            margin-bottom: 40px;
+        }
+
+        .logo-wrap {
+            position: relative;
+            display: inline-block;
+            margin-bottom: 20px;
         }
 
         .logo {
-            width: 60px;
-            height: 60px;
-            background: linear-gradient(135deg, var(--primary), #f43f5e);
-            border-radius: 18px;
+            width: 72px;
+            height: 72px;
+            background: linear-gradient(135deg, var(--md-primary), #8b5cf6);
+            border-radius: 22px;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 1.5rem;
+            font-size: 1.8rem;
             color: white;
-            margin: 0 auto 15px;
-            box-shadow: 0 10px 20px rgba(139, 92, 246, 0.3);
+            box-shadow: 0 12px 24px rgba(99, 102, 241, 0.3);
+            transform: rotate(-5deg);
+            transition: all 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+
+        .header:hover .logo {
+            transform: rotate(0deg) scale(1.1);
         }
 
         h1 {
-            font-size: 1.75rem;
+            font-size: 2.2rem;
             font-weight: 800;
-            letter-spacing: -0.5px;
+            letter-spacing: -1px;
             margin-bottom: 8px;
+            background: linear-gradient(to right, #fff, #94a3b8);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
         }
 
         .subtitle {
             color: var(--text-dim);
-            font-size: 0.9rem;
+            font-size: 0.95rem;
+            font-weight: 500;
         }
 
         .form-group {
-            margin-bottom: 20px;
+            margin-bottom: 24px;
+            position: relative;
         }
 
-        label {
+        .form-group label {
             display: block;
-            margin-bottom: 8px;
-            color: var(--text-dim);
-            font-size: 0.85rem;
-            font-weight: 600;
+            margin-bottom: 10px;
+            color: var(--md-on-surface-variant);
+            font-size: 0.75rem;
+            font-weight: 700;
             text-transform: uppercase;
-            letter-spacing: 0.5px;
+            letter-spacing: 1.5px;
+            padding-left: 4px;
         }
 
         .required {
-            color: #f87171;
+            color: var(--md-error);
             margin-left: 2px;
         }
 
         input,
         select {
             width: 100%;
-            padding: 14px 18px;
-            border-radius: 14px;
-            background: rgba(255, 255, 255, 0.05);
-            border: 1px solid var(--glass-border);
+            padding: 16px 20px;
+            border-radius: var(--radius-m);
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid var(--md-outline);
             color: white;
             font-size: 1rem;
+            font-weight: 500;
             outline: none;
-            transition: all 0.3s;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        input:hover, select:hover {
+            border-color: rgba(255, 255, 255, 0.2);
+            background: rgba(255, 255, 255, 0.05);
         }
 
         input:focus,
         select:focus {
-            border-color: var(--primary);
+            border-color: var(--md-primary);
             background: rgba(255, 255, 255, 0.08);
-            box-shadow: 0 0 0 4px rgba(139, 92, 246, 0.15);
+            box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.15);
         }
 
-        .btn {
+        /* Custom File Input */
+        .file-drop-area {
+            position: relative;
+            padding: 24px;
+            background: rgba(99, 102, 241, 0.03);
+            border: 2px dashed var(--md-outline);
+            border-radius: var(--radius-m);
+            text-align: center;
+            transition: 0.3s;
+            cursor: pointer;
+        }
+
+        .file-drop-area:hover {
+            border-color: var(--md-primary);
+            background: rgba(99, 102, 241, 0.06);
+        }
+
+        .file-drop-area input {
+            position: absolute;
+            inset: 0;
+            opacity: 0;
+            cursor: pointer;
+        }
+
+        .file-icon {
+            font-size: 2rem;
+            color: var(--md-primary);
+            margin-bottom: 12px;
+            opacity: 0.8;
+        }
+
+        .file-text {
+            font-size: 0.85rem;
+            color: var(--text-dim);
+            font-weight: 500;
+        }
+
+        .btn-primary {
             width: 100%;
-            padding: 16px;
-            border-radius: 14px;
-            background: var(--primary);
+            padding: 18px;
+            border-radius: 50px; /* Pill shape - Stitch style */
+            background: var(--md-primary);
             color: white;
-            font-size: 1rem;
+            font-size: 1.05rem;
             font-weight: 700;
             border: none;
             cursor: pointer;
@@ -133,122 +229,127 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            gap: 10px;
-            margin-top: 10px;
+            gap: 12px;
+            margin-top: 20px;
+            box-shadow: 0 10px 25px rgba(99, 102, 241, 0.3);
         }
 
-        .btn:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 10px 20px rgba(139, 92, 246, 0.3);
+        .btn-primary:hover {
+            background: #4f46e5;
+            transform: translateY(-3px);
+            box-shadow: 0 15px 30px rgba(99, 102, 241, 0.4);
         }
 
-        .btn:disabled {
+        .btn-primary:active {
+            transform: translateY(-1px);
+        }
+
+        .btn-primary:disabled {
             opacity: 0.6;
             cursor: not-allowed;
-        }
-
-        .file-input-wrapper {
-            position: relative;
-            height: 50px;
-            background: rgba(139, 92, 246, 0.1);
-            border: 2px dashed var(--glass-border);
-            border-radius: 14px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            cursor: pointer;
-            transition: 0.3s;
-        }
-
-        .file-input-wrapper:hover {
-            border-color: var(--primary);
-        }
-
-        .file-input-wrapper input {
-            position: absolute;
-            inset: 0;
-            opacity: 0;
-            cursor: pointer;
-        }
-
-        .file-input-label {
-            font-size: 0.9rem;
-            color: var(--primary-light);
-            display: flex;
-            align-items: center;
-            gap: 8px;
+            transform: none;
         }
 
         #message {
-            margin-top: 20px;
-            padding: 15px;
-            border-radius: 12px;
+            margin-top: 24px;
+            padding: 20px;
+            border-radius: var(--radius-m);
             display: none;
             text-align: center;
-            font-size: 0.9rem;
+            font-size: 0.95rem;
             font-weight: 600;
+            line-height: 1.5;
+            animation: fadeIn 0.4s ease;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: scale(0.95); }
+            to { opacity: 1; transform: scale(1); }
         }
 
         .success {
-            background: rgba(16, 185, 129, 0.15);
-            color: #34d399;
+            background: rgba(16, 185, 129, 0.1);
+            color: #10b981;
             border: 1px solid rgba(16, 185, 129, 0.2);
         }
 
         .error {
-            background: rgba(239, 68, 68, 0.15);
-            color: #f87171;
-            border: 1px solid rgba(239, 68, 68, 0.2);
+            background: rgba(244, 63, 94, 0.1);
+            color: #f43f5e;
+            border: 1px solid rgba(244, 63, 94, 0.2);
+        }
+
+        /* Responsive Adjustments */
+        @media (max-width: 480px) {
+            .container {
+                padding: 32px 24px;
+                border-radius: 32px;
+            }
+            h1 {
+                font-size: 1.75rem;
+            }
         }
     </style>
 </head>
 
 <body>
+    <div class="ambient-blob" style="top: 10%; left: 10%;"></div>
+    <div class="ambient-blob" style="bottom: 10%; right: 10%; background: var(--md-error);"></div>
+
     <div class="container">
         <div class="header">
-            <div class="logo"><i class="fas fa-bolt"></i></div>
+            <div class="logo-wrap">
+                <div class="logo"><i class="fas fa-bolt"></i></div>
+            </div>
             <h1>StayFlow</h1>
-            <p class="subtitle">Premium Resident Registration</p>
+            <p class="subtitle">Join our premium PG community</p>
         </div>
 
         <form id="registrationForm">
             <div class="form-group">
                 <label>Full Name <span class="required">*</span></label>
-                <input type="text" id="name" placeholder="John Doe" required>
+                <input type="text" id="name" placeholder="Enter your full name" required>
             </div>
-            <div class="form-group">
-                <label>Phone Number <span class="required">*</span></label>
-                <input type="tel" id="phone" placeholder="9876543210" required>
-            </div>
-            <div class="form-group">
-                <label>Location</label>
-                <select id="location" required>
-                    <option value="Main Branch">Main Branch</option>
-                    <option value="Executive Wing">Executive Wing</option>
-                    <option value="Luxury Suites">Luxury Suites</option>
-                </select>
-            </div>
-            <div class="form-group">
-                <label>Sharing Type</label>
-                <select id="sharingType" required>
-                    <option value="1 Sharing">1 Sharing</option>
-                    <option value="2 Sharing">2 Sharing</option>
-                    <option value="3 Sharing">3 Sharing</option>
-                    <option value="4 Sharing">4 Sharing</option>
-                </select>
-            </div>
-            <div class="form-group">
-                <label>Aadhaar Card (Image/PDF) <span class="required">*</span></label>
-                <div class="file-input-wrapper">
-                    <input type="file" id="aadhaar" accept="image/*,application/pdf" required>
-                    <div class="file-input-label" id="fileLabel">
-                        <i class="fas fa-cloud-upload-alt"></i> Upload Aadhaar (IMG/PDF)
-                    </div>
+            
+            <div class="form-group" style="display: grid; grid-template-columns: 1fr; gap: 20px;">
+                <div>
+                    <label>Phone Number <span class="required">*</span></label>
+                    <input type="tel" id="phone" placeholder="10-digit mobile number" required>
                 </div>
             </div>
 
-            <button type="submit" class="btn" id="submitBtn">
-                <i class="fas fa-check-circle"></i> Register Now
+            <div class="form-group" style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+                <div>
+                    <label>Location</label>
+                    <select id="location" required>
+                        <option value="Main Branch">Main Branch</option>
+                        <option value="Executive Wing">Executive Wing</option>
+                        <option value="Luxury Suites">Luxury Suites</option>
+                    </select>
+                </div>
+                <div>
+                    <label>Sharing</label>
+                    <select id="sharingType" required>
+                        <option value="1 Sharing">1 Sharing</option>
+                        <option value="2 Sharing">2 Sharing</option>
+                        <option value="3 Sharing">3 Sharing</option>
+                        <option value="4 Sharing">4 Sharing</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label>Aadhaar Verification <span class="required">*</span></label>
+                <div class="file-drop-area" id="dropArea">
+                    <input type="file" id="aadhaar" accept="image/*,application/pdf" required>
+                    <div class="file-icon"><i class="fas fa-cloud-upload-alt"></i></div>
+                    <div class="file-text" id="fileLabel">Drop Aadhaar image or click to upload</div>
+                </div>
+            </div>
+
+            <button type="submit" class="btn-primary" id="submitBtn">
+                <span>Complete Registration</span>
+                <i class="fas fa-arrow-right"></i>
             </button>
         </form>
 
@@ -265,7 +366,8 @@
 
         fileInput.addEventListener('change', (e) => {
             if (e.target.files.length > 0) {
-                fileLabel.innerHTML = `<i class="fas fa-file-image"></i> ${e.target.files[0].name}`;
+                fileLabel.innerHTML = `<i class="fas fa-file-alt"></i> ${e.target.files[0].name}`;
+                fileLabel.style.color = 'var(--md-primary)';
             }
         });
 
@@ -309,9 +411,10 @@
 
                 if (response.ok && result.success) {
                     messageDiv.className = 'success';
-                    messageDiv.innerHTML = '🎉 Success! Your registration is complete. Check your WhatsApp for the registration copy.';
+                    messageDiv.innerHTML = '✨ <b>Registration Successful!</b><br>Welcome to StayFlow. We have sent a confirmation copy to your WhatsApp number.';
                     form.reset();
-                    fileLabel.innerHTML = '<i class="fas fa-cloud-upload-alt"></i> Upload Aadhaar (IMG/PDF)';
+                    fileLabel.innerHTML = 'Drop Aadhaar image or click to upload';
+                    fileLabel.style.color = 'var(--text-dim)';
                 } else {
                     throw new Error(result.error || 'Registration failed');
                 }
@@ -321,7 +424,7 @@
             } finally {
                 messageDiv.style.display = 'block';
                 submitBtn.disabled = false;
-                submitBtn.innerHTML = '<i class="fas fa-check-circle"></i> Register Now';
+                submitBtn.innerHTML = '<span>Complete Registration</span> <i class="fas fa-arrow-right"></i>';
             }
         });
     </script>
