@@ -19,12 +19,12 @@
             --md-on-surface-variant: #94a3b8;
             --md-outline: rgba(255, 255, 255, 0.12);
             --md-error: #f43f5e;
-            
+
             --glass: rgba(15, 23, 42, 0.8);
             --glass-border: rgba(255, 255, 255, 0.08);
             --text-main: #f8fafc;
             --text-dim: #94a3b8;
-            
+
             --radius-xl: 40px;
             --radius-l: 24px;
             --radius-m: 16px;
@@ -39,7 +39,7 @@
 
         body {
             background-color: var(--md-surface);
-            background-image: 
+            background-image:
                 radial-gradient(circle at 0% 0%, rgba(99, 102, 241, 0.08), transparent 40%),
                 radial-gradient(circle at 100% 100%, rgba(16, 185, 129, 0.05), transparent 40%);
             color: var(--text-main);
@@ -80,8 +80,15 @@
         }
 
         @keyframes slideUp {
-            from { opacity: 0; transform: translateY(30px); }
-            to { opacity: 1; transform: translateY(0); }
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
         }
 
         .header {
@@ -166,7 +173,8 @@
             transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
         }
 
-        input:hover, select:hover {
+        input:hover,
+        select:hover {
             border-color: rgba(255, 255, 255, 0.2);
             background: rgba(255, 255, 255, 0.05);
         }
@@ -218,7 +226,8 @@
         .btn-primary {
             width: 100%;
             padding: 18px;
-            border-radius: 50px; /* Pill shape - Stitch style */
+            border-radius: 50px;
+            /* Pill shape - Stitch style */
             background: var(--md-primary);
             color: white;
             font-size: 1.05rem;
@@ -263,8 +272,15 @@
         }
 
         @keyframes fadeIn {
-            from { opacity: 0; transform: scale(0.95); }
-            to { opacity: 1; transform: scale(1); }
+            from {
+                opacity: 0;
+                transform: scale(0.95);
+            }
+
+            to {
+                opacity: 1;
+                transform: scale(1);
+            }
         }
 
         .success {
@@ -285,6 +301,7 @@
                 padding: 32px 24px;
                 border-radius: 32px;
             }
+
             h1 {
                 font-size: 1.75rem;
             }
@@ -310,7 +327,7 @@
                 <label>Full Name <span class="required">*</span></label>
                 <input type="text" id="name" placeholder="Enter your full name" required>
             </div>
-            
+
             <div class="form-group" style="display: grid; grid-template-columns: 1fr; gap: 20px;">
                 <div>
                     <label>Phone Number <span class="required">*</span></label>
@@ -357,7 +374,9 @@
     </div>
 
     <script>
-        const API_BASE = 'https://stayflow-x8is.onrender.com';
+        const API_BASE = window.location.hostname.includes('vercel.app')
+            ? 'https://stayflow-x8is.onrender.com'
+            : '';
         const form = document.getElementById('registrationForm');
         const submitBtn = document.getElementById('submitBtn');
         const messageDiv = document.getElementById('message');
