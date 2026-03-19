@@ -9,6 +9,7 @@ const config = {
     ebUnitRate: parseInt(process.env.EB_UNIT_RATE || '15'),
     allowedOrigins: (process.env.ALLOWED_ORIGINS || '').split(','),
     googleFormUrl: process.env.GOOGLE_FORM_URL || 'https://stay-flow-kohl.vercel.app/register.html',
+    renderApiUrl: process.env.RENDER_API_URL,
     whatsapp: {
         token: process.env.WHATSAPP_TOKEN,
         phoneNumberId: process.env.WHATSAPP_PHONE_NUMBER_ID,

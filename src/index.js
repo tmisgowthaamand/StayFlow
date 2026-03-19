@@ -19,6 +19,7 @@ import wweb from './wweb.js';
 import pdfService from './pdfService.js';
 import { Log, Media, Tenant, Notification, PushToken } from './db.js';
 import { sendPushNotification } from './pushService.js';
+import keepAliveService from './keepAlive.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -1797,6 +1798,15 @@ app.get('/', (req, res) => {
     }
 });
 
+// Health check endpoint for keep-alive
+app.get('/health', (req, res) => {
+    res.status(200).json({ 
+        status: 'ok', 
+        timestamp: new Date().toISOString(),
+        uptime: process.uptime()
+    });
+});
+
 // 4. Final Error Handling Middleware (JSON for API)
 app.use((err, req, res, next) => {
     console.error('SERVER ERROR:', err);
@@ -1814,6 +1824,8 @@ app.use((err, req, res, next) => {
 
 app.listen(port, () => {
     console.log(`Server running on port ${port}`);
+    // Start keep-alive service to prevent Render sleep
+    keepAliveService.start();
 });
 
 setupCron();
