@@ -1794,7 +1794,34 @@ app.get('/', (req, res) => {
     if (fs.existsSync(dashboardDist)) {
         res.sendFile(path.join(dashboardDist, 'index.html'));
     } else {
-        res.send('StayFlow Cloud Bot is running! Full Dashboard at: /admin or https://stay-flow-kohl.vercel.app');
+        res.send(`
+            <html>
+            <head>
+                <title>StayFlow - Running</title>
+                <style>
+                    body { font-family: Arial, sans-serif; text-align: center; padding: 50px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; }
+                    .container { background: white; color: #333; padding: 40px; border-radius: 20px; max-width: 600px; margin: 0 auto; box-shadow: 0 20px 60px rgba(0,0,0,0.3); }
+                    h1 { margin-bottom: 20px; }
+                    a { display: inline-block; margin: 10px; padding: 15px 30px; background: #667eea; color: white; text-decoration: none; border-radius: 25px; transition: all 0.3s; }
+                    a:hover { background: #764ba2; transform: translateY(-2px); }
+                </style>
+            </head>
+            <body>
+                <div class="container">
+                    <h1>🚀 StayFlow Cloud Bot</h1>
+                    <p>Service is running!</p>
+                    <div style="margin-top: 30px;">
+                        <a href="/wake.html">⚡ Wake Service</a>
+                        <a href="/api/wake">📡 Wake API</a>
+                        <a href="/health">💚 Health Check</a>
+                    </div>
+                    <p style="margin-top: 30px; color: #666;">
+                        Full Dashboard: <a href="https://stay-flow-kohl.vercel.app" target="_blank">Open Dashboard</a>
+                    </p>
+                </div>
+            </body>
+            </html>
+        `);
     }
 });
 
@@ -1804,6 +1831,18 @@ app.get('/health', (req, res) => {
         status: 'ok', 
         timestamp: new Date().toISOString(),
         uptime: process.uptime()
+    });
+});
+
+// Wake-up endpoint - Click to wake Render service
+app.get('/api/wake', (req, res) => {
+    console.log(`[WAKE-UP] Service woken at ${new Date().toISOString()}`);
+    res.status(200).json({ 
+        message: '✅ StayFlow is awake!',
+        status: 'active',
+        timestamp: new Date().toISOString(),
+        uptime: Math.floor(process.uptime()),
+        renderUrl: process.env.RENDER_API_URL || 'https://stayflow-tkto.onrender.com'
     });
 });
 

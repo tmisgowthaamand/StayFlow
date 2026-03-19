@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>StayFlow - Wake Up Service</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        
+        .container {
+            background: white;
+            border-radius: 20px;
+            padding: 40px;
+            max-width: 500px;
+            width: 100%;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            text-align: center;
+        }
+        
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 2em;
+        }
+        
+        .subtitle {
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 1.1em;
+        }
+        
+        .status {
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            font-weight: 500;
+        }
+        
+        .status.sleeping {
+            background: #fff3cd;
+            color: #856404;
+            border: 2px solid #ffc107;
+        }
+        
+        .status.awake {
+            background: #d4edda;
+            color: #155724;
+            border: 2px solid #28a745;
+        }
+        
+        .status.waking {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 2px solid #17a2b8;
+        }
+        
+        .wake-btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 18px 40px;
+            font-size: 1.2em;
+            border-radius: 50px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-weight: 600;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+            width: 100%;
+            margin-bottom: 15px;
+        }
+        
+        .wake-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.6);
+        }
+        
+        .wake-btn:active {
+            transform: translateY(0);
+        }
+        
+        .wake-btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+        
+        .info {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 10px;
+            margin-top: 20px;
+            text-align: left;
+        }
+        
+        .info h3 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 1.1em;
+        }
+        
+        .info p {
+            color: #666;
+            line-height: 1.6;
+            margin-bottom: 10px;
+        }
+        
+        .info code {
+            background: #e9ecef;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+            color: #d63384;
+        }
+        
+        .spinner {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            animation: spin 1s linear infinite;
+            display: inline-block;
+            margin-right: 10px;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .link-section {
+            margin-top: 20px;
+            padding-top: 20px;
+            border-top: 2px solid #e9ecef;
+        }
+        
+        .api-link {
+            display: inline-block;
+            color: #667eea;
+            text-decoration: none;
+            padding: 10px 20px;
+            border: 2px solid #667eea;
+            border-radius: 25px;
+            margin: 5px;
+            transition: all 0.3s ease;
+        }
+        
+        .api-link:hover {
+            background: #667eea;
+            color: white;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🚀 StayFlow</h1>
+        <p class="subtitle">Render Service Wake-Up</p>
+        
+        <div id="status" class="status sleeping">
+            💤 Service may be sleeping
+        </div>
+        
+        <button id="wakeBtn" class="wake-btn" onclick="wakeService()">
+            ⚡ Wake Up Service
+        </button>
+        
+        <div class="link-section">
+            <p style="color: #666; margin-bottom: 10px;">Quick Links:</p>
+            <a href="/api/wake" class="api-link" target="_blank">API Endpoint</a>
+            <a href="/health" class="api-link" target="_blank">Health Check</a>
+        </div>
+        
+        <div class="info">
+            <h3>📋 How it works:</h3>
+            <p>Render free tier services sleep after 15 minutes of inactivity. Click the button above to wake up the service instantly.</p>
+            <p><strong>API Endpoint:</strong> <code>GET /api/wake</code></p>
+            <p><strong>Auto Keep-Alive:</strong> Service pings itself every 14 minutes to stay awake.</p>
+        </div>
+    </div>
+    
+    <script>
+        const API_URL = window.location.origin;
+        
+        async function wakeService() {
+            const statusDiv = document.getElementById('status');
+            const wakeBtn = document.getElementById('wakeBtn');
+            
+            // Update UI to waking state
+            statusDiv.className = 'status waking';
+            statusDiv.innerHTML = '<span class="spinner"></span> Waking up service...';
+            wakeBtn.disabled = true;
+            
+            try {
+                const startTime = Date.now();
+                const response = await fetch(`${API_URL}/api/wake`);
+                const data = await response.json();
+                const duration = ((Date.now() - startTime) / 1000).toFixed(2);
+                
+                if (response.ok) {
+                    statusDiv.className = 'status awake';
+                    statusDiv.innerHTML = `✅ ${data.message}<br><small>Response time: ${duration}s | Uptime: ${data.uptime}s</small>`;
+                    
+                    // Keep awake status for 5 seconds
+                    setTimeout(() => {
+                        statusDiv.className = 'status awake';
+                        statusDiv.innerHTML = '✅ Service is active and running';
+                    }, 2000);
+                } else {
+                    throw new Error('Failed to wake service');
+                }
+            } catch (error) {
+                statusDiv.className = 'status sleeping';
+                statusDiv.innerHTML = `❌ Error: ${error.message}<br><small>Please try again</small>`;
+            } finally {
+                wakeBtn.disabled = false;
+            }
+        }
+        
+        // Auto-check status on page load
+        window.addEventListener('load', () => {
+            wakeService();
+        });
+    </script>
+</body>
+</html>

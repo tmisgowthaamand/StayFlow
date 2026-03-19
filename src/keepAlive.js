@@ -28,12 +28,19 @@ class KeepAliveService {
 
     async ping() {
         try {
-            const response = await axios.get(`${this.renderUrl}/health`, {
+            const response = await axios.get(`${this.renderUrl}/api/wake`, {
                 timeout: 10000
             });
-            console.log(`[KEEP-ALIVE] ✅ Ping successful at ${new Date().toISOString()}`);
+            console.log(`[KEEP-ALIVE] ✅ Ping successful at ${new Date().toISOString()} | Uptime: ${response.data.uptime}s`);
         } catch (error) {
             console.error(`[KEEP-ALIVE] ❌ Ping failed: ${error.message}`);
+            // Fallback to health endpoint
+            try {
+                await axios.get(`${this.renderUrl}/health`, { timeout: 10000 });
+                console.log(`[KEEP-ALIVE] ✅ Fallback health check successful`);
+            } catch (fallbackError) {
+                console.error(`[KEEP-ALIVE] ❌ Fallback also failed: ${fallbackError.message}`);
+            }
         }
     }
 
