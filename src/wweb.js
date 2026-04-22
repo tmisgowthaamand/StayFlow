@@ -10,63 +10,71 @@ const __dirname = path.dirname(__filename);
 
 class WWebEngine {
     constructor() {
-        this.client = new Client({
-            authStrategy: new LocalAuth(),
-            puppeteer: {
-                headless: true,
-                args: [
-                    '--no-sandbox',
-                    '--disable-setuid-sandbox',
-                    '--disable-dev-shm-usage',
-                    '--disable-accelerated-2d-canvas',
-                    '--no-first-run',
-                    '--no-zygote',
-                    '--single-process',
-                    '--disable-gpu'
-                ],
-            }
-        });
-
         this.ready = false;
+        this.client = null;
+        this.disabled = false;
     }
 
     init() {
-        this.client.on('qr', (qr) => {
-            console.log('SCAN THIS QR CODE FOR WHATSAPP:');
-            qrcode.generate(qr, { small: true });
-        });
-
-        this.client.on('ready', () => {
-            console.log('WhatsApp Web Client is READY!');
-            this.ready = true;
-        });
-
-        this.client.on('message', async (msg) => {
-            // Dynamic import to avoid circular dependency at top level
-            const { handleIncomingMessage } = await import('./bot.js');
-            const phone = msg.from.replace('@c.us', '');
-            const body = msg.body;
-            const hasMedia = msg.hasMedia;
-
-            let media = null;
-            if (hasMedia) {
-                try {
-                    const download = await msg.downloadMedia();
-                    if (download) {
-                        const fileName = `wweb_${Date.now()}.${download.mimetype.split('/')[1] || 'jpg'}`;
-                        const filePath = path.join(__dirname, '../uploads', fileName);
-                        fs.writeFileSync(filePath, download.data, { encoding: 'base64' });
-                        media = { id: fileName, mimetype: download.mimetype };
-                    }
-                } catch (err) {
-                    console.error('Error downloading wweb media:', err.message);
+        try {
+            this.client = new Client({
+                authStrategy: new LocalAuth(),
+                puppeteer: {
+                    headless: true,
+                    args: [
+                        '--no-sandbox',
+                        '--disable-setuid-sandbox',
+                        '--disable-dev-shm-usage',
+                        '--disable-accelerated-2d-canvas',
+                        '--no-first-run',
+                        '--no-zygote',
+                        '--single-process',
+                        '--disable-gpu'
+                    ],
                 }
-            }
+            });
 
-            await handleIncomingMessage(phone, body, msg.id.id, media);
-        });
+            this.client.on('qr', (qr) => {
+                console.log('SCAN THIS QR CODE FOR WHATSAPP:');
+                qrcode.generate(qr, { small: true });
+            });
 
-        this.client.initialize();
+            this.client.on('ready', () => {
+                console.log('✅ WhatsApp Web Client is READY!');
+                this.ready = true;
+            });
+
+            this.client.on('message', async (msg) => {
+                // Dynamic import to avoid circular dependency at top level
+                const { handleIncomingMessage } = await import('./bot.js');
+                const phone = msg.from.replace('@c.us', '');
+                const body = msg.body;
+                const hasMedia = msg.hasMedia;
+
+                let media = null;
+                if (hasMedia) {
+                    try {
+                        const download = await msg.downloadMedia();
+                        if (download) {
+                            const fileName = `wweb_${Date.now()}.${download.mimetype.split('/')[1] || 'jpg'}`;
+                            const filePath = path.join(__dirname, '../uploads', fileName);
+                            fs.writeFileSync(filePath, download.data, { encoding: 'base64' });
+                            media = { id: fileName, mimetype: download.mimetype };
+                        }
+                    } catch (err) {
+                        console.error('Error downloading wweb media:', err.message);
+                    }
+                }
+
+                await handleIncomingMessage(phone, body, msg.id.id, media);
+            });
+
+            this.client.initialize();
+        } catch (err) {
+            console.warn('⚠️ WhatsApp Web.js disabled (Chrome not found). Using Cloud API only.');
+            this.disabled = true;
+            this.ready = false;
+        }
     }
 
     async sendMessage(to, text) {

@@ -15,7 +15,15 @@ import crypto from 'crypto';
 import Razorpay from 'razorpay';
 import setupCron from './cron.js';
 import sheetsService from './sheets.js';
-import wweb from './wweb.js';
+// WhatsApp Web.js disabled - using Cloud API only
+// import wweb from './wweb.js';
+
+const wweb = {
+    ready: false,
+    init: () => console.log('⚠️ WhatsApp Web.js disabled. Using Cloud API only.'),
+    sendMessage: () => Promise.reject(new Error('WWeb not available')),
+    sendImage: () => Promise.reject(new Error('WWeb not available'))
+};
 import pdfService from './pdfService.js';
 import { Log, Media, Tenant, Notification, PushToken } from './db.js';
 import { sendPushNotification } from './pushService.js';
@@ -667,8 +675,13 @@ app.post('/api/verify-transaction', async (req, res) => {
 // Redundant notification routes removed (already at the bottom)
 
 
-// Initialize WWeb for Free Automation
-wweb.init();
+// Initialize WWeb for Free Automation (Optional - Falls back to Cloud API if Chrome not found)
+try {
+    wweb.init();
+} catch (err) {
+    console.warn('⚠️ WhatsApp Web.js initialization skipped:', err.message);
+    console.log('✅ Using WhatsApp Cloud API only');
+}
 
 // Proxy for WhatsApp Media
 // Proxy for WhatsApp Media

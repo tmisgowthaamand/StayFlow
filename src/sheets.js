@@ -42,11 +42,17 @@ class SheetsService {
     }
 
     async init() {
-        if (this.doc && this.sheet) return;
+        // Always check if doc is properly initialized with loadInfo called
+        if (this.doc && this.sheet && this.doc.title) {
+            console.log('[SHEETS] Already initialized:', this.doc.title);
+            return;
+        }
 
         if (!config.sheets.id) {
             throw new Error('GOOGLE_SHEET_ID is missing in the configuration.');
         }
+
+        console.log('[SHEETS] Starting initialization...');
 
         let authConfig;
         const serviceAccountPath = join(__dirname, '../service-account.json');
@@ -108,11 +114,13 @@ class SheetsService {
         console.log('Initializing Google Sheets Service...');
         try {
             this.doc = new GoogleSpreadsheet(config.sheets.id, serviceAccountAuth);
+            console.log('[SHEETS] Created GoogleSpreadsheet instance, calling loadInfo...');
             await this.doc.loadInfo();
-            console.log(`Google Sheets Loaded Successfully: ${this.doc.title}`);
+            console.log(`[SHEETS] ✅ Google Sheets Loaded Successfully: ${this.doc.title}`);
         } catch (err) {
             this.doc = null;
-            console.error('Google Sheets Init FAILED (loadInfo):', err.message);
+            this.sheet = null;
+            console.error('[SHEETS] ❌ Google Sheets Init FAILED (loadInfo):', err.message);
             const errorMsg = `Google Sheets Init FAILED: ${err.message}`;
             if (err.message.includes('Signature') || err.message.includes('grant')) {
                 throw new Error(`Invalid JWT Connection: ${err.message}. Check service-account.json.`);
@@ -574,7 +582,13 @@ class SheetsService {
 
     async getTenantsJSON() {
         await this.init();
-        if (!this.sheet) throw new Error('Tenants sheet not found after initialization.');
+        if (!this.doc || !this.doc.title) {
+            throw new Error('Google Sheets document not properly initialized. doc.loadInfo() may have failed.');
+        }
+        if (!this.sheet) {
+            throw new Error('Tenants sheet not found after initialization.');
+        }
+        console.log('[SHEETS] Getting tenants from sheet:', this.sheet.title);
         const rows = await this.sheet.getRows();
         return rows.map(row => {
             const data = {};
@@ -739,6 +753,13 @@ class SheetsService {
 
     async getDashboardStats() {
         await this.init();
+        if (!this.doc || !this.doc.title) {
+            throw new Error('Google Sheets document not properly initialized. doc.loadInfo() may have failed.');
+        }
+        if (!this.sheet) {
+            throw new Error('Tenants sheet not found after initialization.');
+        }
+        console.log('[SHEETS] Getting dashboard stats from sheet:', this.sheet.title);
         const tenants = await this.sheet.getRows();
         const locations = await this.getAllLocations();
 
