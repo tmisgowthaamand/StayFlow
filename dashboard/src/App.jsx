@@ -358,7 +358,8 @@ const App = () => {
     : locationsData.filter(l => l.name === currentLocation);
   
   const totalBeds = _targetLocations.reduce((sum, l) => sum + parseInt(l.totalBeds || 0), 0);
-  const vacantBeds = Math.max(0, totalBeds - activeTenants.length);
+  const occupiedBeds = _targetLocations.reduce((sum, l) => sum + parseInt(l.occupiedBeds || 0), 0);
+  const vacantBeds = Math.max(0, totalBeds - occupiedBeds);
 
   const stats = [
     { label: 'Residents', value: activeTenants.length, icon: Users, color: '#6366f1', bg: 'rgba(99, 102, 241, 0.1)' },
