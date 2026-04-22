@@ -120,15 +120,90 @@ if (config.razorpay.key_id && config.razorpay.key_secret) {
     console.log('✅ Razorpay initialized for payment orders');
 }
 
+// ==================== SIMPLE IN-MEMORY CACHE FOR PAYMENT INFO ====================
+// Cache tenant data for 5 minutes to speed up payment page loads
+const paymentInfoCache = new Map();
+const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
+function getCachedPaymentInfo(phone) {
+    const cached = paymentInfoCache.get(phone);
+    if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
+        console.log(`[CACHE HIT] Payment info for ${phone}`);
+        return cached.data;
+    }
+    return null;
+}
+
+function setCachedPaymentInfo(phone, data) {
+    paymentInfoCache.set(phone, { data, timestamp: Date.now() });
+    // Auto-cleanup old entries
+    if (paymentInfoCache.size > 100) {
+        const oldestKey = paymentInfoCache.keys().next().value;
+        paymentInfoCache.delete(oldestKey);
+    }
+}
+
+function clearPaymentInfoCache(phone) {
+    // Clear all cache entries for this phone (with or without name)
+    for (const key of paymentInfoCache.keys()) {
+        if (key.startsWith(phone + ':')) {
+            paymentInfoCache.delete(key);
+            console.log(`[CACHE CLEAR] Invalidated cache for ${key}`);
+        }
+    }
+}
+
 // ==================== PAYMENT PAGE APIs ====================
 
-// GET /api/payment-info — Fetch tenant bill details for the payment page
+// GET /api/payment-info — Fetch tenant bill details for the payment page (OPTIMIZED WITH CACHE + MONGODB-FIRST)
 app.get('/api/payment-info', async (req, res) => {
     try {
         const { phone, name } = req.query;
         if (!phone) return res.status(400).json({ error: 'Phone number is required' });
 
-        const tenant = await sheetsService.getTenantByPhone(phone, name);
+        // OPTIMIZATION 1: Check cache first (fastest)
+        const cacheKey = `${phone}:${name || ''}`;
+        const cached = getCachedPaymentInfo(cacheKey);
+        if (cached) {
+            return res.json(cached);
+        }
+
+        // OPTIMIZATION 2: Try MongoDB SECOND for faster response (Sheets is slow)
+        const cleanPhone = phone.replace(/\D/g, '');
+        const mongoQuery = name 
+            ? { phone: cleanPhone, name: { $regex: new RegExp(`^${name}$`, 'i') } }
+            : { phone: cleanPhone };
+        
+        const mongoTenant = await Tenant.findOne(mongoQuery);
+        
+        if (mongoTenant) {
+            console.log(`[PAYMENT-INFO] ⚡ Fast path: MongoDB hit for ${phone}`);
+            const responseData = {
+                name: mongoTenant.name || '',
+                room: mongoTenant.room || 'N/A',
+                rent: mongoTenant.monthlyRent || 0,
+                eb: mongoTenant.ebAmount || 0,
+                total: (mongoTenant.monthlyRent || 0) + (mongoTenant.ebAmount || 0),
+                status: mongoTenant.status || 'PENDING',
+                transactionId: '',
+                paidDate: mongoTenant.paidDate || '',
+                razorpayKeyId: config.razorpay.key_id || '',
+                botNumber: '15551596475'
+            };
+            setCachedPaymentInfo(cacheKey, responseData);
+            return res.json(responseData);
+        }
+
+        // OPTIMIZATION 3: Fallback to Sheets if not in MongoDB (new tenant or sync issue)
+        console.log(`[PAYMENT-INFO] MongoDB miss, trying Sheets for ${phone}`);
+        let tenant;
+        try {
+            tenant = await sheetsService.getTenantByPhone(phone, name);
+        } catch (sheetsErr) {
+            console.error('Sheets error in payment-info:', sheetsErr.message);
+            throw new Error('Unable to fetch tenant data. Please try again later or contact admin.');
+        }
+
         if (!tenant) {
             return res.status(404).json({ error: 'Tenant not found. Please check your phone number or contact admin.' });
         }
@@ -140,7 +215,7 @@ app.get('/api/payment-info', async (req, res) => {
         const tTotal = tRent + tEB;
         const tStatus = tenant.get('Status') || 'PENDING';
 
-        res.json({
+        const responseData = {
             name: tName,
             room: tRoom,
             rent: tRent,
@@ -149,8 +224,12 @@ app.get('/api/payment-info', async (req, res) => {
             status: tStatus,
             transactionId: tenant.get('Transaction ID') || '',
             paidDate: tenant.get('Paid Date') || '',
-            razorpayKeyId: config.razorpay.key_id || ''
-        });
+            razorpayKeyId: config.razorpay.key_id || '',
+            botNumber: '15551596475'
+        };
+        
+        setCachedPaymentInfo(cacheKey, responseData);
+        res.json(responseData);
     } catch (err) {
         console.error('Payment Info Error:', err.message);
         res.status(500).json({ error: err.message });
@@ -263,6 +342,8 @@ app.post('/api/verify-razorpay-payment', async (req, res) => {
         // Process the successful payment
         if (phone) {
             await handleRazorpaySuccess(phone, paymentAmount, razorpay_payment_id, 'UPI (Razorpay)', rzpDetails);
+            // Clear cache for this phone to ensure fresh data on next payment page load
+            clearPaymentInfoCache(phone);
         }
 
         res.json({
@@ -1486,6 +1567,9 @@ app.post('/api/mark-paid', authenticate, async (req, res) => {
 
         const tenant = await sheetsService.getTenantByPhone(phone, name);
         await sheetsService.logPayment(tenant, amount, mode, 'MANUAL-ENTRY', 'VALID');
+
+        // Clear cache for this phone
+        clearPaymentInfoCache(phone);
 
         const tenantData = {
             Name: tenant.get('Name'), Phone: tenant.get('Phone'), Room: tenant.get('Room'),
