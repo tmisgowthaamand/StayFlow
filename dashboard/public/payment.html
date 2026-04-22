@@ -766,6 +766,27 @@
                         color: '#6366f1',
                         backdrop_color: 'rgba(10, 14, 26, 0.85)'
                     },
+                    config: {
+                        display: {
+                            blocks: {
+                                utp: { // UPI block
+                                    name: "Pay via UPI / QR",
+                                    instruments: [
+                                        {
+                                            method: "upi",
+                                            flows: (orderData.razorpayKeyId && orderData.razorpayKeyId.startsWith('rzp_test_')) 
+                                                ? ["collect", "qr"] 
+                                                : ["intent", "collect", "qr"]
+                                        },
+                                    ],
+                                },
+                            },
+                            sequence: ["block.utp", "block.other"],
+                            preferences: {
+                                show_default_blocks: true,
+                            },
+                        },
+                    },
                     modal: {
                         ondismiss: function () {
                             payBtn.disabled = false;

@@ -790,6 +790,9 @@
                                     instruments: [
                                         {
                                             method: "upi",
+                                            flows: (orderData.razorpayKeyId && orderData.razorpayKeyId.startsWith('rzp_test_')) 
+                                                ? ["collect", "qr"] 
+                                                : ["intent", "collect", "qr"]
                                         },
                                     ],
                                 },
