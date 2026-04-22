@@ -112,7 +112,7 @@ const ShinyButton = ({ children, onClick, className = "", style = {} }) => {
 // Configure Axios Base URL for Production
 const API_BASE_URL = import.meta.env.VITE_API_URL ||
   (window.location.hostname.includes('vercel.app')
-    ? 'http://localhost:3000'
+    ? 'https://stayflow-tkto.onrender.com'
     : '');
 
 axios.defaults.baseURL = API_BASE_URL;
