@@ -113,11 +113,21 @@ const port = process.env.PORT || 3000;
 // Initialize Razorpay instance for order creation
 let razorpayInstance = null;
 if (config.razorpay.key_id && config.razorpay.key_secret) {
-    razorpayInstance = new Razorpay({
-        key_id: config.razorpay.key_id,
-        key_secret: config.razorpay.key_secret,
-    });
-    console.log('✅ Razorpay initialized for payment orders');
+    try {
+        razorpayInstance = new Razorpay({
+            key_id: config.razorpay.key_id,
+            key_secret: config.razorpay.key_secret,
+        });
+        console.log('✅ Razorpay initialized for payment orders');
+        console.log(`   Key ID: ${config.razorpay.key_id.substring(0, 15)}...`);
+        console.log(`   Secret: ${config.razorpay.key_secret.substring(0, 10)}... (length: ${config.razorpay.key_secret.length})`);
+    } catch (rzpInitErr) {
+        console.error('❌ Failed to initialize Razorpay:', rzpInitErr.message);
+    }
+} else {
+    console.warn('⚠️ Razorpay credentials not configured');
+    console.warn(`   Key ID: ${config.razorpay.key_id ? 'SET' : 'MISSING'}`);
+    console.warn(`   Secret: ${config.razorpay.key_secret ? 'SET' : 'MISSING'}`);
 }
 
 // ==================== SIMPLE IN-MEMORY CACHE FOR PAYMENT INFO ====================
@@ -241,8 +251,17 @@ app.post('/api/create-order', async (req, res) => {
     try {
         const { phone, name, room } = req.body;
 
+        // Enhanced logging for debugging
+        console.log(`[CREATE-ORDER] Request from ${phone}, Name: ${name}`);
+        console.log(`[CREATE-ORDER] Razorpay Key ID: ${config.razorpay.key_id ? config.razorpay.key_id.substring(0, 15) + '...' : 'NOT SET'}`);
+        console.log(`[CREATE-ORDER] Razorpay Secret: ${config.razorpay.key_secret ? 'SET (length: ' + config.razorpay.key_secret.length + ')' : 'NOT SET'}`);
+
         if (!razorpayInstance) {
-            return res.status(503).json({ error: 'Payment gateway not configured. Please contact admin.' });
+            console.error('[CREATE-ORDER] ❌ Razorpay instance not initialized');
+            return res.status(503).json({ 
+                error: 'Payment gateway not configured. Please contact admin.',
+                details: 'Razorpay credentials missing or invalid'
+            });
         }
 
         if (!phone) {
@@ -252,6 +271,7 @@ app.post('/api/create-order', async (req, res) => {
         // FETCH ACTUAL AMOUNT FROM SHEETS TO PREVENT "PAY ₹1" EXPLOIT
         const tenant = await sheetsService.getTenantByPhone(phone, name);
         if (!tenant) {
+            console.error(`[CREATE-ORDER] ❌ Tenant not found: ${phone}`);
             return res.status(404).json({ error: 'Resident record not found. Please contact admin.' });
         }
 
@@ -265,18 +285,36 @@ app.post('/api/create-order', async (req, res) => {
 
         const amountInPaise = Math.round(actualTotal * 100);
 
-        const order = await razorpayInstance.orders.create({
-            amount: amountInPaise,
-            currency: 'INR',
-            receipt: `SF-${phone.slice(-4)}-${Date.now().toString().slice(-6)}`,
-            notes: {
-                phone: phone,
-                tenant_name: tenant.get('Name') || 'Tenant',
-                room: tenant.get('Room') || 'N/A'
-            }
-        });
+        console.log(`[CREATE-ORDER] Creating order for ₹${actualTotal} (${amountInPaise} paise)`);
 
-        console.log(`[RAZORPAY ORDER] Created: ${order.id} for ${phone} | ₹${actualTotal}`);
+        let order;
+        try {
+            order = await razorpayInstance.orders.create({
+                amount: amountInPaise,
+                currency: 'INR',
+                receipt: `SF-${phone.slice(-4)}-${Date.now().toString().slice(-6)}`,
+                notes: {
+                    phone: phone,
+                    tenant_name: tenant.get('Name') || 'Tenant',
+                    room: tenant.get('Room') || 'N/A'
+                }
+            });
+        } catch (rzpErr) {
+            console.error('[CREATE-ORDER] ❌ Razorpay API Error:', rzpErr.message);
+            console.error('[CREATE-ORDER] Error details:', rzpErr.error || rzpErr);
+            
+            // Check if it's an authentication error
+            if (rzpErr.statusCode === 401 || rzpErr.message.includes('authentication') || rzpErr.message.includes('Authentication')) {
+                return res.status(401).json({ 
+                    error: 'Payment gateway authentication failed. Please contact admin.',
+                    details: 'Invalid Razorpay credentials. Admin needs to update RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET in Render environment variables.'
+                });
+            }
+            
+            throw rzpErr;
+        }
+
+        console.log(`[RAZORPAY ORDER] ✅ Created: ${order.id} for ${phone} | ₹${actualTotal}`);
 
         res.json({
             orderId: order.id,
@@ -285,7 +323,7 @@ app.post('/api/create-order', async (req, res) => {
             razorpayKeyId: config.razorpay.key_id
         });
     } catch (err) {
-        console.error('Create Order Error:', err.message);
+        console.error('[CREATE-ORDER] ❌ Error:', err.message);
         res.status(500).json({ error: 'Failed to create payment order: ' + err.message });
     }
 });
@@ -1854,6 +1892,24 @@ app.get('/api/config', authenticate, (req, res) => {
         ebDueDate: config.ebDueDate,
         ebUnitRate: config.ebUnitRate,
         googleFormUrl: config.googleFormUrl
+    });
+});
+
+// Diagnostic endpoint for Razorpay configuration (Admin only)
+app.get('/api/razorpay-status', authenticate, (req, res) => {
+    const keyIdSet = !!config.razorpay.key_id;
+    const keySecretSet = !!config.razorpay.key_secret;
+    const instanceInitialized = !!razorpayInstance;
+    
+    res.json({
+        configured: keyIdSet && keySecretSet,
+        keyId: keyIdSet ? config.razorpay.key_id.substring(0, 15) + '...' : 'NOT SET',
+        keySecretLength: keySecretSet ? config.razorpay.key_secret.length : 0,
+        instanceInitialized: instanceInitialized,
+        status: instanceInitialized ? 'READY' : 'NOT INITIALIZED',
+        message: instanceInitialized 
+            ? 'Razorpay is properly configured and ready to accept payments' 
+            : 'Razorpay credentials missing or invalid. Update RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET environment variables.'
     });
 });
 
