@@ -48,6 +48,13 @@ class SheetsService {
             return;
         }
 
+        // Reset if partially initialized
+        if (this.doc && !this.doc.title) {
+            console.log('[SHEETS] Resetting partially initialized doc');
+            this.doc = null;
+            this.sheet = null;
+        }
+
         if (!config.sheets.id) {
             throw new Error('GOOGLE_SHEET_ID is missing in the configuration.');
         }
@@ -113,14 +120,29 @@ class SheetsService {
 
         console.log('Initializing Google Sheets Service...');
         try {
+            if (!config.sheets.id) {
+                throw new Error('GOOGLE_SHEET_ID is missing');
+            }
+            
             this.doc = new GoogleSpreadsheet(config.sheets.id, serviceAccountAuth);
+            
+            if (!this.doc) {
+                throw new Error('Failed to create GoogleSpreadsheet instance');
+            }
+            
             console.log('[SHEETS] Created GoogleSpreadsheet instance, calling loadInfo...');
             await this.doc.loadInfo();
+            
+            if (!this.doc.title) {
+                throw new Error('doc.loadInfo() succeeded but doc.title is null');
+            }
+            
             console.log(`[SHEETS] ✅ Google Sheets Loaded Successfully: ${this.doc.title}`);
         } catch (err) {
             this.doc = null;
             this.sheet = null;
             console.error('[SHEETS] ❌ Google Sheets Init FAILED (loadInfo):', err.message);
+            console.error('[SHEETS] Stack:', err.stack);
             const errorMsg = `Google Sheets Init FAILED: ${err.message}`;
             if (err.message.includes('Signature') || err.message.includes('grant')) {
                 throw new Error(`Invalid JWT Connection: ${err.message}. Check service-account.json.`);
