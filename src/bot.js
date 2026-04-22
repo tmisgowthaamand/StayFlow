@@ -1292,6 +1292,17 @@ async function handleSmartPayment(phone, body) {
         return true;
     }
 
+    // ===== PRE-FILLED RAZORPAY CONFIRMATION FROM FRONTEND =====
+    if (clean.includes('PAID SUCCESSFULLY USING RAZORPAY')) {
+        const status = tenant.get('Status');
+        if (status === 'PAID') {
+            await sendMessage(phone, `✅ *Payment Confirmed!*\n\nThank you, ${tenant.get('Name')}! We have successfully received your payment.\n\nType *RECEIPT* to download your invoice PDF. 🙏`);
+        } else {
+            await sendMessage(phone, `✅ We received your payment notification.\n\nPlease allow a few moments for the system to update your status. If you haven't received your receipt yet, type *STATUS* to check or contact admin.`);
+        }
+        return true;
+    }
+
     // ===== "PAID TXNID" — Detect Transaction ID and verify =====
     const trxMatch = clean.match(/[A-Z0-9]{10,}/);
     if (trxMatch || clean.startsWith('PAYMENT_')) {
