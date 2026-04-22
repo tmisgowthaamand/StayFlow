@@ -8,7 +8,7 @@
     <meta name="description" content="Pay your PG rent securely via UPI, Card, or NetBanking on StayFlow.">
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap"
         rel="stylesheet">
-    <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+    <script src="https://checkout.razorpay.com/v1/checkout.js" defer></script>
     <style>
         :root {
             --primary: #6366f1;
@@ -774,21 +774,25 @@
                             const verifyData = await verifyRes.json();
 
                             if (verifyData.success) {
-                                // Redirect to confirmation page with payment details
-                                const confirmUrl = `/confirmation.html?phone=${encodeURIComponent(phone)}&razorpay_payment_id=${encodeURIComponent(response.razorpay_payment_id)}`;
-                                window.location.href = confirmUrl;
+                                // Redirect directly to WhatsApp with pre-filled message
+                                const cleanBotPhone = botNumber.replace(/\D/g, '');
+                                const msg = `Paid successfully using Razorpay`;
+                                const waUrl = `https://wa.me/${cleanBotPhone}?text=${encodeURIComponent(msg)}`;
+                                window.location.href = waUrl;
                             } else {
                                 paymentStatus.className = 'status-msg error';
                                 paymentStatus.innerHTML = '⚠️ Payment received but verification pending. Your invoice will be sent shortly via WhatsApp.';
                                 paymentStatus.style.display = 'block';
 
                                 setTimeout(() => {
-                                    window.location.href = `/confirmation.html?phone=${encodeURIComponent(phone)}&razorpay_payment_id=${encodeURIComponent(response.razorpay_payment_id)}`;
+                                    const cleanBotPhone = botNumber.replace(/\D/g, '');
+                                    window.location.href = `https://wa.me/${cleanBotPhone}?text=${encodeURIComponent('Paid successfully using Razorpay')}`;
                                 }, 3000);
                             }
                         } catch (verifyErr) {
                             // Even if verify API fails, payment is done. Redirect anyway.
-                            window.location.href = `/confirmation.html?phone=${encodeURIComponent(phone)}&razorpay_payment_id=${encodeURIComponent(response.razorpay_payment_id)}`;
+                            const cleanBotPhone = botNumber.replace(/\D/g, '');
+                            window.location.href = `https://wa.me/${cleanBotPhone}?text=${encodeURIComponent('Paid successfully using Razorpay')}`;
                         }
                     }
                 };
