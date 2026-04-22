@@ -454,7 +454,7 @@ app.post('/api/verify-transaction', async (req, res) => {
                 return res.json({
                     success: true,
                     message: 'Payment Verified',
-                    botNumber: config.ownerPhone || '917010905730',
+                    botNumber: '15551596475',
                     tenantPhone: phone,
                     tenantName: tName,
                     room: tRoom,
@@ -530,7 +530,7 @@ app.post('/api/verify-transaction', async (req, res) => {
                     } catch (e) { }
                 }
                 return res.json({
-                    success: true, botNumber: config.ownerPhone || '917010905730',
+                    success: true, botNumber: '15551596475',
                     tenantPhone: targetPhone, tenantName: tName, room: tRoom,
                     rent: tRent, eb: tEB, total: amount, trxId: finalTrxId,
                     paidDate: new Date().toLocaleDateString(), invoiceUrl,
@@ -575,7 +575,7 @@ app.post('/api/verify-transaction', async (req, res) => {
                             } catch (e) { }
                         }
                         return res.json({
-                            success: true, botNumber: config.ownerPhone || '917010905730',
+                            success: true, botNumber: '15551596475',
                             tenantPhone: targetPhone, tenantName: uTenant?.get('Name') || '',
                             room: uTenant?.get('Room') || 'N/A', rent: uTenant?.get('Monthly Rent') || '0',
                             eb: uTenant?.get('EB Amount') || '0', total: rzpAmount, trxId,
@@ -622,7 +622,7 @@ app.post('/api/verify-transaction', async (req, res) => {
                             } catch (e) { }
                         }
                         return res.json({
-                            success: true, botNumber: config.ownerPhone || '917010905730',
+                            success: true, botNumber: '15551596475',
                             tenantPhone: targetPhone, tenantName: lTenant?.get('Name') || '',
                             room: lTenant?.get('Room') || 'N/A', rent: lTenant?.get('Monthly Rent') || '0',
                             eb: lTenant?.get('EB Amount') || '0', total: linkAmount, trxId,
@@ -645,7 +645,7 @@ app.post('/api/verify-transaction', async (req, res) => {
             return res.json({
                 success: true,
                 message: 'Payment Verified',
-                botNumber: config.ownerPhone || '917010905730',
+                botNumber: '15551596475',
                 tenantPhone: phone, tenantName: fbName, room: fbRoom,
                 rent: fbRent, eb: fbEB, total: fbTotal, trxId,
                 paidDate: tenant.get('Paid Date') || new Date().toLocaleDateString()
@@ -656,7 +656,7 @@ app.post('/api/verify-transaction', async (req, res) => {
         res.status(404).json({
             success: false,
             error: 'Transaction ID not found. Please contact support.',
-            botNumber: config.ownerPhone || '917010905730'
+            botNumber: '15551596475'
         });
     } catch (err) {
         console.error('Verify Transaction Error:', err.message);

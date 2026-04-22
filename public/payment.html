@@ -636,8 +636,8 @@
         let razorpayKeyId = '';
 
         // Set WhatsApp back link
-        const cleanPhone = phone.replace(/\D/g, '');
-        document.getElementById('waBackLink').href = `https://wa.me/${cleanPhone || '15551569280'}`;
+        let botNumber = '15551596475';
+        document.getElementById('waBackLink').href = `https://wa.me/${botNumber}`;
 
         // ============ LOAD PAYMENT INFO ============
         async function loadPaymentInfo() {
@@ -655,6 +655,11 @@
 
                 tenantData = data;
                 razorpayKeyId = data.razorpayKeyId || '';
+
+                if (data.botNumber) {
+                    botNumber = data.botNumber.replace(/\D/g, '');
+                    document.getElementById('waBackLink').href = `https://wa.me/${botNumber}`;
+                }
 
                 // Populate UI
                 document.getElementById('tenantName').textContent = data.name || 'Tenant';

@@ -537,7 +537,7 @@
         const urlTrxId = rzpPaymentId || rzpRefId;
 
         // Default Bot Number
-        let botNumber = '15551569280';
+        let botNumber = '15551596475';
 
         // Set fallback WhatsApp link
         document.getElementById('waLinkFallback').href = `https://wa.me/${botNumber}`;
@@ -545,13 +545,13 @@
         // Build WhatsApp redirect URL to the bot's chat
         function buildWALink(tenantPhone, data) {
             const cleanBotPhone = botNumber.replace(/\D/g, '');
-            const msg = `✅ *UPI Payment Verified*\n\n` +
+            const msg = `✅ *Paid successfully using Razorpay*\n\n` +
                 `👤 Name: ${data.tenantName || 'Tenant'}\n` +
                 `🏠 Room: ${data.room || 'N/A'}\n` +
                 `💰 Total Paid: ₹${data.total || 0}\n` +
                 `🔖 TXN ID: ${data.trxId || 'N/A'}\n` +
                 `📅 Date: ${data.paidDate || new Date().toLocaleDateString()}\n\n` +
-                `📄 My invoice has been generated. Please send it to me.`;
+                `📄 I have successfully paid my bill via Razorpay.`;
             return `https://wa.me/${cleanBotPhone}?text=${encodeURIComponent(msg)}`;
         }
 
@@ -596,11 +596,12 @@
                 document.getElementById('downloadInvoiceBtn').style.display = 'none';
             }
 
-            // Build WhatsApp redirect link using tenant's phone number
-            const tenantPhone = data.tenantPhone || phone || botNumber;
+            // Build WhatsApp redirect link to the Bot's chat
+            const cleanBotPhone = botNumber.replace(/\D/g, '');
+            const tenantPhone = data.tenantPhone || phone;
             const waUrl = buildWALink(tenantPhone, data);
             document.getElementById('waRedirectBtn').href = waUrl;
-            document.getElementById('waLinkBottom').href = `https://wa.me/${(tenantPhone || botNumber).replace(/\D/g, '')}`;
+            document.getElementById('waLinkBottom').href = `https://wa.me/${cleanBotPhone}`;
 
             // Auto-redirect countdown
             let countdown = 5;

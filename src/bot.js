@@ -253,7 +253,6 @@ async function sendListMessage(to, headerText, bodyText, buttonText, sections) {
             payload,
             { headers: { Authorization: `Bearer ${config.whatsapp.token}` } }
         );
-        await sendMessage(to, fallbackMsg);
     } catch (err) {
         if (err.response?.data?.error?.code === 190) {
             console.error('\n\nCRITICAL ERROR: WHATSAPP_TOKEN HAS EXPIRED! Meta API returned 190.\n');
