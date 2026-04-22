@@ -1295,8 +1295,38 @@ async function handleSmartPayment(phone, body) {
     // ===== PRE-FILLED RAZORPAY CONFIRMATION FROM FRONTEND =====
     if (clean.includes('PAID SUCCESSFULLY USING RAZORPAY')) {
         const status = tenant.get('Status');
-        if (status === 'PAID') {
-            await sendMessage(phone, `✅ *Payment Confirmed!*\n\nThank you, ${tenant.get('Name')}! We have successfully received your payment.\n\nType *RECEIPT* to download your invoice PDF. 🙏`);
+        if (status === 'PAID' || status === 'VALID') {
+            // User has already paid - send them the invoice PDF immediately
+            const name = tenant.get('Name');
+            const room = tenant.get('Room') || 'N/A';
+            const rent = parseFloat((tenant.get('Monthly Rent') || '0').toString().replace(/[^\d.]/g, ''));
+            const eb = parseFloat((tenant.get('EB Amount') || '0').toString().replace(/[^\d.]/g, ''));
+            const total = rent + eb;
+            const trxId = tenant.get('Transaction ID') || 'N/A';
+            const paidDate = tenant.get('Paid Date') || new Date().toLocaleDateString();
+            const paymentMode = tenant.get('Payment Mode') || 'UPI (Razorpay)';
+
+            // Generate and send invoice PDF
+            try {
+                const { filePath } = await pdfService.generateInvoice({
+                    Name: name,
+                    Phone: phone,
+                    Room: room,
+                    EB_Amount: eb.toString(),
+                    Monthly_Rent: rent.toString(),
+                    Total_Amount: total.toString(),
+                    Paid_Date: paidDate,
+                    Transaction_ID: trxId,
+                    Payment_Mode: paymentMode,
+                    UPI_ID: tenant.get('UPI ID') || ''
+                });
+
+                await sendMessage(phone, `✅ *Payment Confirmed!*\n\nThank you, ${name}! 🎉\n\n📋 *Payment Details:*\n🏠 Rent: ₹${rent}\n⚡ EB: ₹${eb}\n💰 *Total: ₹${total}*\n\n💳 Mode: ${paymentMode}\n🔖 TXN ID: ${trxId}\n📅 Date: ${paidDate}\n\nYour invoice is attached below. 👇`);
+                await sendMedia(phone, filePath, '📄 Your payment receipt', null, 'StayFlow_Invoice.pdf');
+            } catch (err) {
+                console.error('Error generating invoice:', err.message);
+                await sendMessage(phone, `✅ *Payment Confirmed!*\n\nThank you, ${name}! We have successfully received your payment.\n\nType *RECEIPT* to download your invoice PDF. 🙏`);
+            }
         } else {
             await sendMessage(phone, `✅ We received your payment notification.\n\nPlease allow a few moments for the system to update your status. If you haven't received your receipt yet, type *STATUS* to check or contact admin.`);
         }
