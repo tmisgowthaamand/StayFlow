@@ -191,6 +191,9 @@ async function sendMessage(to, text) {
             } catch (templateErr) {
                 console.error(`[Template] Also failed:`, templateErr.response?.data || templateErr.message);
             }
+        } else if (errorCode === 190) {
+            console.error('\n\nCRITICAL ERROR: WHATSAPP_TOKEN HAS EXPIRED! Please generate a Permanent Access Token in Meta Developer Console.\n');
+            logToFile(`CRITICAL: WhatsApp Token Expired (OAuthException 190). Message to ${cleanTo} failed.`);
         } else {
             logToFile(`Error sending message to ${cleanTo}: ${err.response ? JSON.stringify(err.response.data) : err.message}`);
         }
@@ -220,6 +223,9 @@ async function sendButtons(to, text, buttons) {
             { headers: { Authorization: `Bearer ${config.whatsapp.token}` } }
         );
     } catch (err) {
+        if (err.response?.data?.error?.code === 190) {
+            console.error('\n\nCRITICAL ERROR: WHATSAPP_TOKEN HAS EXPIRED! Meta API returned 190.\n');
+        }
         console.error('Error sending buttons:', err.response ? err.response.data : err.message);
     }
 }
@@ -247,7 +253,11 @@ async function sendListMessage(to, headerText, bodyText, buttonText, sections) {
             payload,
             { headers: { Authorization: `Bearer ${config.whatsapp.token}` } }
         );
+        await sendMessage(to, fallbackMsg);
     } catch (err) {
+        if (err.response?.data?.error?.code === 190) {
+            console.error('\n\nCRITICAL ERROR: WHATSAPP_TOKEN HAS EXPIRED! Meta API returned 190.\n');
+        }
         console.error('Error sending list message:', err.response ? JSON.stringify(err.response.data) : err.message);
         // Fallback: send as plain text
         let fallbackMsg = `${headerText}\n\n${bodyText}\n\n`;
@@ -528,6 +538,9 @@ async function uploadMedia(filePath) {
         console.log(`Media uploaded successfully, ID: ${response.data.id}`);
         return response.data.id;
     } catch (err) {
+        if (err.response?.data?.error?.code === 190) {
+            console.error('\n\nCRITICAL ERROR: WHATSAPP_TOKEN HAS EXPIRED! Meta API returned 190.\n');
+        }
         console.error('Error uploading media:', err.response ? err.response.data : err.message);
         return null;
     }

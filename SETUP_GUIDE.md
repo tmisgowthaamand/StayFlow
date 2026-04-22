@@ -46,7 +46,8 @@ Open the downloaded JSON file:
 2. Create a **Business App**.
 3. Add the **WhatsApp** product to your app.
 4. Go to **WhatsApp > API Setup**.
-5. Copy your **Phone Number ID** and **Access Token**.
+5. Copy your **Phone Number ID**.
+6. **IMPORTANT**: Instead of the temporary token, generate a **Permanent Access Token** via **Meta Business Settings > System Users**. (See `fix_whatsapp_token.md` for full steps).
 
 ### 2. Generate Verify Token
 A "Verify Token" is just a secret password you create so Meta can trust your server.
