@@ -143,6 +143,7 @@ const App = () => {
   const [archivedTenants, setArchivedTenants] = useState([]);
   const [syncing, setSyncing] = useState(false);
   const [configData, setConfigData] = useState(null);
+  const [locationsData, setLocationsData] = useState([]);
   const [bulkEB, setBulkEB] = useState({});  // { phone: newEBValue }
   const [billingLoading, setBillingLoading] = useState(false);
   const [billingProgress, setBillingProgress] = useState({ current: 0, total: 0, status: '' });
@@ -158,7 +159,17 @@ const App = () => {
     fetchData();
     fetchArchivedData();
     fetchConfig();
+    fetchLocations();
   }, []);
+
+  const fetchLocations = async () => {
+    try {
+      const res = await axios.get('/api/locations');
+      setLocationsData(res.data);
+    } catch (err) {
+      console.error('Error fetching locations:', err);
+    }
+  };
 
   const fetchConfig = async () => {
     try {
@@ -342,15 +353,12 @@ const App = () => {
   const unpaidCount = activeTenants.filter(t => t.Status === 'ACTIVE' || !t.Status).length;
   const totalRevenue = filteredData.filter(t => t.Status === 'PAID' || t.Status === 'VALID').reduce((sum, t) => sum + parseFloat(t['Total Amount'] || 0), 0);
 
-  const totalBeds = activeTenants.reduce((sum, t) => {
-    const type = t['Sharing Type'] || '';
-    if (type.includes('One')) return sum + 1;
-    if (type.includes('Two')) return sum + 2;
-    if (type.includes('Three')) return sum + 3;
-    if (type.includes('Four')) return sum + 4;
-    return sum + 1;
-  }, 0);
-  const vacantBeds = totalBeds - activeTenants.length;
+  const _targetLocations = currentLocation === 'All' 
+    ? locationsData 
+    : locationsData.filter(l => l.name === currentLocation);
+  
+  const totalBeds = _targetLocations.reduce((sum, l) => sum + parseInt(l.totalBeds || 0), 0);
+  const vacantBeds = Math.max(0, totalBeds - activeTenants.length);
 
   const stats = [
     { label: 'Residents', value: activeTenants.length, icon: Users, color: '#6366f1', bg: 'rgba(99, 102, 241, 0.1)' },

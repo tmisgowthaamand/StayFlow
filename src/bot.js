@@ -767,7 +767,7 @@ async function handleIncomingMessage(phone, body, messageId = null, image = null
                 }
                 mainMenuRows.push(
                     { id: 'menu_rent', title: '🏠 Rent', description: 'View rent details & bill' },
-                    { id: 'menu_pay', title: '💳 Pay via Razorpay', description: 'Pay your bill securely' },
+                    { id: 'menu_pay', title: '💳 Pay Bills', description: 'Pay via Razorpay or Cash' },
                     { id: 'menu_eb_bill', title: '⚡ EB Bill', description: 'View electricity bill' },
                     { id: 'menu_statements', title: '📜 Statements', description: 'Monthly payment statements' },
                     { id: 'menu_queries', title: '❓ Queries', description: 'Submit a query or complaint' }
@@ -836,6 +836,30 @@ async function handleIncomingMessage(phone, body, messageId = null, image = null
 
             // Pay (from list)
             case 'MENU_PAY':
+            case '💳 PAY BILLS': {
+                const tenantPay = await sheetsService.getTenantByPhone(phone);
+                if (!tenantPay || tenantPay.get('Status') === 'VACATED') {
+                    await sendMessage(phone, "You're not registered. Type *HI* to start.");
+                    break;
+                }
+                const rentAmt = parseFloat(tenantPay.get('Monthly Rent') || 0);
+                const ebAmt = parseFloat(tenantPay.get('EB Amount') || 0);
+                const totalAmt = rentAmt + ebAmt;
+                const status = tenantPay.get('Status') || 'PENDING';
+
+                const isVerified = status === 'PAID' || status === 'VALID';
+                let payMsg = `💰 *Payment Options*\n\n🏠 Rent: ₹${rentAmt}\n⚡ EB: ₹${ebAmt}\n━━━━━━━━━━━━━━━━━━━━\n💵 *Total Due: ₹${totalAmt}*\n\n${isVerified ? '✅ *Payment Status: VALID*' : 'Please select your preferred payment method below 👇'}`;
+
+                if (!isVerified) {
+                    await sendButtons(phone, payMsg, ['💳 Pay via Razorpay', '💵 Pay Cash', '❌ Cancel']);
+                    await updateSession(phone, { step: 'PAYMENT_METHOD', contextName: tenantPay.get('Name') });
+                } else {
+                    await sendButtons(phone, payMsg, ['📞 Contact']);
+                }
+                break;
+            }
+
+            // Quick Reply button
             case '💳 PAY VIA RAZORPAY': {
                 // Trigger the PAID command logic
                 const tenantPay = await sheetsService.getTenantByPhone(phone);
@@ -1487,14 +1511,15 @@ async function handleMenuVacancy(phone) {
         if (locations && locations.length > 0) {
             locations.forEach(loc => {
                 const locName = loc.name || loc.get?.('Name') || 'Location';
-                const totalRooms = parseInt(loc.totalRooms || loc.get?.('Total Rooms') || 0);
+                const totalBeds = parseInt(loc.totalBeds || loc.get?.('Total Beds') || 0);
                 const locTenants = tenants.filter(t => {
-                    const tLoc = t.get('Location') || '';
-                    return tLoc === locName && t.get('Status') !== 'VACATED';
+                    const tLoc = t.get('Location') || 'Main Branch';
+                    const targetLoc = locName === 'Location' ? 'Main Branch' : locName;
+                    return tLoc.toLowerCase() === targetLoc.toLowerCase() && t.get('Status') !== 'VACATED';
                 });
-                const occupied = locTenants.length;
-                const available = Math.max(0, totalRooms - occupied);
-                vacancyMsg += `📍 *${locName}*\n   Total Rooms: ${totalRooms}\n   Occupied: ${occupied}\n   🟢 Available: ${available}\n\n`;
+                const occupiedBeds = locTenants.length;
+                const availableBeds = Math.max(0, totalBeds - occupiedBeds);
+                vacancyMsg += `📍 *${locName}*\n   🛏️ Total Beds: ${totalBeds}\n   👤 Occupied: ${occupiedBeds}\n   🟢 Vacant: ${availableBeds}\n\n`;
             });
         } else {
             const totalActive = tenants.filter(t => t.get('Status') !== 'VACATED').length;
@@ -1522,7 +1547,7 @@ async function handleMenuRefer(phone) {
     await sendCTAButton(
         phone,
         referMsg,
-        '📤 Share Registration Link',
+        '📤 Share Link',
         referLink,
         '👥 Refer a Friend'
     );
