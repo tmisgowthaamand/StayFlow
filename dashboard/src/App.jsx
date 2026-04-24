@@ -329,6 +329,30 @@ const App = () => {
     }
   };
 
+  const handleCustomMessage = (tenant) => {
+    setActionPanel({
+      type: 'custom_message',
+      title: `Message to ${tenant.Name}`,
+      data: tenant,
+      input: '',
+      input2: '',
+      onConfirm: async (message) => {
+        if (!message || !message.trim()) return showToast('Please enter a message', 'error');
+        try {
+          await axios.post('/api/announcement', {
+            message: message.trim(),
+            phone: tenant.Phone,
+            name: tenant.Name,
+          });
+          showToast(`Message sent to ${tenant.Name}!`);
+          setActionPanel(null);
+        } catch (err) {
+          showToast('Failed to send: ' + (err.response?.data?.error || err.message), 'error');
+        }
+      }
+    });
+  };
+
   const handleRecordPayment = (tenant) => {
     const rent = parseFloat(tenant['Monthly Rent'] || 0);
     const eb = parseFloat(tenant['EB Amount'] || 0);
@@ -798,6 +822,7 @@ const App = () => {
                   </td>
                   <td>
                     <div style={{ display: 'flex', gap: 4 }}>
+                      <button className="btn btn-glass btn-small" onClick={() => handleCustomMessage(t)} title="Send Custom Message" style={{ padding: '5px 8px', color: 'var(--primary)' }}><Send size={13} /></button>
                       <button className="btn btn-glass btn-small" onClick={() => handleDownloadReceipt(t)} title="Download Receipt" style={{ padding: '5px 8px' }}><CreditCard size={13} /></button>
                       <button className="btn btn-glass btn-small" onClick={() => handleNotifyIndividual(t)} title="Send Bill" style={{ padding: '5px 8px' }}><Bell size={13} /></button>
                       {t.Status !== 'PAID' && t.Status !== 'VALID' && (
@@ -1512,16 +1537,13 @@ const App = () => {
                       value={actionPanel.input}
                       onChange={e => setActionPanel({ ...actionPanel, input: e.target.value })}
                       autoFocus
-                      style={{ width: '100%', padding: '12px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--glass-border)', borderRadius: '12px', color: 'white' }}
                     />
                   </div>
-                  <div className="input-group" style={{ marginTop: 24 }}>
+                  <div className="input-group" style={{ marginTop: 16 }}>
                     <label>Payment Mode</label>
                     <select
-                      className="custom-select"
                       value={actionPanel.input2}
                       onChange={e => setActionPanel({ ...actionPanel, input2: e.target.value })}
-                      style={{ width: '100%', padding: 12, borderRadius: 12, background: 'rgba(255,255,255,0.05)', color: 'white', border: '1px solid var(--glass-border)' }}
                     >
                       <option value="CASH">Cash Payment</option>
                       <option value="UPI">UPI / GPay</option>
@@ -1529,16 +1551,49 @@ const App = () => {
                       <option value="BANK">Bank Transfer</option>
                     </select>
                   </div>
-                  <div style={{ marginTop: 30, background: 'rgba(255,255,255,0.03)', padding: 16, borderRadius: 12, border: '1px solid var(--glass-border)' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8, fontSize: '0.85rem' }}>
+                  <div style={{ marginTop: 20, background: 'rgba(255,255,255,0.03)', padding: 14, borderRadius: 'var(--radius-s)', border: '1px solid var(--glass-border)' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6, fontSize: '0.82rem' }}>
                       <span style={{ color: 'var(--text-dim)' }}>Resident:</span>
                       <span style={{ fontWeight: 600 }}>{actionPanel.data?.Name}</span>
                     </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.82rem' }}>
                       <span style={{ color: 'var(--text-dim)' }}>Room:</span>
                       <span style={{ fontWeight: 600 }}>{actionPanel.data?.Room}</span>
                     </div>
                   </div>
+                </div>
+              )}
+
+              {actionPanel.type === 'custom_message' && (
+                <div style={{ padding: '20px 0' }}>
+                  <div style={{ background: 'rgba(255,255,255,0.03)', padding: 14, borderRadius: 'var(--radius-s)', border: '1px solid var(--glass-border)', marginBottom: 16 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6, fontSize: '0.82rem' }}>
+                      <span style={{ color: 'var(--text-dim)' }}>To:</span>
+                      <span style={{ fontWeight: 600 }}>{actionPanel.data?.Name}</span>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.82rem' }}>
+                      <span style={{ color: 'var(--text-dim)' }}>Phone:</span>
+                      <span style={{ fontWeight: 600 }}>{actionPanel.data?.Phone}</span>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.82rem', marginTop: 6 }}>
+                      <span style={{ color: 'var(--text-dim)' }}>Room:</span>
+                      <span style={{ fontWeight: 600 }}>{actionPanel.data?.Room}</span>
+                    </div>
+                  </div>
+                  <div className="input-group">
+                    <label>Message</label>
+                    <textarea
+                      rows="5"
+                      placeholder="Type your message here..."
+                      value={actionPanel.input}
+                      onChange={e => setActionPanel({ ...actionPanel, input: e.target.value })}
+                      autoFocus
+                      style={{ resize: 'vertical' }}
+                    />
+                  </div>
+                  <p style={{ fontSize: '0.72rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <Send size={10} /> Message will be sent via WhatsApp
+                  </p>
                 </div>
               )}
             </div>
@@ -1546,12 +1601,16 @@ const App = () => {
             <div style={{ padding: 24, display: 'flex', gap: 12, borderTop: '1px solid var(--glass-border)', background: 'rgba(255,255,255,0.02)' }}>
               <button
                 className={`btn ${actionPanel.title.includes('Delete') ? 'btn-accent' : 'btn-primary'}`}
-                style={{ flex: 2, background: actionPanel.title.includes('Delete') ? 'var(--accent)' : 'var(--secondary)', color: 'white', height: '48px', fontWeight: 600 }}
+                style={{
+                  flex: 2, height: '44px', fontWeight: 600, justifyContent: 'center',
+                  background: actionPanel.title.includes('Delete') ? 'var(--accent)' : actionPanel.type === 'custom_message' ? 'var(--primary)' : 'var(--secondary)',
+                  color: 'white',
+                }}
                 onClick={() => actionPanel.onConfirm(actionPanel.input, actionPanel.input2)}
               >
-                Confirm
+                {actionPanel.type === 'custom_message' ? <><Send size={14} /> Send Message</> : 'Confirm'}
               </button>
-              <button className="btn btn-glass" style={{ flex: 1, height: '48px' }} onClick={() => setActionPanel(null)}>Cancel</button>
+              <button className="btn btn-glass" style={{ flex: 1, height: '44px' }} onClick={() => setActionPanel(null)}>Cancel</button>
             </div>
           </motion.div>
         </div>
