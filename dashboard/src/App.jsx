@@ -1809,7 +1809,7 @@ const App = () => {
                   onChange={(e) => setRememberMe(e.target.checked)}
                   style={{ width: 16, height: 16, accentColor: '#6366f1', cursor: 'pointer', borderRadius: 4 }}
                 />
-                Remember for 30 days
+                Remember me
               </label>
               <span style={{ fontSize: '0.8rem', color: '#6366f1', fontWeight: 600, cursor: 'pointer' }}>Forgot password</span>
             </div>
