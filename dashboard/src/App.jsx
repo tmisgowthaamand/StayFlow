@@ -190,18 +190,41 @@ const App = () => {
 
       if (selectedTenant) {
         // --- EDIT MODE ---
+        const newStatus = editData.Status !== undefined ? editData.Status : selectedTenant.Status;
+        const oldStatus = selectedTenant.Status;
+        const paymentMode = editData['Payment Mode'] !== undefined ? editData['Payment Mode'] : (selectedTenant['Payment Mode'] || 'CASH');
+        const resolvedName = editData.Name !== undefined ? editData.Name : selectedTenant.Name;
+        const resolvedPhone = editData.Phone !== undefined ? editData.Phone : selectedTenant.Phone;
+        const resolvedRent = editData['Monthly Rent'] !== undefined ? editData['Monthly Rent'] : selectedTenant['Monthly Rent'];
+        const resolvedEB = (editData['EB Amount'] !== undefined ? editData['EB Amount'] : selectedTenant['EB Amount']) || '0';
+
         const payload = {
           oldPhone: selectedTenant.Phone,
           oldName: selectedTenant.Name,
-          newPhone: editData.Phone !== undefined ? editData.Phone : selectedTenant.Phone,
-          name: editData.Name !== undefined ? editData.Name : selectedTenant.Name,
-          rent: editData['Monthly Rent'] !== undefined ? editData['Monthly Rent'] : selectedTenant['Monthly Rent'],
-          eb: (editData['EB Amount'] !== undefined ? editData['EB Amount'] : selectedTenant['EB Amount']) || '0',
+          newPhone: resolvedPhone,
+          name: resolvedName,
+          rent: resolvedRent,
+          eb: resolvedEB,
           sharingType: editData['Sharing Type'] !== undefined ? editData['Sharing Type'] : selectedTenant['Sharing Type'],
-          location: editData.Location !== undefined ? editData.Location : selectedTenant.Location
+          location: editData.Location !== undefined ? editData.Location : selectedTenant.Location,
+          room: editData.Room !== undefined ? editData.Room : selectedTenant.Room,
+          status: newStatus,
         };
         await axios.post('/api/update-and-notify', payload);
         targetPhone = payload.newPhone;
+
+        // If status changed to PAID/VALID from non-paid, call mark-paid for proper payment recording
+        const wasPaid = oldStatus === 'PAID' || oldStatus === 'VALID';
+        const nowPaid = newStatus === 'PAID' || newStatus === 'VALID';
+        if (nowPaid && !wasPaid) {
+          const totalAmount = parseFloat(resolvedRent || 0) + parseFloat(resolvedEB || 0);
+          await axios.post('/api/mark-paid', {
+            phone: resolvedPhone,
+            name: resolvedName,
+            amount: totalAmount.toString(),
+            mode: paymentMode,
+          });
+        }
       } else {
         // --- ADD MODE ---
         if (!editData.Phone || !editData.Name) return alert("Name and Phone are required");
@@ -231,6 +254,7 @@ const App = () => {
       showToast(selectedTenant ? 'Resident updated successfully!' : 'New Resident added successfully!');
       setShowModal(false);
       setEditData({});
+      setSelectedTenant(null);
       fetchData();
     } catch (err) {
       console.error(err);
@@ -361,12 +385,13 @@ const App = () => {
   const occupiedBeds = _targetLocations.reduce((sum, l) => sum + parseInt(l.occupiedBeds || 0), 0);
   const vacantBeds = Math.max(0, totalBeds - occupiedBeds);
 
+  const uniqueRooms = [...new Set(tenants.map(t => t.Room).filter(Boolean))];
   const stats = [
-    { label: 'Residents', value: activeTenants.length, icon: Users, color: '#6366f1', bg: 'rgba(99, 102, 241, 0.1)' },
-    { label: 'Collection', value: `₹${totalRevenue.toLocaleString()}`, icon: Wallet, color: '#10b981', bg: 'rgba(16, 185, 129, 0.1)' },
-    { label: 'Pending Verif', value: pendingCount, icon: Clock, color: '#f59e0b', bg: 'rgba(245, 158, 11, 0.1)' },
-    { label: 'Unpaid', value: unpaidCount, icon: Clock, color: '#f43f5e', bg: 'rgba(244, 63, 94, 0.1)' },
-    { label: 'Vacant Beds', value: vacantBeds > 0 ? vacantBeds : 'Full', icon: MapPin, color: '#10b981', bg: 'rgba(16, 185, 129, 0.1)' },
+    { label: 'Residents', value: activeTenants.length, icon: Users, color: '#6366f1', bg: 'rgba(99, 102, 241, 0.08)' },
+    { label: 'Collection', value: `₹${totalRevenue.toLocaleString()}`, icon: Wallet, color: '#10b981', bg: 'rgba(16, 185, 129, 0.08)' },
+    { label: 'Pending Verif', value: pendingCount, icon: Clock, color: '#f59e0b', bg: 'rgba(245, 158, 11, 0.08)' },
+    { label: 'Unpaid', value: unpaidCount, icon: AlertCircle, color: '#f43f5e', bg: 'rgba(244, 63, 94, 0.08)' },
+    { label: 'Vacant Beds', value: vacantBeds > 0 ? vacantBeds : 'Full', icon: MapPin, color: '#10b981', bg: 'rgba(16, 185, 129, 0.08)' },
   ];
 
   const chartData = [
@@ -502,159 +527,158 @@ const App = () => {
     }
   };
 
-  const renderDashboard = () => (
-    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.4 }}>
-      <motion.div
-        className="stats-grid"
-        variants={{
-          hidden: { opacity: 0 },
-          show: {
-            opacity: 1,
-            transition: {
-              staggerChildren: 0.1
-            }
-          }
-        }}
-        initial="hidden"
-        animate="show"
-      >
-        {stats.map((stat, idx) => (
-          <SpotlightCard
-            key={idx}
-            variants={{
-              hidden: { opacity: 0, y: 20 },
-              show: { opacity: 1, y: 0 }
-            }}
-          >
-            <div className={`stat-icon-wrap`} style={{ backgroundColor: stat.bg, color: stat.color }}>
-              <stat.icon size={22} className="floating" />
-            </div>
-            <p className="stat-label">{stat.label}</p>
-            <p className="stat-value">{stat.value}</p>
-          </SpotlightCard>
-        ))}
-      </motion.div>
+  const renderDashboard = () => {
+    const unpaidTenants = activeTenants.filter(t => t.Status !== 'PAID' && t.Status !== 'VALID');
+    const paidTenants = activeTenants.filter(t => t.Status === 'PAID' || t.Status === 'VALID');
+    const collectionRate = activeTenants.length > 0 ? Math.round((paidTenants.length / activeTenants.length) * 100) : 0;
 
-      <div className="content-grid">
-        <div className="panel">
-          <div className="panel-header">
-            <h3 className="panel-title">Recent Activity</h3>
-            <ShinyButton className="btn-small" onClick={handleNotifyAll}>
-              <Bell size={16} /> Notify All
-            </ShinyButton>
-          </div>
-          <div className="table-scroll">
-            <table className="custom-table">
-              <thead>
-                <tr>
-                  <th>Resident</th>
-                  <th>Room</th>
-                  <th>Rent/EB</th>
-                  <th>Status</th>
-                </tr>
-              </thead>
-              <motion.tbody
-                initial="hidden"
-                animate="show"
-                variants={{
-                  hidden: { opacity: 0 },
-                  show: {
-                    opacity: 1,
-                    transition: { staggerChildren: 0.05 }
-                  }
-                }}
-              >
-                {activeTenants.slice(0, 6).map((t, i) => (
-                  <motion.tr
-                    key={i}
-                    className="table-row"
-                    variants={{
-                      hidden: { opacity: 0, x: -10 },
-                      show: { opacity: 1, x: 0 }
-                    }}
-                    whileHover={{ x: 4, backgroundColor: 'rgba(255,255,255,0.04)' }}
-                  >
-                    <td>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                        <div style={{ width: 32, height: 32, borderRadius: 8, background: 'var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold' }}>{t.Name[0]}</div>
-                        <span style={{ fontWeight: 600 }}>{t.Name}</span>
-                      </div>
-                    </td>
-                    <td>{t.Room}</td>
-                    <td>₹{t['Monthly Rent']} / ₹{t['EB Amount']}</td>
-                    <td>
-                      <span className={`status-badge ${t.Status.toLowerCase()}`}>
-                        {(t.Status === 'PAID' || t.Status === 'VALID') ? <CheckCircle size={12} /> : <Clock size={12} />}
-                        {t.Status}
-                      </span>
-                    </td>
-                  </motion.tr>
-                ))}
-              </motion.tbody>
-            </table>
-          </div>
-        </div>
-
-        <div className="panel" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-          <h3 className="panel-title" style={{ alignSelf: 'flex-start', marginBottom: 30 }}>Payment Status</h3>
-          <ResponsiveContainer width="100%" height={240}>
-            <PieChart>
-              <Pie
-                data={chartData}
-                innerRadius={60}
-                outerRadius={90}
-                paddingAngle={5}
-                dataKey="value"
-              >
-                {chartData.map((entry, index) => (
-                  <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                ))}
-              </Pie>
-              <Tooltip />
-            </PieChart>
-          </ResponsiveContainer>
-          <div style={{ display: 'flex', gap: 20, marginTop: 20 }}>
-            {chartData.map((d, i) => (
-              <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <div style={{ width: 10, height: 10, borderRadius: '50%', background: COLORS[i] }}></div>
-                <span style={{ color: 'var(--text-dim)', fontSize: '0.8rem', fontWeight: 600 }}>{d.name}: {d.value}</span>
+    return (
+      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.3 }}>
+        {/* Stats Grid - 5 cards aligned */}
+        <div className="stats-grid">
+          {stats.map((stat, idx) => (
+            <SpotlightCard key={idx}>
+              <div className="stat-icon-wrap" style={{ backgroundColor: stat.bg, color: stat.color }}>
+                <stat.icon size={20} />
               </div>
-            ))}
+              <p className="stat-label">{stat.label}</p>
+              <p className="stat-value">{stat.value}</p>
+            </SpotlightCard>
+          ))}
+        </div>
+
+        {/* Main Content */}
+        <div className="content-grid">
+          {/* Recent Activity Table */}
+          <div className="panel">
+            <div className="panel-header">
+              <h3 className="panel-title">Recent Activity</h3>
+              <ShinyButton className="btn-small" onClick={handleNotifyAll}>
+                <Bell size={14} /> Notify All
+              </ShinyButton>
+            </div>
+            <div className="table-scroll">
+              <table className="custom-table">
+                <thead>
+                  <tr>
+                    <th>Resident</th>
+                    <th>Room</th>
+                    <th>Rent / EB</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {activeTenants.slice(0, 8).map((t, i) => (
+                    <tr key={i} className="table-row">
+                      <td>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                          <div style={{
+                            width: 30, height: 30, borderRadius: 8,
+                            background: (t.Status === 'PAID' || t.Status === 'VALID') ? 'var(--secondary-soft)' : 'var(--primary-soft)',
+                            color: (t.Status === 'PAID' || t.Status === 'VALID') ? 'var(--secondary)' : 'var(--primary)',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            fontWeight: 700, fontSize: '0.75rem'
+                          }}>{t.Name?.[0] || '?'}</div>
+                          <span style={{ fontWeight: 600, fontSize: '0.85rem' }}>{t.Name}</span>
+                        </div>
+                      </td>
+                      <td><span style={{ background: 'var(--primary-soft)', color: 'var(--primary)', padding: '3px 8px', borderRadius: 6, fontSize: '0.78rem', fontWeight: 600 }}>{t.Room}</span></td>
+                      <td style={{ fontSize: '0.82rem', color: 'var(--text-dim)' }}>₹{t['Monthly Rent']} / ₹{t['EB Amount'] || '0'}</td>
+                      <td>
+                        <span className={`status-badge ${(t.Status || 'active').toLowerCase()}`}>
+                          {(t.Status === 'PAID' || t.Status === 'VALID') ? <CheckCircle size={10} /> : <Clock size={10} />}
+                          {t.Status || 'ACTIVE'}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* Right Panel - Payment Overview */}
+          <div className="panel" style={{ display: 'flex', flexDirection: 'column' }}>
+            <h3 className="panel-title" style={{ marginBottom: 20 }}>Payment Status</h3>
+            <ResponsiveContainer width="100%" height={200}>
+              <PieChart>
+                <Pie data={chartData} innerRadius={55} outerRadius={80} paddingAngle={4} dataKey="value" strokeWidth={0}>
+                  {chartData.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                  ))}
+                </Pie>
+                <Tooltip contentStyle={{ background: 'var(--bg-elevated)', border: '1px solid var(--glass-border)', borderRadius: 8, fontSize: '0.8rem' }} />
+              </PieChart>
+            </ResponsiveContainer>
+            <div style={{ display: 'flex', justifyContent: 'center', gap: 20, marginTop: 12 }}>
+              {chartData.map((d, i) => (
+                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <div style={{ width: 8, height: 8, borderRadius: '50%', background: COLORS[i] }} />
+                  <span style={{ color: 'var(--text-dim)', fontSize: '0.78rem', fontWeight: 600 }}>{d.name}: {d.value}</span>
+                </div>
+              ))}
+            </div>
+
+            {/* Collection Rate */}
+            <div style={{ marginTop: 20, padding: 16, background: 'rgba(255,255,255,0.02)', borderRadius: 12, border: '1px solid var(--glass-border)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
+                <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.8px' }}>Collection Rate</span>
+                <span style={{ fontSize: '0.85rem', fontWeight: 700, color: collectionRate >= 80 ? 'var(--secondary)' : collectionRate >= 50 ? 'var(--warning)' : 'var(--accent)' }}>{collectionRate}%</span>
+              </div>
+              <div style={{ height: 6, background: 'rgba(255,255,255,0.05)', borderRadius: 3, overflow: 'hidden' }}>
+                <div style={{ height: '100%', width: `${collectionRate}%`, background: collectionRate >= 80 ? 'var(--secondary)' : collectionRate >= 50 ? 'var(--warning)' : 'var(--accent)', borderRadius: 3, transition: 'width 0.5s ease' }} />
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 12, fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                <span>Total Rooms: {uniqueRooms.length}</span>
+                <span>{paidTenants.length}/{activeTenants.length} Paid</span>
+              </div>
+            </div>
           </div>
         </div>
-      </div>
-    </motion.div>
-  );
+      </motion.div>
+    );
+  };
 
   const renderTenants = () => {
-    const filteredTenants = tenants.filter(t =>
+    const membersList = filteredData.filter(t =>
       t.Name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       t.Room.toLowerCase().includes(searchQuery.toLowerCase()) ||
       t.Phone.includes(searchQuery)
     );
 
     return (
-      <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="panel">
-        <div className="panel-header" style={{ flexWrap: 'wrap', gap: 16 }}>
+      <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="panel">
+        <div className="panel-header" style={{ flexWrap: 'wrap', gap: 12 }}>
           <h3 className="panel-title">Resident Directory</h3>
-          <div style={{ display: 'flex', gap: 12, flex: 1, justifyContent: 'flex-end' }}>
-            <div className="input-group" style={{ marginBottom: 0, width: '100%', maxWidth: 300 }}>
-              <div style={{ position: 'relative' }}>
-                <Search size={18} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-dim)' }} />
-                <input
-                  type="text"
-                  placeholder="Search name, room, phone..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  style={{ paddingLeft: 40, width: '100%' }}
-                />
-              </div>
+          <div style={{ display: 'flex', gap: 10, alignItems: 'center', flex: 1, justifyContent: 'flex-end' }}>
+            <div style={{ position: 'relative', maxWidth: 240, flex: 1 }}>
+              <Search size={14} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+              <input
+                type="text"
+                placeholder="Search name, room, phone..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                style={{
+                  paddingLeft: 32, width: '100%', padding: '9px 12px 9px 32px',
+                  borderRadius: 'var(--radius-s)', border: '1px solid var(--glass-border)',
+                  background: 'rgba(255,255,255,0.03)', color: 'var(--text-main)',
+                  fontSize: '0.825rem', outline: 'none'
+                }}
+              />
             </div>
-            <ShinyButton onClick={() => setShowModal(true)}>
-              <Plus size={18} /> New Registration
+            <ShinyButton onClick={() => { setSelectedTenant(null); setEditData({}); setShowModal(true); }}>
+              <Plus size={16} /> New Registration
             </ShinyButton>
           </div>
         </div>
+
+        {/* Summary bar */}
+        <div style={{ display: 'flex', gap: 16, marginBottom: 16, fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+          <span>Total: <strong style={{ color: 'var(--text-main)' }}>{membersList.length}</strong></span>
+          <span>Paid: <strong style={{ color: 'var(--secondary)' }}>{membersList.filter(t => t.Status === 'PAID' || t.Status === 'VALID').length}</strong></span>
+          <span>Pending: <strong style={{ color: 'var(--warning)' }}>{membersList.filter(t => t.Status === 'PENDING').length}</strong></span>
+        </div>
+
         <div className="table-scroll">
           <table className="custom-table">
             <thead>
@@ -671,81 +695,66 @@ const App = () => {
               </tr>
             </thead>
             <tbody>
-              {filteredData.filter(t =>
-                t.Name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                t.Room.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                t.Phone.includes(searchQuery)
-              ).map((t, i) => (
+              {membersList.map((t, i) => (
                 <tr key={i} className="table-row">
-                  <td><span style={{ fontWeight: 600 }}>{t.Name}</span></td>
-                  <td>{t.Phone}</td>
-                  <td>{t.Room}</td>
-                  <td>₹{t['Monthly Rent']} / ₹{t['EB Amount']}</td>
-                  <td>{t['Join Date'] || 'N/A'}</td>
                   <td>
-                    <span className={`status-badge ${t.Status.toLowerCase()}`}>
-                      {t.Status === 'PAID' ? <CheckCircle size={12} /> : <Clock size={12} />}
-                      {t.Status}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <div style={{
+                        width: 28, height: 28, borderRadius: 7,
+                        background: (t.Status === 'PAID' || t.Status === 'VALID') ? 'var(--secondary-soft)' : 'var(--primary-soft)',
+                        color: (t.Status === 'PAID' || t.Status === 'VALID') ? 'var(--secondary)' : 'var(--primary)',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        fontWeight: 700, fontSize: '0.7rem', flexShrink: 0,
+                      }}>{t.Name?.[0] || '?'}</div>
+                      <span style={{ fontWeight: 600, fontSize: '0.85rem' }}>{t.Name}</span>
+                    </div>
+                  </td>
+                  <td style={{ fontSize: '0.82rem', color: 'var(--text-dim)' }}>{t.Phone}</td>
+                  <td><span style={{ background: 'var(--primary-soft)', color: 'var(--primary)', padding: '2px 8px', borderRadius: 6, fontSize: '0.78rem', fontWeight: 600 }}>{t.Room}</span></td>
+                  <td style={{ fontSize: '0.82rem' }}>₹{t['Monthly Rent']} / ₹{t['EB Amount'] || '0'}</td>
+                  <td style={{ fontSize: '0.8rem', color: 'var(--text-dim)' }}>{t['Join Date'] || 'N/A'}</td>
+                  <td>
+                    <span className={`status-badge ${(t.Status || 'active').toLowerCase()}`}>
+                      {(t.Status === 'PAID' || t.Status === 'VALID') ? <CheckCircle size={10} /> : <Clock size={10} />}
+                      {t.Status || 'ACTIVE'}
                     </span>
                   </td>
                   <td>
                     {t['Aadhaar Image'] ? (
-                      <button
-                        className="btn btn-glass btn-small"
-                        onClick={() => window.open(getFullUrl(`/api/media/${t['Aadhaar Image']}?key=${ADMIN_API_KEY}`), '_blank')}
-                        title="View Document"
-                      >
-                        <Camera size={14} /> View
+                      <button className="btn btn-glass btn-small" onClick={() => window.open(getFullUrl(`/api/media/${t['Aadhaar Image']}?key=${ADMIN_API_KEY}`), '_blank')} title="View Document">
+                        <Camera size={12} /> View
                       </button>
-                    ) : 'N/A'}
+                    ) : <span style={{ color: 'var(--text-faint)', fontSize: '0.78rem' }}>N/A</span>}
                   </td>
                   <td>
                     {t['Registration Form'] ? (
-                      <button
-                        className="btn btn-glass btn-small"
-                        onClick={() => window.open(getFullUrl(`/api/media/${t['Registration Form']}?key=${ADMIN_API_KEY}`), '_blank')}
-                        title="View Registration Form"
-                        style={{ color: 'var(--primary)' }}
-                      >
-                        <FileText size={14} /> Reg
+                      <button className="btn btn-glass btn-small" onClick={() => window.open(getFullUrl(`/api/media/${t['Registration Form']}?key=${ADMIN_API_KEY}`), '_blank')} title="View Registration" style={{ color: 'var(--primary)' }}>
+                        <FileText size={12} /> Reg
                       </button>
-                    ) : 'N/A'}
+                    ) : <span style={{ color: 'var(--text-faint)', fontSize: '0.78rem' }}>N/A</span>}
                   </td>
                   <td>
-                    <div style={{ display: 'flex', gap: 8 }}>
-                      <button
-                        className="btn btn-glass btn-small"
-                        onClick={() => handleDownloadReceipt(t)}
-                        title="Download PDF Receipt"
-                        style={{ color: 'var(--secondary)' }}
-                      >
-                        <CreditCard size={14} />
-                      </button>
-                      <button
-                        className="btn btn-glass btn-small"
-                        onClick={() => handleNotifyIndividual(t)}
-                        title="Send Bill to WhatsApp"
-                      >
-                        <Bell size={14} />
-                      </button>
+                    <div style={{ display: 'flex', gap: 4 }}>
+                      <button className="btn btn-glass btn-small" onClick={() => handleDownloadReceipt(t)} title="Download Receipt" style={{ padding: '5px 8px' }}><CreditCard size={13} /></button>
+                      <button className="btn btn-glass btn-small" onClick={() => handleNotifyIndividual(t)} title="Send Bill" style={{ padding: '5px 8px' }}><Bell size={13} /></button>
                       {t.Status !== 'PAID' && t.Status !== 'VALID' && (
-                        <button
-                          className={`btn btn-glass btn-small ${t.Status === 'PENDING' ? 'pulse-border' : ''}`}
-                          onClick={() => handleRecordPayment(t)}
-                          title={t.Status === 'PENDING' ? "Verify Payment" : "Mark as Paid"}
-                          style={{ color: 'var(--secondary)' }}
-                        >
-                          <CheckCircle size={14} />
-                        </button>
+                        <button className={`btn btn-glass btn-small ${t.Status === 'PENDING' ? 'pulse-border' : ''}`} onClick={() => handleRecordPayment(t)} title={t.Status === 'PENDING' ? "Verify Payment" : "Mark Paid"} style={{ padding: '5px 8px', color: 'var(--secondary)' }}><CheckCircle size={13} /></button>
                       )}
-                      <button className="btn btn-glass btn-small" onClick={() => { setSelectedTenant(t); setShowModal(true); }}><Edit3 size={14} /></button>
-                      <button className="btn btn-glass btn-small" style={{ color: 'var(--accent)' }} onClick={() => handleDelete(t)}><Trash2 size={14} /></button>
+                      <button className="btn btn-glass btn-small" onClick={() => { setSelectedTenant(t); setEditData({}); setShowModal(true); }} style={{ padding: '5px 8px' }}><Edit3 size={13} /></button>
+                      <button className="btn btn-glass btn-small" style={{ color: 'var(--accent)', padding: '5px 8px' }} onClick={() => handleDelete(t)}><Trash2 size={13} /></button>
                     </div>
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
+          {membersList.length === 0 && (
+            <div style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--text-muted)' }}>
+              <Users size={32} style={{ marginBottom: 12, opacity: 0.4 }} />
+              <p style={{ fontSize: '0.9rem', fontWeight: 600 }}>No residents found</p>
+              <p style={{ fontSize: '0.78rem', marginTop: 4 }}>Try a different search term or add a new registration.</p>
+            </div>
+          )}
         </div>
       </motion.div>
     );
@@ -1156,9 +1165,9 @@ const App = () => {
 
   const renderTools = () => (
     <div className="content-grid" style={{ gridTemplateColumns: '1fr 1fr' }}>
-      <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} className="panel">
-        <h3 className="panel-title" style={{ marginBottom: 20 }}><Zap size={18} /> EB Auto Split Tool</h3>
-        <p style={{ color: 'var(--text-dim)', fontSize: '0.9rem', marginBottom: 24 }}>Calculate and split electricity bills for a specific room automatically.</p>
+      <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0 }} className="panel">
+        <h3 className="panel-title" style={{ marginBottom: 6 }}><Zap size={16} /> EB Auto Split Tool</h3>
+        <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', marginBottom: 20 }}>Calculate and split electricity bills for a specific room automatically.</p>
         <div className="input-group">
           <label>Room Number</label>
           <input type="text" placeholder="e.g. G1" value={ebForm.room} onChange={e => setEbForm({ ...ebForm, room: e.target.value })} />
@@ -1167,35 +1176,34 @@ const App = () => {
           <label>Units Consumed</label>
           <input type="number" placeholder="100" value={ebForm.amount} onChange={e => setEbForm({ ...ebForm, amount: e.target.value })} />
         </div>
-        <button className="btn btn-primary" style={{ width: '100%' }} onClick={handleUpdateEB}>Calculate (x15) & Notify Residents</button>
+        <button className="btn btn-primary" style={{ width: '100%', justifyContent: 'center' }} onClick={handleUpdateEB}>
+          <Zap size={14} /> Calculate & Notify Residents
+        </button>
       </motion.div>
 
-      <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="panel">
-        <h3 className="panel-title" style={{ marginBottom: 20 }}><Megaphone size={18} /> Smart Announcements</h3>
-        <p style={{ color: 'var(--text-dim)', fontSize: '0.9rem', marginBottom: 24 }}>Send important updates to all active residents on WhatsApp.</p>
+      <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="panel">
+        <h3 className="panel-title" style={{ marginBottom: 6 }}><Megaphone size={16} /> Smart Announcements</h3>
+        <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', marginBottom: 20 }}>Send important updates to all active residents on WhatsApp.</p>
         <div className="input-group">
           <label>Message</label>
-          <textarea rows="5" placeholder="Type your announcement here..." value={announceForm} onChange={e => setAnnounceForm(e.target.value)} style={{ width: '100%', borderRadius: 12, border: '1px solid var(--glass-border)', background: 'rgba(255,255,255,0.03)', color: 'white', padding: 12 }} />
+          <textarea rows="4" placeholder="Type your announcement here..." value={announceForm} onChange={e => setAnnounceForm(e.target.value)} style={{ resize: 'vertical' }} />
         </div>
-
         <div className="input-group">
-          <label>Attach Media (Photo, Video, or Document)</label>
-          <div style={{ position: 'relative', height: 50, background: 'rgba(255,255,255,0.03)', border: '1px dashed var(--glass-border)', borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
-            <input
-              type="file"
-              onChange={(e) => setAnnounceFile(e.target.files[0])}
-              style={{ position: 'absolute', inset: 0, opacity: 0, cursor: 'pointer' }}
-            />
-            <div style={{ pointerEvents: 'none', color: announceFile ? 'var(--secondary)' : 'var(--text-dim)', fontSize: '0.85rem' }}>
-              <Camera size={16} style={{ marginRight: 8, verticalAlign: 'middle' }} />
-              {announceFile ? announceFile.name : 'Click to attach file'}
-            </div>
+          <label>Attach Media</label>
+          <div style={{
+            position: 'relative', padding: '12px 16px', borderRadius: 'var(--radius-s)',
+            border: '1px dashed var(--glass-border)', background: 'rgba(255,255,255,0.02)',
+            display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer'
+          }}>
+            <input type="file" onChange={(e) => setAnnounceFile(e.target.files[0])} style={{ position: 'absolute', inset: 0, opacity: 0, cursor: 'pointer' }} />
+            <Camera size={14} style={{ color: announceFile ? 'var(--secondary)' : 'var(--text-muted)' }} />
+            <span style={{ fontSize: '0.8rem', color: announceFile ? 'var(--secondary)' : 'var(--text-muted)' }}>
+              {announceFile ? announceFile.name : 'Click to attach photo, video, or document'}
+            </span>
           </div>
         </div>
-
-        <button className="btn btn-success" style={{ width: '100%', background: 'var(--secondary)', marginTop: 10 }} onClick={handleAnnounce}>
-          <CheckCircle size={14} style={{ marginRight: 6 }} />
-          Send WhatsApp Announcement
+        <button className="btn" style={{ width: '100%', justifyContent: 'center', background: 'var(--secondary)', color: 'white', boxShadow: '0 4px 12px rgba(16,185,129,0.3)' }} onClick={handleAnnounce}>
+          <Send size={14} /> Send WhatsApp Announcement
         </button>
       </motion.div>
     </div>
@@ -1283,60 +1291,69 @@ const App = () => {
   };
 
   const renderSettings = () => (
-    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="panel">
-      <div className="panel-header">
-        <h3 className="panel-title"><Settings size={18} /> Application Configuration</h3>
-      </div>
-      <div style={{ padding: '0 24px 24px' }}>
-        <p style={{ color: 'var(--text-dim)', fontSize: '0.9rem', marginBottom: 30 }}>
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+      <div className="panel">
+        <div className="panel-header">
+          <h3 className="panel-title"><Settings size={16} /> Application Configuration</h3>
+        </div>
+        <p style={{ color: 'var(--text-dim)', fontSize: '0.82rem', marginBottom: 24 }}>
           View current environment settings. To update these, please modify your server environment variables.
         </p>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 30 }}>
-          <div className="settings-section">
-            <h4 style={{ color: 'var(--secondary)', fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 20 }}>Business Identity</h4>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24 }}>
+          {/* Business Identity */}
+          <div style={{ padding: 20, background: 'rgba(255,255,255,0.02)', borderRadius: 'var(--radius-m)', border: '1px solid var(--glass-border)' }}>
+            <h4 style={{ color: 'var(--primary)', fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: 700, marginBottom: 16, display: 'flex', alignItems: 'center', gap: 6 }}>
+              <Users size={14} /> Business Identity
+            </h4>
             <div className="input-group">
               <label>Business Name</label>
-              <input type="text" value={configData?.businessName || ''} readOnly style={{ background: 'rgba(255,255,255,0.02)', color: 'var(--text-dim)' }} />
+              <input type="text" value={configData?.businessName || ''} readOnly style={{ opacity: 0.7 }} />
             </div>
             <div className="input-group">
               <label>Owner Phone</label>
-              <input type="text" value={configData?.ownerPhone || ''} readOnly style={{ background: 'rgba(255,255,255,0.02)', color: 'var(--text-dim)' }} />
+              <input type="text" value={configData?.ownerPhone || ''} readOnly style={{ opacity: 0.7 }} />
             </div>
-            <div className="input-group">
+            <div className="input-group" style={{ marginBottom: 0 }}>
               <label>Owner UPI ID</label>
-              <input type="text" value={configData?.upiId || ''} readOnly style={{ background: 'rgba(255,255,255,0.02)', color: 'var(--text-dim)' }} />
+              <input type="text" value={configData?.upiId || ''} readOnly style={{ opacity: 0.7 }} />
             </div>
           </div>
 
-          <div className="settings-section">
-            <h4 style={{ color: 'var(--secondary)', fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 20 }}>Billing & Policy</h4>
+          {/* Billing & Policy */}
+          <div style={{ padding: 20, background: 'rgba(255,255,255,0.02)', borderRadius: 'var(--radius-m)', border: '1px solid var(--glass-border)' }}>
+            <h4 style={{ color: 'var(--secondary)', fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: 700, marginBottom: 16, display: 'flex', alignItems: 'center', gap: 6 }}>
+              <CreditCard size={14} /> Billing & Policy
+            </h4>
             <div className="input-group">
               <label>Rent Due Date (Monthly)</label>
-              <input type="text" value={`${configData?.rentDueDate || 5}th of every month`} readOnly style={{ background: 'rgba(255,255,255,0.02)', color: 'var(--text-dim)' }} />
+              <input type="text" value={`${configData?.rentDueDate || 5}th of every month`} readOnly style={{ opacity: 0.7 }} />
             </div>
             <div className="input-group">
               <label>Electricity Rate (₹ / Unit)</label>
-              <input type="text" value={`₹${configData?.ebUnitRate || 15}`} readOnly style={{ background: 'rgba(255,255,255,0.02)', color: 'var(--text-dim)' }} />
+              <input type="text" value={`₹${configData?.ebUnitRate || 15}`} readOnly style={{ opacity: 0.7 }} />
             </div>
-            <div className="input-group">
+            <div className="input-group" style={{ marginBottom: 0 }}>
               <label>Registration Link</label>
-              <div style={{ display: 'flex', gap: 10 }}>
-                <input type="text" value={configData?.googleFormUrl || ''} readOnly style={{ background: 'rgba(255,255,255,0.02)', color: 'var(--text-dim)', flex: 1 }} />
-                <button className="btn btn-glass" onClick={() => window.open(configData?.googleFormUrl, '_blank')}>Open</button>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <input type="text" value={configData?.googleFormUrl || ''} readOnly style={{ opacity: 0.7, flex: 1 }} />
+                <button className="btn btn-glass btn-small" onClick={() => window.open(configData?.googleFormUrl, '_blank')}>Open</button>
               </div>
             </div>
           </div>
         </div>
 
-        <div style={{ marginTop: 40, padding: 20, background: 'rgba(245, 158, 11, 0.05)', borderRadius: 12, border: '1px solid rgba(245, 158, 11, 0.2)' }}>
-          <div style={{ display: 'flex', gap: 12, alignItems: 'center', color: '#f59e0b', marginBottom: 8 }}>
-            <AlertCircle size={18} />
-            <span style={{ fontWeight: 700, fontSize: '0.9rem' }}>Read-Only Mode</span>
+        {/* Warning */}
+        <div style={{ marginTop: 24, padding: '14px 18px', background: 'var(--warning-soft)', borderRadius: 'var(--radius-s)', border: '1px solid rgba(245,158,11,0.15)' }}>
+          <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+            <AlertCircle size={16} style={{ color: 'var(--warning)', flexShrink: 0 }} />
+            <div>
+              <span style={{ fontWeight: 700, fontSize: '0.8rem', color: 'var(--warning)' }}>Read-Only Mode</span>
+              <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: 2, lineHeight: 1.4 }}>
+                Settings are currently pulled from server environment variables for security. To change these values, please update your Render/Deployment dashboard environment variables and restart the service.
+              </p>
+            </div>
           </div>
-          <p style={{ fontSize: '0.85rem', color: 'rgba(255,255,255,0.6)', lineHeight: 1.5 }}>
-            Settings are currently pulled from server environment variables for security. To change these values, please update your Render/Deployment dashboard environment variables and restart the service.
-          </p>
         </div>
       </div>
     </motion.div>
@@ -1513,23 +1530,45 @@ const App = () => {
           <div className={`nav-link ${activeTab === 'tools' ? 'active' : ''}`} onClick={() => { setActiveTab('tools'); setSidebarOpen(false); }}><Zap size={20} /> Auto-Tools</div>
           <div className={`nav-link ${activeTab === 'settings' ? 'active' : ''}`} onClick={() => { setActiveTab('settings'); setSidebarOpen(false); }}><Settings size={20} /> App Settings</div>
         </nav>
-        <div style={{ marginTop: 'auto', padding: '20px', background: 'rgba(255,255,255,0.02)', borderRadius: 20, border: '1px solid var(--glass-border)' }}>
-          <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-            <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#10b981' }}></div>
-            <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--secondary)' }}>SERVER ACTIVE</span>
+        <div style={{ marginTop: 'auto', padding: '14px 16px', background: 'rgba(255,255,255,0.02)', borderRadius: 'var(--radius-m)', border: '1px solid var(--glass-border)' }}>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <div style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--secondary)', boxShadow: '0 0 8px rgba(16,185,129,0.5)' }} />
+            <span style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--secondary)', letterSpacing: '0.5px' }}>SERVER ACTIVE</span>
           </div>
-          <p style={{ fontSize: '0.7rem', color: 'var(--text-dim)', marginTop: 4 }}>Last sync: moments ago</p>
+          <p style={{ fontSize: '0.68rem', color: 'var(--text-muted)', marginTop: 4 }}>Last sync: moments ago</p>
         </div>
       </div>
 
+      {/* Toast Notification */}
+      <AnimatePresence>
+        {toast && (
+          <motion.div
+            initial={{ opacity: 0, x: 40, y: 0 }}
+            animate={{ opacity: 1, x: 0, y: 0 }}
+            exit={{ opacity: 0, x: 40 }}
+            style={{
+              position: 'fixed', top: 24, right: 24, zIndex: 10000,
+              background: toast.type === 'error' ? 'var(--accent)' : 'var(--secondary)',
+              color: '#fff', padding: '12px 20px', borderRadius: 'var(--radius-m)',
+              boxShadow: 'var(--shadow-md)',
+              display: 'flex', alignItems: 'center', gap: 10,
+              fontSize: '0.85rem', fontWeight: 600, maxWidth: 400,
+            }}
+          >
+            {toast.type === 'error' ? <AlertCircle size={16} /> : <CheckCircle size={16} />}
+            {toast.message}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       <main className="main-viewport">
         <header>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
             <button className="mobile-menu-btn" onClick={() => setSidebarOpen(true)}>
-              <Menu size={24} />
+              <Menu size={20} />
             </button>
             <div className="header-meta">
-              <h1><SplitText text={activeTab.charAt(0).toUpperCase() + activeTab.slice(1)} /></h1>
+              <h1>{activeTab === 'dashboard' ? 'Dashboard' : activeTab === 'billing' ? 'Monthly Billing' : activeTab === 'tenants' ? 'Members' : activeTab === 'map' ? 'Room Map' : activeTab === 'locations' ? 'Locations' : activeTab === 'archive' ? 'Archive' : activeTab === 'tools' ? 'Auto-Tools' : activeTab === 'settings' ? 'App Settings' : activeTab.charAt(0).toUpperCase() + activeTab.slice(1)}</h1>
               <p>Welcome back, Owner. Here's what's happening at StayFlow.</p>
             </div>
           </div>
@@ -1542,33 +1581,32 @@ const App = () => {
               {locations.map(loc => <option key={loc} value={loc}>{loc}</option>)}
             </select>
             <div style={{ position: 'relative' }}>
-              <Search style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-dim)' }} size={16} />
-              <input type="text" placeholder="Search anything..." style={{ padding: '10px 10px 10px 38px', borderRadius: 12, border: '1px solid var(--glass-border)', background: 'rgba(255,255,255,0.05)', color: 'white', fontSize: '0.85rem' }} />
+              <Search style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} size={14} />
+              <input
+                type="text"
+                placeholder="Search anything..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                style={{
+                  padding: '9px 12px 9px 32px', borderRadius: 'var(--radius-s)',
+                  border: '1px solid var(--glass-border)', background: 'rgba(255,255,255,0.03)',
+                  color: 'var(--text-main)', fontSize: '0.825rem', width: 200, outline: 'none',
+                  transition: 'var(--transition)',
+                }}
+              />
             </div>
-            <button className="btn btn-primary"><Bell size={18} /></button>
+            <button className="btn btn-glass btn-small" style={{ padding: 9 }}><Bell size={16} /></button>
           </div>
-          {/* Toast Notification Overlay */}
-          {toast && (
-            <div style={{
-              position: 'fixed', top: 30, right: 30, zIndex: 9999,
-              background: toast.type === 'error' ? 'var(--accent)' : '#10b981',
-              color: '#fff', padding: '10px 20px', borderRadius: 8,
-              boxShadow: '0 5px 15px rgba(0,0,0,0.3)',
-              display: 'flex', alignItems: 'center', gap: 10,
-              fontSize: '0.9rem', fontWeight: 500,
-              animation: 'slideIn 0.3s ease-out'
-            }}>
-              {toast.type === 'error' ? <AlertCircle size={18} /> : <CheckCircle size={18} />}
-              {toast.message}
-            </div>
-          )}
         </header>
 
         {loading ? (
-          <div style={{ height: '50vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <div className="logo-blob animated" style={{ width: 60, height: 60 }}>
-              <Zap size={30} />
-            </div>
+          <div style={{ height: '50vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 16 }}>
+            <div style={{
+              width: 40, height: 40, borderRadius: '50%',
+              border: '3px solid var(--glass-border)', borderTopColor: 'var(--primary)',
+              animation: 'spin 0.8s linear infinite'
+            }} />
+            <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)', fontWeight: 500 }}>Loading data...</span>
           </div>
         ) : (
           <>
@@ -1586,56 +1624,47 @@ const App = () => {
       </main>
 
       {showModal && (
-        <div className="modal-backdrop">
-          <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="modal-content">
-            <h2 className="modal-title">{selectedTenant ? 'Edit Resident' : 'Add New Resident'}</h2>
-            <div className="input-group">
-              <label>Full Name</label>
-              <input
-                type="text"
-                defaultValue={selectedTenant?.Name}
-                onChange={(e) => handleEditChange('Name', e.target.value)}
-              />
-            </div>
-            <div className="input-group">
-              <label>Phone Number</label>
-              <input
-                type="text"
-                defaultValue={selectedTenant?.Phone}
-                onChange={(e) => handleEditChange('Phone', e.target.value)}
-              />
+        <div className="modal-backdrop" onClick={() => { setShowModal(false); setEditData({}); setSelectedTenant(null); }}>
+          <motion.div
+            initial={{ scale: 0.95, opacity: 0, y: 10 }}
+            animate={{ scale: 1, opacity: 1, y: 0 }}
+            transition={{ duration: 0.2 }}
+            className="modal-content"
+            onClick={e => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
+              <div>
+                <h2 style={{ fontSize: '1.15rem', fontWeight: 700 }}>{selectedTenant ? 'Edit Resident' : 'Add New Resident'}</h2>
+                <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: 2 }}>{selectedTenant ? 'Update resident information' : 'Register a new resident'}</p>
+              </div>
+              <button className="btn btn-glass btn-small" onClick={() => { setShowModal(false); setEditData({}); setSelectedTenant(null); }} style={{ padding: 8 }}>
+                <X size={16} />
+              </button>
             </div>
 
-            {/* Aadhaar Upload Section */}
-            <div className="input-group">
-              <label>Aadhaar Card Upload</label>
-              <div style={{ display: 'flex', gap: 10 }}>
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={(e) => setEditData({ ...editData, aadhaarFile: e.target.files[0] })}
-                />
+            {/* Form Grid */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+              <div className="input-group">
+                <label>Full Name</label>
+                <input type="text" defaultValue={selectedTenant?.Name} onChange={(e) => handleEditChange('Name', e.target.value)} placeholder="Enter full name" />
+              </div>
+              <div className="input-group">
+                <label>Phone Number</label>
+                <input type="text" defaultValue={selectedTenant?.Phone} onChange={(e) => handleEditChange('Phone', e.target.value)} placeholder="10-digit mobile" />
               </div>
             </div>
 
-            <div className="input-group">
-              <label>Room Number</label>
-              <input
-                type="text"
-                defaultValue={selectedTenant?.Room}
-                onChange={(e) => handleEditChange('Room', e.target.value)}
-                placeholder="Assign a room (e.g. 101)"
-              />
-            </div>
-
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+              <div className="input-group">
+                <label>Room Number</label>
+                <input type="text" defaultValue={selectedTenant?.Room} onChange={(e) => handleEditChange('Room', e.target.value)} placeholder="e.g. 101" />
+              </div>
               <div className="input-group">
                 <label>Sharing Type</label>
                 <select
-                  className="custom-select"
                   defaultValue={selectedTenant?.['Sharing Type'] || '1 Sharing'}
                   onChange={(e) => handleEditChange('Sharing Type', e.target.value)}
-                  style={{ width: '100%', padding: 12, borderRadius: 12, background: 'rgba(255,255,255,0.05)', color: 'white', border: '1px solid var(--glass-border)' }}
                 >
                   <option value="1 Sharing">1 Sharing</option>
                   <option value="2 Sharing">2 Sharing</option>
@@ -1643,41 +1672,102 @@ const App = () => {
                   <option value="4 Sharing">4 Sharing</option>
                 </select>
               </div>
-              <div className="input-group">
-                <label>PG Location</label>
-                <input
-                  type="text"
-                  defaultValue={selectedTenant?.Location}
-                  onChange={(e) => handleEditChange('Location', e.target.value)}
-                  placeholder="e.g. Main Branch"
-                />
-              </div>
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
               <div className="input-group">
                 <label>Rent (₹)</label>
-                <input
-                  type="number"
-                  defaultValue={selectedTenant?.['Monthly Rent']}
-                  onChange={(e) => handleEditChange('Monthly Rent', e.target.value)}
-                />
+                <input type="number" defaultValue={selectedTenant?.['Monthly Rent']} onChange={(e) => handleEditChange('Monthly Rent', e.target.value)} placeholder="Monthly rent" />
               </div>
               <div className="input-group">
                 <label>EB Bill (₹)</label>
-                <input
-                  type="number"
-                  defaultValue={selectedTenant?.['EB Amount']}
-                  onChange={(e) => handleEditChange('EB Amount', e.target.value)}
-                />
+                <input type="number" defaultValue={selectedTenant?.['EB Amount']} onChange={(e) => handleEditChange('EB Amount', e.target.value)} placeholder="Electricity bill" />
               </div>
             </div>
+
             <div className="input-group">
-              <label>Join Date</label>
-              <input type="text" defaultValue={selectedTenant?.['Join Date']} disabled />
+              <label>PG Location</label>
+              <input type="text" defaultValue={selectedTenant?.Location} onChange={(e) => handleEditChange('Location', e.target.value)} placeholder="e.g. Main Branch" />
             </div>
-            <div style={{ display: 'flex', gap: 12, marginTop: 10 }}>
-              <button className="btn btn-primary" style={{ flex: 1 }} onClick={handleSave}>Save Details</button>
-              <button className="btn btn-glass" onClick={() => { setShowModal(false); setEditData({}); }}>Cancel</button>
+
+            {/* Aadhaar Upload */}
+            <div className="input-group">
+              <label>Aadhaar Card Upload</label>
+              <div style={{
+                position: 'relative', padding: '14px 16px', borderRadius: 'var(--radius-s)',
+                border: '1px dashed var(--glass-border)', background: 'rgba(255,255,255,0.02)',
+                display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer'
+              }}>
+                <input
+                  type="file" accept="image/*"
+                  onChange={(e) => setEditData({ ...editData, aadhaarFile: e.target.files[0] })}
+                  style={{ position: 'absolute', inset: 0, opacity: 0, cursor: 'pointer' }}
+                />
+                <Camera size={16} style={{ color: editData.aadhaarFile ? 'var(--secondary)' : 'var(--text-muted)' }} />
+                <span style={{ fontSize: '0.82rem', color: editData.aadhaarFile ? 'var(--secondary)' : 'var(--text-muted)' }}>
+                  {editData.aadhaarFile ? editData.aadhaarFile.name : 'Click to upload Aadhaar image'}
+                </span>
+              </div>
+            </div>
+
+            {/* Payment Status - Only for existing tenants */}
+            {selectedTenant && (
+              <div style={{ padding: 16, background: 'rgba(255,255,255,0.02)', borderRadius: 'var(--radius-m)', border: '1px solid var(--glass-border)', marginBottom: 16 }}>
+                <h4 style={{ fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: 700, color: 'var(--primary)', marginBottom: 14, display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <Wallet size={14} /> Payment Status
+                </h4>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+                  <div className="input-group" style={{ marginBottom: 0 }}>
+                    <label>Status</label>
+                    <select
+                      value={editData.Status !== undefined ? editData.Status : (selectedTenant?.Status || 'ACTIVE')}
+                      onChange={(e) => handleEditChange('Status', e.target.value)}
+                    >
+                      <option value="PAID">PAID</option>
+                      <option value="VALID">VALID</option>
+                      <option value="PENDING">PENDING</option>
+                      <option value="ACTIVE">UNPAID / ACTIVE</option>
+                    </select>
+                  </div>
+                  <div className="input-group" style={{ marginBottom: 0 }}>
+                    <label>Payment Mode</label>
+                    <select
+                      value={editData['Payment Mode'] !== undefined ? editData['Payment Mode'] : (selectedTenant?.['Payment Mode'] || 'CASH')}
+                      onChange={(e) => handleEditChange('Payment Mode', e.target.value)}
+                    >
+                      <option value="CASH">Cash</option>
+                      <option value="UPI">UPI / GPay</option>
+                      <option value="RAZORPAY">Razorpay</option>
+                      <option value="BANK">Bank Transfer</option>
+                    </select>
+                  </div>
+                </div>
+                {(editData.Status === 'PAID' || editData.Status === 'VALID') && editData.Status !== selectedTenant?.Status && (
+                  <p style={{ fontSize: '0.75rem', color: 'var(--secondary)', marginTop: 10, display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <CheckCircle size={12} /> Payment will be recorded and receipt sent via WhatsApp
+                  </p>
+                )}
+                {(editData.Status === 'ACTIVE' || editData.Status === 'PENDING') && (selectedTenant?.Status === 'PAID' || selectedTenant?.Status === 'VALID') && (
+                  <p style={{ fontSize: '0.75rem', color: 'var(--warning)', marginTop: 10, display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <AlertCircle size={12} /> Status will be changed to {editData.Status}
+                  </p>
+                )}
+              </div>
+            )}
+
+            {selectedTenant && (
+              <div className="input-group">
+                <label>Join Date</label>
+                <input type="text" defaultValue={selectedTenant?.['Join Date']} disabled style={{ opacity: 0.6 }} />
+              </div>
+            )}
+
+            {/* Actions */}
+            <div style={{ display: 'flex', gap: 10, marginTop: 20 }}>
+              <button className="btn btn-primary" style={{ flex: 1, justifyContent: 'center' }} onClick={handleSave}>
+                <Save size={16} /> {selectedTenant ? 'Update Resident' : 'Save & Register'}
+              </button>
+              <button className="btn btn-glass" onClick={() => { setShowModal(false); setEditData({}); setSelectedTenant(null); }}>Cancel</button>
             </div>
           </motion.div>
         </div>
