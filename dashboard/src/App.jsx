@@ -127,7 +127,7 @@ const getFullUrl = (path) => {
 
 const App = () => {
   const [isAuthenticated, setIsAuthenticated] = useState(() => sessionStorage.getItem('stayflow_auth') === 'true' || localStorage.getItem('stayflow_auth') === 'true');
-  const [loginForm, setLoginForm] = useState({ username: '', password: '' });
+  const [loginForm, setLoginForm] = useState({ username: 'admin', password: 'admin' });
   const [loginError, setLoginError] = useState('');
   const [rememberMe, setRememberMe] = useState(true);
 
