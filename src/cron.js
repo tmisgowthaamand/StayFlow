@@ -36,7 +36,7 @@ function setupCron() {
                 const upiLink = `upi://pay?pa=${config.upiId}&pn=${encodeURIComponent(config.businessName)}&am=${total}&cu=INR`;
                 const razorpayLink = await bot.createRazorpayLink(phone, name, total, tenant.get('Room'));
 
-                let msg = `🚀 *STAYFLOW: New Monthly Bill*\n\nHi ${name},\nYour bill for the new month has been generated:\n\nRent: ₹${rentPaise / 100}\nEB: ₹${ebPaise / 100}\nTotal: ₹${total}\n\nDue Date: ${config.rentDueDate}th`;
+                let msg = `🚀 *STAYFLOW: New Monthly Bill*\n━━━━━━━━━━━━━━━━━━━━\n\n👤 *Name*          :  ${name}\n\n🏠 *Rent*            :  ₹${rentPaise / 100}\n⚡ *EB*                :  ₹${ebPaise / 100}\n━━━━━━━━━━━━━━━━━━━━\n💵 *Total*            :  ₹${total}\n📅 *Due Date*    :  ${config.rentDueDate}th`;
 
                 if (razorpayLink) {
                     msg += `\n\n💳 *Pay Online:* ${razorpayLink}`;
@@ -64,7 +64,7 @@ function setupCron() {
                 const total = totalPaise / 100;
                 const razorpayLink = await bot.createRazorpayLink(phone, name, total, tenant.get('Room'));
 
-                let msg = `🔔 *Friendly Reminder*\n\nHi ${name}, your rent payment of *₹${total}* is due by the ${config.rentDueDate}th.`;
+                let msg = `🔔 *Friendly Reminder*\n━━━━━━━━━━━━━━━━━━━━\n\n👤 *Name*          :  ${name}\n💵 *Amount*      :  ₹${total}\n📅 *Due Date*    :  ${config.rentDueDate}th\n📌 *Status*          :  ⏳ PENDING\n━━━━━━━━━━━━━━━━━━━━`;
 
                 if (razorpayLink) {
                     msg += `\n\n💳 *Pay Online Now:* ${razorpayLink}`;
@@ -92,7 +92,7 @@ function setupCron() {
                 const total = totalPaise / 100;
                 const razorpayLink = await bot.createRazorpayLink(phone, name, total, tenant.get('Room'));
 
-                let msg = `⚠️ *FINAL REMINDER*\n\nHi ${name}, today is the last date to pay your rent of *₹${total}* without late fees.`;
+                let msg = `⚠️ *FINAL REMINDER*\n━━━━━━━━━━━━━━━━━━━━\n\n👤 *Name*          :  ${name}\n💵 *Amount*      :  ₹${total}\n📅 *Due Date*    :  ${config.rentDueDate}th (Today!)\n📌 *Status*          :  ❌ OVERDUE\n━━━━━━━━━━━━━━━━━━━━`;
 
                 if (razorpayLink) {
                     msg += `\n\n💳 *Clear Dues via Online:* ${razorpayLink}`;
@@ -130,7 +130,7 @@ function setupCron() {
                 const total = totalPaise / 100;
                 const razorpayLink = await bot.createRazorpayLink(phone, name, total, room);
 
-                let msg = `⚠️ *Rent Reminder*\n\nHi ${name},\nYour rent of *₹${total}* for this month is still pending.\n📅 Due Date: ${config.rentDueDate}th (overdue)\n\nPlease pay before 11th to avoid late fee.`;
+                let msg = `⚠️ *Rent Overdue — Day 10*\n━━━━━━━━━━━━━━━━━━━━\n\n👤 *Name*          :  ${name}\n🚪 *Room*          :  ${room}\n💵 *Amount*      :  ₹${total}\n📅 *Due Date*    :  ${config.rentDueDate}th (Overdue)\n📌 *Status*          :  ❌ OVERDUE\n━━━━━━━━━━━━━━━━━━━━\n_Please pay before 11th to avoid late fee._`;
                 if (razorpayLink) msg += `\n\n💳 *Pay Now:* ${razorpayLink}`;
                 msg += `\n\n💵 Or pay cash and inform admin.`;
 
@@ -141,14 +141,14 @@ function setupCron() {
             // Send admin summary
             if (config.ownerPhone) {
                 const currentMonth = new Date().toLocaleString('default', { month: 'long', year: 'numeric' });
-                let summary = `📊 *Overdue Report — 10th ${currentMonth}*\n\n🔴 *${unpaid.length} tenant(s) have NOT paid:*\n`;
+                let summary = `📊 *Overdue Report — 10th ${currentMonth}*\n━━━━━━━━━━━━━━━━━━━━\n\n🔴 *${unpaid.length} tenant(s) have NOT paid:*\n\n`;
                 let totalPending = 0;
                 unpaid.forEach((t, i) => {
                     const amt = toPaise(t.get('Total Amount')) / 100;
                     totalPending += amt;
-                    summary += `${i + 1}. ${t.get('Name')} — Room ${t.get('Room')} — ₹${amt}\n`;
+                    summary += `${i + 1}. ${t.get('Name')}  •  Room ${t.get('Room')}  •  ₹${amt}\n`;
                 });
-                summary += `\n💰 *Total Pending: ₹${totalPending.toLocaleString()}*\n\nReply *SEND REMINDER* to notify them all.`;
+                summary += `\n━━━━━━━━━━━━━━━━━━━━\n💰 *Total Pending*  :  ₹${totalPending.toLocaleString()}\n━━━━━━━━━━━━━━━━━━━━\n_Reply *SEND REMINDER* to notify them all._`;
                 await bot.sendMessage(config.ownerPhone, summary);
             }
 
@@ -180,7 +180,7 @@ function setupCron() {
                 const total = totalPaise / 100;
                 const razorpayLink = await bot.createRazorpayLink(phone, name, total, tenant.get('Room'));
 
-                let msg = `🚨 *Final Reminder*\n\nHi ${name},\nYour rent of *₹${total}* is *OVERDUE*.\nThis is your final reminder before late fee applies.\n\nPlease clear your dues immediately.`;
+                let msg = `🚨 *FINAL WARNING*\n━━━━━━━━━━━━━━━━━━━━\n\n👤 *Name*          :  ${name}\n💵 *Amount*      :  ₹${total}\n📌 *Status*          :  🚨 OVERDUE\n━━━━━━━━━━━━━━━━━━━━\n_This is your final reminder before late fee applies._\n_Please clear your dues immediately._`;
                 if (razorpayLink) msg += `\n\n💳 *Pay Now:* ${razorpayLink}`;
 
                 await bot.sendMessage(phone, msg);
@@ -190,7 +190,7 @@ function setupCron() {
             // Admin update
             if (config.ownerPhone) {
                 const currentMonth = new Date().toLocaleString('default', { month: 'long', year: 'numeric' });
-                await bot.sendMessage(config.ownerPhone, `🚨 *11th ${currentMonth} — Still ${unpaid.length} unpaid tenant(s)*\nFinal warnings sent. Check dashboard for details.`);
+                await bot.sendMessage(config.ownerPhone, `🚨 *11th ${currentMonth} — Final Warnings*\n━━━━━━━━━━━━━━━━━━━━\n\n📌 *Unpaid*        :  ${unpaid.length} tenant(s)\n📋 *Action*          :  Final warnings sent\n━━━━━━━━━━━━━━━━━━━━\n_Check dashboard for details._`);
             }
 
             console.log(`[CRON 11th] Sent final warnings to ${unpaid.length} tenants.`);

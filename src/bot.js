@@ -634,7 +634,7 @@ async function handleIncomingMessage(phone, body, messageId = null, image = null
 
                 const razorpayLink = await createRazorpayLink(phone, tenantForPaid.get('Name'), paidTotal, tenantForPaid.get('Room'));
 
-                let payMsg = `💳 *Pay Online (UPI/Card)*\n\n🏠 Rent: ₹${paidRent}\n⚡ EB: ₹${paidEB}\n━━━━━━━━━━━━━━━━━━━━\n💰 *Total: ₹${paidTotal}*\n\n_Pay securely on our website via Razorpay._`;
+                let payMsg = `💳 *Pay Online (UPI/Card)*\n━━━━━━━━━━━━━━━━━━━━\n\n🏠 *Rent*            :  ₹${paidRent}\n⚡ *EB*                :  ₹${paidEB}\n━━━━━━━━━━━━━━━━━━━━\n💰 *Total*            :  ₹${paidTotal}\n\n_Pay securely via Razorpay 👇_`;
 
                 if (razorpayLink) {
                     await sendCTAButton(phone, payMsg, '💳 Pay Now', razorpayLink, '💳 Secure Payment');
@@ -653,7 +653,7 @@ async function handleIncomingMessage(phone, body, messageId = null, image = null
                 const cashEB = parseFloat(tenantForCash.get('EB Amount') || 0);
                 const cashTotal = cashRent + cashEB;
                 await updateSession(phone, { step: 'CASH_AMOUNT', contextName: tenantForCash.get('Name'), expectedTotal: cashTotal });
-                await sendMessage(phone, `💵 *Cash Payment*\n\n🏠 Rent: ₹${cashRent}\n⚡ EB: ₹${cashEB}\n💰 *Total Due: ₹${cashTotal}*\n\nPlease enter the *amount paid*.\nExample: *${cashTotal}*\n\n⚠️ _Invoice will be generated after admin verification._`);
+                await sendMessage(phone, `💵 *Cash Payment*\n━━━━━━━━━━━━━━━━━━━━\n\n🏠 *Rent*            :  ₹${cashRent}\n⚡ *EB*                :  ₹${cashEB}\n━━━━━━━━━━━━━━━━━━━━\n💰 *Total Due*    :  ₹${cashTotal}\n\nPlease enter the *amount paid*.\nExample: *${cashTotal}*\n\n⚠️ _Invoice will be generated after admin verification._`);
                 break;
             }
             case config.commands.HELP:
@@ -686,7 +686,7 @@ async function handleIncomingMessage(phone, body, messageId = null, image = null
                             const mode = h.get('Payment Mode') || 'N/A';
                             const pStatus = h.get('Status') || 'PAID';
                             const pEmoji = pStatus === 'PAID' ? '✅' : '⏳';
-                            historyMsg += `${pEmoji} *${monthYear}*\n   Amount: ₹${amount}\n   Mode: ${mode}\n\n`;
+                            historyMsg += `${pEmoji} *${monthYear}*\n💵 *Amount*  :  ₹${amount}\n💳 *Mode*      :  ${mode}\n\n`;
                         });
                     } else if (oldHistory.length > 0) {
                         oldHistory.slice(-6).reverse().forEach(h => {
@@ -694,7 +694,7 @@ async function handleIncomingMessage(phone, body, messageId = null, image = null
                             const year = h.get('Year') || '';
                             const amount = h.get('Amount') || '0';
                             const mode = h.get('Mode') || 'N/A';
-                            historyMsg += `✅ *${month} ${year}*\n   Amount: ₹${amount}\n   Mode: ${mode}\n\n`;
+                            historyMsg += `✅ *${month} ${year}*\n💵 *Amount*  :  ₹${amount}\n💳 *Mode*      :  ${mode}\n\n`;
                         });
                     } else {
                         historyMsg += `No payment history found yet.\n\n`;
@@ -808,6 +808,8 @@ async function handleIncomingMessage(phone, body, messageId = null, image = null
             // New Register (from list)
             case 'MENU_REGISTER':
             case '📝 NEW REGISTER': {
+                const regBanner = path.join(__dirname, '../assets/JOIN.png');
+                if (fs.existsSync(regBanner)) await sendImage(phone, regBanner);
                 const regUrl = config.googleFormUrl || 'https://forms.gle/YOUR_FORM_ID';
                 await sendCTAButton(
                     phone,
@@ -822,6 +824,8 @@ async function handleIncomingMessage(phone, body, messageId = null, image = null
             // Vacate (from list — registered users)
             case 'MENU_VACATE':
             case '🚪 VACATE': {
+                const vacateBanner = path.join(__dirname, '../assets/Vacate.png');
+                if (fs.existsSync(vacateBanner)) await sendImage(phone, vacateBanner);
                 await handleTenantVacateRequest(phone);
                 break;
             }
@@ -829,6 +833,8 @@ async function handleIncomingMessage(phone, body, messageId = null, image = null
             // Rent (from list)
             case 'MENU_RENT':
             case '🏠 RENT': {
+                const rentBanner = path.join(__dirname, '../assets/Rent.png');
+                if (fs.existsSync(rentBanner)) await sendImage(phone, rentBanner);
                 await handleMenuRent(phone);
                 break;
             }
@@ -836,6 +842,8 @@ async function handleIncomingMessage(phone, body, messageId = null, image = null
             // Pay (from list)
             case 'MENU_PAY':
             case '💳 PAY BILLS': {
+                const payBanner = path.join(__dirname, '../assets/Payment Banner.png');
+                if (fs.existsSync(payBanner)) await sendImage(phone, payBanner);
                 const tenantPay = await sheetsService.getTenantByPhone(phone);
                 if (!tenantPay || tenantPay.get('Status') === 'VACATED') {
                     await sendMessage(phone, "You're not registered. Type *HI* to start.");
@@ -847,7 +855,7 @@ async function handleIncomingMessage(phone, body, messageId = null, image = null
                 const status = tenantPay.get('Status') || 'PENDING';
 
                 const isVerified = status === 'PAID' || status === 'VALID';
-                let payMsg = `💰 *Payment Options*\n\n🏠 Rent: ₹${rentAmt}\n⚡ EB: ₹${ebAmt}\n━━━━━━━━━━━━━━━━━━━━\n💵 *Total Due: ₹${totalAmt}*\n\n${isVerified ? '✅ *Payment Status: VALID*' : 'Please select your preferred payment method below 👇'}`;
+                let payMsg = `💰 *Payment Options*\n━━━━━━━━━━━━━━━━━━━━\n\n🏠 *Rent*            :  ₹${rentAmt}\n⚡ *EB*                :  ₹${ebAmt}\n━━━━━━━━━━━━━━━━━━━━\n💵 *Total Due*    :  ₹${totalAmt}\n📌 *Status*          :  ${isVerified ? '✅ VALID' : '⏳ PENDING'}\n━━━━━━━━━━━━━━━━━━━━\n${isVerified ? '' : '_Select payment method below 👇_'}`;
 
                 if (!isVerified) {
                     await sendButtons(phone, payMsg, ['💳 Pay via Razorpay', '💵 Pay Cash', '❌ Cancel']);
@@ -872,7 +880,7 @@ async function handleIncomingMessage(phone, body, messageId = null, image = null
 
                 const razorpayLink = await createRazorpayLink(phone, tenantPay.get('Name'), totalAmt, tenantPay.get('Room'));
 
-                let payMsg = `💳 *Pay Online (Razorpay)*\n\n🏠 Rent: ₹${rentAmt}\n⚡ EB: ₹${ebAmt}\n━━━━━━━━━━━━━━━━━━━━\n💰 *Total: ₹${totalAmt}*\n\n_Pay securely on our website via Razorpay._`;
+                let payMsg = `💳 *Pay Online (Razorpay)*\n━━━━━━━━━━━━━━━━━━━━\n\n🏠 *Rent*            :  ₹${rentAmt}\n⚡ *EB*                :  ₹${ebAmt}\n━━━━━━━━━━━━━━━━━━━━\n💰 *Total*            :  ₹${totalAmt}\n\n_Pay securely via Razorpay 👇_`;
 
                 if (razorpayLink) {
                     await sendCTAButton(phone, payMsg, '💳 Pay Now', razorpayLink, '💳 Secure Payment');
@@ -885,6 +893,8 @@ async function handleIncomingMessage(phone, body, messageId = null, image = null
             // EB Bill (from list)
             case 'MENU_EB_BILL':
             case '⚡ EB BILL': {
+                const ebBanner = path.join(__dirname, '../assets/EB Banner.png');
+                if (fs.existsSync(ebBanner)) await sendImage(phone, ebBanner);
                 await handleMenuEBBill(phone);
                 break;
             }
@@ -892,6 +902,8 @@ async function handleIncomingMessage(phone, body, messageId = null, image = null
             // Statements (from list)
             case 'MENU_STATEMENTS':
             case '📜 STATEMENTS': {
+                const stmtBanner = path.join(__dirname, '../assets/Statements.png');
+                if (fs.existsSync(stmtBanner)) await sendImage(phone, stmtBanner);
                 await handleMenuStatements(phone);
                 break;
             }
@@ -899,6 +911,8 @@ async function handleIncomingMessage(phone, body, messageId = null, image = null
             // Queries (from list)
             case 'MENU_QUERIES':
             case '❓ QUERIES': {
+                const queryBanner = path.join(__dirname, '../assets/Queries.png');
+                if (fs.existsSync(queryBanner)) await sendImage(phone, queryBanner);
                 const baseUrl = config.whatsapp.callbackUrl ? config.whatsapp.callbackUrl.replace('/webhook', '') : 'https://stayflow.onrender.com';
                 const queriesUrl = `${baseUrl}/queries.html?phone=${encodeURIComponent(phone)}`;
                 await sendCTAButton(
@@ -914,6 +928,8 @@ async function handleIncomingMessage(phone, body, messageId = null, image = null
             // Holiday List (from list)
             case 'MENU_HOLIDAYS':
             case '🎉 HOLIDAY LIST': {
+                const holidayBanner = path.join(__dirname, '../assets/Holidays.png');
+                if (fs.existsSync(holidayBanner)) await sendImage(phone, holidayBanner);
                 await handleMenuHolidays(phone);
                 break;
             }
@@ -921,6 +937,8 @@ async function handleIncomingMessage(phone, body, messageId = null, image = null
             // Rules (from list)
             case 'MENU_RULES':
             case '📋 RULES': {
+                const rulesBanner = path.join(__dirname, '../assets/Rules.png');
+                if (fs.existsSync(rulesBanner)) await sendImage(phone, rulesBanner);
                 const rulesMenuMsg = `🏢 *PG House Rules & Regulations*\n━━━━━━━━━━━━━━━━━━━━\n\n⚖️ *DO's:*\n1. Keep your room and shared areas clean and hygienic.\n2. Maintain silence after 10:00 PM for everyone's comfort.\n3. Pay rent by the 5th and EB bills by the 10th of each month.\n4. Inform the admin 30 days before vacating.\n5. Cooperate with police verification and security checks.\n\n🚫 *DON'Ts:*\n1. Strictly NO smoking, alcohol, or illegal substances.\n2. No overnight visitors allowed without prior permission.\n3. Do not use heavy appliances (Heaters/AC/Iron) without approval.\n4. No loud music, parties, or disturbances in rooms.\n5. Do not damage PG property or furniture.\n\n📜 *Note:* Rules are for the safety and comfort of all residents. Violations may lead to penalties or eviction.\n━━━━━━━━━━━━━━━━━━━━`;
                 await sendMessage(phone, rulesMenuMsg);
                 break;
@@ -929,6 +947,8 @@ async function handleIncomingMessage(phone, body, messageId = null, image = null
             // Vacancy Rooms (from list)
             case 'MENU_VACANCY':
             case '🛏️ VACANCY ROOMS': {
+                const vacancyBanner = path.join(__dirname, '../assets/Vacancy.png');
+                if (fs.existsSync(vacancyBanner)) await sendImage(phone, vacancyBanner);
                 await handleMenuVacancy(phone);
                 break;
             }
@@ -936,6 +956,8 @@ async function handleIncomingMessage(phone, body, messageId = null, image = null
             // Refer a Friend (from list)
             case 'MENU_REFER':
             case '👥 REFER A FRIEND': {
+                const referBanner = path.join(__dirname, '../assets/Refer.png');
+                if (fs.existsSync(referBanner)) await sendImage(phone, referBanner);
                 await handleMenuRefer(phone);
                 break;
             }
@@ -1391,7 +1413,7 @@ async function handleRent(phone) {
     const currentMonth = monthNames[now.getMonth()];
     const dueDate = `${config.rentDueDate}th ${currentMonth}`;
 
-    let caption = `🧾 *Invoice & Payment*\n\nHi ${name},\n💰 *Total Due: ₹${total}*\n📅 *Due Date: ${dueDate}*\n\n📋 *Breakdown:*\n🏠 Rent: ₹${rent}\n⚡ EB: ₹${eb}\n━━━━━━━━━━━━━━━━━━━━\n💵 *Total: ₹${total}*`;
+    let caption = `🧾 *Invoice & Payment*\n━━━━━━━━━━━━━━━━━━━━\n\n👤 *Name*          :  ${name}\n📅 *Due Date*    :  ${dueDate}\n\n📋 *Breakdown:*\n🏠 *Rent*            :  ₹${rent}\n⚡ *EB*                :  ₹${eb}\n━━━━━━━━━━━━━━━━━━━━\n💵 *Total Due*    :  ₹${total}`;
 
     const razorpayLink = await createRazorpayLink(phone, name, total, tenant.get('Room'));
     if (razorpayLink) caption += `\n\n💳 *Pay Online (Razorpay):*\n${razorpayLink}`;
@@ -1452,7 +1474,7 @@ async function handleMenuRent(phone) {
     const dueDate = `${config.rentDueDate}th ${currentMonth}`;
 
     const isVerified = status === 'PAID' || status === 'VALID';
-    let rentMsg = `🏠 *Rent Details — ${currentMonth}*\n━━━━━━━━━━━━━━━━━━━━\n\n👤 Name: ${name}\n🚪 Room: ${room}\n\n💰 *Bill Breakdown:*\n┌─────────────────────\n│ 🏠 Rent: ₹${rent}\n│ ⚡ EB: ₹${eb}\n└─────────────────────\n💵 *Total Due: ₹${total}*\n📅 *Due Date: ${dueDate}*\n\n${isVerified ? '✅ *Payment Status: VALID*' : (status === 'PENDING' ? '⏳ *Payment Status: PENDING*' : '❌ *Payment Status: INVALID*')}`;
+    let rentMsg = `🏠 *Rent Details — ${currentMonth}*\n━━━━━━━━━━━━━━━━━━━━\n\n👤 *Name*          :  ${name}\n🚪 *Room*          :  ${room}\n\n💰 *Bill Breakdown:*\n🏠 *Rent*            :  ₹${rent}\n⚡ *EB*                :  ₹${eb}\n━━━━━━━━━━━━━━━━━━━━\n💵 *Total Due*    :  ₹${total}\n📅 *Due Date*    :  ${dueDate}\n📌 *Status*          :  ${isVerified ? '✅ VALID' : (status === 'PENDING' ? '⏳ PENDING' : '❌ INVALID')}\n━━━━━━━━━━━━━━━━━━━━`;
 
     if (!isVerified) {
         // Show Razorpay + Cash + Cancel buttons
@@ -1480,7 +1502,7 @@ async function handleMenuEBBill(phone) {
     const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
     const currentMonth = monthNames[now.getMonth()];
 
-    const ebMsg = `⚡ *Electricity Bill — ${currentMonth}*\n━━━━━━━━━━━━━━━━━━━━\n\n👤 Name: ${name}\n🚪 Room: ${room}\n\n⚡ *EB Amount: ₹${eb}*\n💡 Rate: ₹${config.ebUnitRate}/unit\n\n🏠 Rent: ₹${rent}\n━━━━━━━━━━━━━━━━━━━━\n💵 *Total (Rent + EB): ₹${total}*`;
+    const ebMsg = `⚡ *Electricity Bill — ${currentMonth}*\n━━━━━━━━━━━━━━━━━━━━\n\n👤 *Name*          :  ${name}\n🚪 *Room*          :  ${room}\n\n⚡ *EB Amount*  :  ₹${eb}\n💡 *Rate*            :  ₹${config.ebUnitRate}/unit\n🏠 *Rent*            :  ₹${rent}\n━━━━━━━━━━━━━━━━━━━━\n💵 *Total*            :  ₹${total}\n━━━━━━━━━━━━━━━━━━━━`;
 
     const status = tenant.get('Status') || 'PENDING';
     const isVerified = status === 'PAID' || status === 'VALID';

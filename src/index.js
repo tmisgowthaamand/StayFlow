@@ -1305,7 +1305,7 @@ app.post('/webhook/google-form', async (req, res) => {
         await sendMedia(tenantData.phone, regPath, '📄 Your registration copy', null, 'StayFlow_Registration.pdf');
 
         if (config.ownerPhone) {
-            await sendMessage(config.ownerPhone, `📝 *New Form Registration*\n\nName: ${tenantData.name}\nPhone: ${tenantData.phone}\nRoom: ${tenantData.room}\n\nPlease verify in the dashboard.`);
+            await sendMessage(config.ownerPhone, `📝 *New Form Registration*\n━━━━━━━━━━━━━━━━━━━━\n\n👤 *Name*          :  ${tenantData.name}\n📞 *Phone*         :  ${tenantData.phone}\n🚪 *Room*          :  ${tenantData.room}\n\n━━━━━━━━━━━━━━━━━━━━\n_Please verify in the dashboard._`);
             await sendMedia(config.ownerPhone, regPath, `📝 Registration copy: ${tenantData.name}`, null, 'StayFlow_Registration.pdf');
         }
 
@@ -1699,12 +1699,12 @@ app.post('/api/mark-paid', authenticate, async (req, res) => {
 
         const eb = tenant.get('EB Amount') || '0';
         const rent = tenant.get('Monthly Rent') || '0';
-        const receiptMsg = `✅ *Payment Confirmed!*\n\nHi ${name},\n\n📋 *Breakdown:*\n🏠 Rent: ₹${rent}\n⚡ EB: ₹${eb}\n💰 *Total Paid: ₹${amount}*\n\n📅 Date: ${new Date().toLocaleDateString()}\n💳 Mode: ${mode.toUpperCase()}\n\nThank you for your payment! 🙏`;
+        const receiptMsg = `✅ *Payment Confirmed!*\n━━━━━━━━━━━━━━━━━━━━\n\n👤 *Name*          :  ${name}\n\n📋 *Breakdown:*\n🏠 *Rent*            :  ₹${rent}\n⚡ *EB*                :  ₹${eb}\n━━━━━━━━━━━━━━━━━━━━\n💰 *Total Paid*  :  ₹${amount}\n📅 *Date*            :  ${new Date().toLocaleDateString()}\n💳 *Mode*          :  ${mode.toUpperCase()}\n━━━━━━━━━━━━━━━━━━━━\nThank you for your payment! 🙏`;
         await sendMessage(phone, receiptMsg);
         await sendMedia(phone, filePath, "📄 Here is your payment receipt");
 
         if (config.ownerPhone) {
-            await sendMessage(config.ownerPhone, `💰 *Money In*\nTenant: ${name}\nRoom: ${tenant.get('Room')}\nRent: ₹${rent} | EB: ₹${eb}\nTotal: ₹${amount}\nMode: ${mode}`);
+            await sendMessage(config.ownerPhone, `💰 *Money In*\n━━━━━━━━━━━━━━━━━━━━\n\n👤 *Tenant*        :  ${name}\n🚪 *Room*          :  ${tenant.get('Room')}\n🏠 *Rent*            :  ₹${rent}\n⚡ *EB*                :  ₹${eb}\n━━━━━━━━━━━━━━━━━━━━\n💵 *Total*            :  ₹${amount}\n💳 *Mode*          :  ${mode}\n━━━━━━━━━━━━━━━━━━━━`);
         }
 
         // 🔔 Create In-App Notification
