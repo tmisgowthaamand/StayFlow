@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback, memo, useRef } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, TextInput, ActivityIndicator, Alert, RefreshControl, Animated, Easing, Modal } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, Pressable, TextInput, ActivityIndicator, Alert, RefreshControl, Animated, Easing, Modal } from 'react-native';
 import { Colors, Spacing, Shadows, Typography, BorderRadius, Gradients } from '../theme/theme';
 import { LinearGradient } from 'expo-linear-gradient';
 import Header from '../components/Header';
@@ -24,7 +24,7 @@ const ResidentItem = memo(({ item, index, onMenuPress, onRemind }) => {
 
     return (
         <AnimatedListItem index={index}>
-            <TouchableOpacity activeOpacity={0.85} onPress={() => navigation.navigate('TenantDetails', { tenant: item })}>
+            <Pressable onPress={() => navigation.navigate('TenantDetails', { tenant: item })}>
             <Animated.View style={[styles.card, scaleStyle, { backgroundColor: colors.backgroundAlt, borderColor: colors.border }]} onTouchStart={onPressIn} onTouchEnd={onPressOut} onTouchCancel={onPressOut}>
                 <View style={styles.cardHeader}>
                     <View style={styles.avatarWrapper}>
@@ -66,7 +66,7 @@ const ResidentItem = memo(({ item, index, onMenuPress, onRemind }) => {
 
                 {/* Actions Row removed for cleaner UI as buttons moved to header */}
             </Animated.View>
-            </TouchableOpacity>
+            </Pressable>
         </AnimatedListItem>
     );
 });
