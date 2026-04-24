@@ -573,6 +573,17 @@ const App = () => {
     const paidTenants = activeTenants.filter(t => t.Status === 'PAID' || t.Status === 'VALID');
     const collectionRate = activeTenants.length > 0 ? Math.round((paidTenants.length / activeTenants.length) * 100) : 0;
 
+    // Filter by search query
+    const q = searchQuery.toLowerCase().trim();
+    const dashboardFiltered = q
+      ? activeTenants.filter(t =>
+          (t.Name || '').toLowerCase().includes(q) ||
+          (t.Room || '').toLowerCase().includes(q) ||
+          (t.Phone || '').includes(q) ||
+          (t.Status || '').toLowerCase().includes(q)
+        )
+      : activeTenants;
+
     return (
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.3 }}>
         {/* Stats Grid - 5 cards aligned */}
@@ -593,7 +604,7 @@ const App = () => {
           {/* Recent Activity Table */}
           <div className="panel">
             <div className="panel-header">
-              <h3 className="panel-title">Recent Activity</h3>
+              <h3 className="panel-title">Recent Activity {q && <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 500 }}>({dashboardFiltered.length} results)</span>}</h3>
               <ShinyButton className="btn-small" onClick={handleNotifyAll}>
                 <Bell size={14} /> Notify All
               </ShinyButton>
@@ -609,7 +620,7 @@ const App = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {activeTenants.slice(0, 8).map((t, i) => (
+                  {dashboardFiltered.slice(0, q ? 50 : 8).map((t, i) => (
                     <tr key={i} className="table-row">
                       <td>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -635,6 +646,12 @@ const App = () => {
                   ))}
                 </tbody>
               </table>
+              {q && dashboardFiltered.length === 0 && (
+                <div style={{ textAlign: 'center', padding: '32px 20px', color: 'var(--text-muted)' }}>
+                  <Search size={28} style={{ marginBottom: 8, opacity: 0.4 }} />
+                  <p style={{ fontSize: '0.85rem', fontWeight: 600 }}>No results for "{searchQuery}"</p>
+                </div>
+              )}
             </div>
           </div>
 
