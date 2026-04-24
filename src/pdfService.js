@@ -483,6 +483,186 @@ class PDFService {
 
         return { fileName, filePath };
     }
+    async generateVacateForm(data) {
+        const doc = new jsPDF({
+            orientation: 'portrait',
+            unit: 'mm',
+            format: 'a4'
+        });
+        if (typeof doc.setCharSpace === 'function') doc.setCharSpace(0);
+
+        const { name, phone, room, sharingType, monthlyRent, advance, reason, requestDate, vacateDate } = data;
+
+        const vPrimary = [79, 70, 229];
+        const vSecondary = [6, 182, 212];
+        const vAccent = [220, 38, 38];    // Red accent for vacate
+        const textDark = [15, 23, 42];
+        const textMid = [71, 85, 105];
+        const white = [255, 255, 255];
+
+        // ==================== BRANDING HEADER ====================
+        const lX = 20;
+        const lY = 12;
+        doc.setDrawColor(...vPrimary);
+        doc.setLineWidth(1);
+        doc.line(lX, lY + 8, lX + 10, lY);
+        doc.line(lX + 10, lY, lX + 20, lY + 8);
+        doc.line(lX, lY + 8, lX + 20, lY + 8);
+        doc.rect(lX + 4, lY + 8, 12, 10);
+
+        doc.setLineWidth(1.2);
+        doc.setDrawColor(...vSecondary);
+        doc.line(lX + 5, lY + 12, lX + 15, lY + 12);
+        doc.line(lX + 15, lY + 12, lX + 15, lY + 16);
+        doc.setDrawColor(...vAccent);
+        doc.line(lX + 15, lY + 16, lX + 5, lY + 16);
+        doc.setDrawColor(...vSecondary);
+        doc.line(lX + 5, lY + 20, lX + 15, lY + 20);
+
+        doc.setFont('times', 'bold');
+        doc.setFontSize(18);
+        doc.setTextColor(...vPrimary);
+        doc.text("Stay", lX + 25, 20);
+        doc.setTextColor(...vSecondary);
+        doc.text("Flow", lX + 37, 20);
+
+        doc.setFont('times', 'normal');
+        doc.setFontSize(8);
+        doc.setTextColor(100, 100, 100);
+        doc.text('PREMIUM PG MANAGEMENT', lX + 25, 24);
+
+        // ==================== TITLE HEADER ====================
+        const headerY = 35;
+        doc.setFillColor(...vAccent);
+        doc.rect(0, headerY, 210, 40, 'F');
+        doc.setTextColor(255, 255, 255);
+        doc.setFont('times', 'bold');
+        doc.setFontSize(26);
+        doc.text(String(config.businessName), 20, headerY + 18);
+        doc.setFont('times', 'normal');
+        doc.setFontSize(14);
+        doc.text('Room Vacate Request Form', 20, headerY + 28);
+
+        // Request ID
+        const reqId = `VR-${Date.now().toString().slice(-6)}`;
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(10);
+        doc.setTextColor(255, 255, 255);
+        doc.text(`Request ID: ${reqId}`, 210 - 20, headerY + 18, { align: 'right' });
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(9);
+        doc.text(`Date: ${requestDate}`, 210 - 20, headerY + 28, { align: 'right' });
+
+        // ==================== TENANT DETAILS TABLE ====================
+        doc.setTextColor(...textDark);
+        doc.setFont('times', 'bold');
+        doc.setFontSize(14);
+        doc.text('Tenant Details', 20, headerY + 55);
+
+        autoTable(doc, {
+            startY: headerY + 60,
+            body: [
+                ['Full Name', String(name)],
+                ['Phone Number', String(phone)],
+                ['Room Number', String(room || 'N/A')],
+                ['Sharing Type', String(sharingType || 'N/A')],
+                ['Monthly Rent', `INR ${monthlyRent || '0'}`],
+                ['Advance Paid', `INR ${advance || '0'}`],
+            ],
+            theme: 'grid',
+            styles: { fontSize: 11, cellPadding: 5 },
+            columnStyles: { 0: { fontStyle: 'bold', cellWidth: 60, fillColor: [248, 250, 252] } },
+        });
+
+        // ==================== VACATE DETAILS TABLE ====================
+        const vacateTableY = doc.lastAutoTable.finalY + 10;
+        doc.setFont('times', 'bold');
+        doc.setFontSize(14);
+        doc.setTextColor(...vAccent);
+        doc.text('Vacate Request Details', 20, vacateTableY);
+
+        autoTable(doc, {
+            startY: vacateTableY + 5,
+            body: [
+                ['Request Date', String(requestDate)],
+                ['Expected Vacate Date', String(vacateDate)],
+                ['Reason for Leaving', String(reason || 'Not specified')],
+                ['Notice Period', '30 Days'],
+                ['Advance Refund Status', 'Pending Admin Approval'],
+            ],
+            theme: 'grid',
+            styles: { fontSize: 11, cellPadding: 5 },
+            columnStyles: { 0: { fontStyle: 'bold', cellWidth: 60, fillColor: [254, 242, 242] } },
+        });
+
+        // ==================== CHECKLIST ====================
+        const checkY = doc.lastAutoTable.finalY + 12;
+        doc.setFont('times', 'bold');
+        doc.setFontSize(13);
+        doc.setTextColor(...vPrimary);
+        doc.text('Checkout Checklist', 20, checkY);
+
+        doc.setFont('times', 'normal');
+        doc.setFontSize(10);
+        doc.setTextColor(...textMid);
+        const checklist = [
+            '[ ] All pending dues cleared (Rent + EB)',
+            '[ ] Room key returned to admin',
+            '[ ] Room inspected for damages',
+            '[ ] Personal belongings removed',
+            '[ ] Advance refund processed (if applicable)',
+            '[ ] Final settlement signed',
+        ];
+
+        let cY = checkY + 8;
+        checklist.forEach(item => {
+            doc.text(item, 25, cY);
+            cY += 7;
+        });
+
+        // ==================== STATUS BOX ====================
+        const statusY = cY + 8;
+        doc.setFillColor(254, 243, 199); // Light amber
+        doc.roundedRect(15, statusY, 180, 18, 2, 2, 'F');
+        doc.setDrawColor(245, 158, 11);
+        doc.setLineWidth(0.5);
+        doc.roundedRect(15, statusY, 180, 18, 2, 2, 'S');
+
+        doc.setFont('times', 'bold');
+        doc.setFontSize(11);
+        doc.setTextColor(180, 83, 9);
+        doc.text('STATUS: PENDING ADMIN APPROVAL', 20, statusY + 8);
+        doc.setFont('times', 'normal');
+        doc.setFontSize(9);
+        doc.text('Admin will review and confirm the vacate request. You will be notified.', 20, statusY + 14);
+
+        // ==================== FOOTER ====================
+        let footerStart = Math.max(statusY + 30, 260);
+        if (footerStart > 270) {
+            doc.addPage();
+            footerStart = 40;
+        }
+
+        doc.setDrawColor(...vSecondary);
+        doc.setLineWidth(0.4);
+        doc.line(15, footerStart, 195, footerStart);
+
+        doc.setFont('times', 'italic');
+        doc.setFontSize(8);
+        doc.setTextColor(...textMid);
+        doc.text('This is a computer-generated vacate request form. No signature required.', 105, footerStart + 6, { align: 'center' });
+        doc.setFont('times', 'bold');
+        doc.text(String(config.businessName) + ' | ' + String(config.ownerPhone || 'N/A'), 105, footerStart + 12, { align: 'center' });
+
+        // ==================== SAVE ====================
+        const fileName = data.fileName || `vacate_${phone}_${Date.now()}.pdf`;
+        const filePath = path.join(__dirname, '../uploads', fileName);
+
+        const buffer = Buffer.from(doc.output('arraybuffer'));
+        fs.writeFileSync(filePath, buffer);
+
+        return { fileName, filePath, requestId: reqId };
+    }
 }
 
 export default new PDFService();

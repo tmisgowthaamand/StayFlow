@@ -1798,11 +1798,92 @@ async function handleAdvance(phone) {
 async function handleTenantVacateRequest(phone) {
     const session = await getSession(phone);
     const tenant = await sheetsService.getTenantByPhone(phone, session?.contextName);
-    if (!tenant) return;
-    await sendMessage(phone, `We are sorry to see you go! 😔\nYour request to vacate Room *${tenant.get('Room')}* has been sent to the admin. We will process it shortly.`);
-    if (config.ownerPhone) {
-        await sendMessage(config.ownerPhone, `🚪 *VACATE REQUEST*\n\nTenant: ${tenant.get('Name')}\nRoom: ${tenant.get('Room')}\nPhone: ${phone}\nPlease confirm after clearing dues.`);
+    if (!tenant) {
+        await sendMessage(phone, `❌ You are not registered. Type *HI* to start.`);
+        return;
     }
+
+    // Ask for reason via buttons
+    await sendButtons(phone,
+        `🚪 *Vacate Room Request*\n━━━━━━━━━━━━━━━━━━━━\n\n👤 *Name*          :  ${tenant.get('Name')}\n🚪 *Room*          :  ${tenant.get('Room')}\n\nPlease select your reason for leaving 👇`,
+        ['🏠 Relocating', '💼 Job Change', '📋 Other Reason']
+    );
+    await updateSession(phone, {
+        step: 'VACATE_REASON',
+        contextName: tenant.get('Name'),
+        vacateData: {
+            name: tenant.get('Name'),
+            phone: phone,
+            room: tenant.get('Room'),
+            sharingType: tenant.get('Sharing Type') || 'N/A',
+            monthlyRent: tenant.get('Monthly Rent') || '0',
+            advance: tenant.get('Advance') || '0'
+        }
+    });
+}
+
+async function processVacateRequest(phone, reason) {
+    const session = await getSession(phone);
+    if (!session?.state?.vacateData) return;
+
+    const data = session.state.vacateData;
+    const requestDate = new Date().toLocaleDateString('en-IN');
+    const vacateDate = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toLocaleDateString('en-IN');
+
+    // Generate Vacate PDF
+    try {
+        const { filePath, requestId } = await pdfService.generateVacateForm({
+            ...data,
+            reason,
+            requestDate,
+            vacateDate
+        });
+
+        // Send to tenant
+        const tenantMsg = `🚪 *Vacate Request Submitted*\n━━━━━━━━━━━━━━━━━━━━\n\n🆔 *Request ID*  :  ${requestId}\n👤 *Name*          :  ${data.name}\n🚪 *Room*          :  ${data.room}\n📋 *Reason*        :  ${reason}\n📅 *Requested*  :  ${requestDate}\n📅 *Vacate By*    :  ${vacateDate}\n━━━━━━━━━━━━━━━━━━━━\n_Admin will review and confirm. You will be notified._`;
+        await sendMessage(phone, tenantMsg);
+        await sendMedia(phone, filePath, `📄 Vacate Request — ${data.name}`, null, `Vacate_${data.name}.pdf`);
+
+        // Send to admin
+        if (config.ownerPhone) {
+            const adminMsg = `🚪 *New Vacate Request*\n━━━━━━━━━━━━━━━━━━━━\n\n🆔 *ID*                :  ${requestId}\n👤 *Tenant*        :  ${data.name}\n📞 *Phone*         :  ${phone}\n🚪 *Room*          :  ${data.room}\n💰 *Rent*            :  ₹${data.monthlyRent}\n💵 *Advance*      :  ₹${data.advance}\n📋 *Reason*        :  ${reason}\n📅 *Vacate By*    :  ${vacateDate}\n━━━━━━━━━━━━━━━━━━━━\n_Reply *VACATE ${data.room}* to confirm checkout._`;
+            await sendMessage(config.ownerPhone, adminMsg);
+            await sendMedia(config.ownerPhone, filePath, `📄 Vacate Request — ${data.name}`, null, `Vacate_${data.name}.pdf`);
+        }
+
+        // 🔔 Create In-App Notification (Dashboard)
+        try {
+            const title = `🚪 Vacate Request: ${data.name}`;
+            const body = `Room ${data.room} • Reason: ${reason} • Vacate by ${vacateDate}`;
+
+            await Notification.create({
+                type: 'vacate_request',
+                title,
+                body,
+                meta: { tenantName: data.name, room: data.room, phone, reason, requestDate, vacateDate, requestId }
+            });
+
+            // 🚀 Send Remote Push Notification (Mobile App)
+            await sendPushNotification(title, body, {
+                type: 'vacate_request',
+                tenantName: data.name,
+                room: data.room,
+                reason,
+                vacateDate
+            });
+        } catch (e) {
+            console.error('Failed to create vacate notification:', e.message);
+        }
+
+    } catch (err) {
+        console.error('Vacate PDF generation error:', err.message);
+        await sendMessage(phone, `😔 We are sorry to see you go!\nYour request to vacate Room *${data.room}* has been sent to the admin. We will process it shortly.`);
+        if (config.ownerPhone) {
+            await sendMessage(config.ownerPhone, `🚪 *VACATE REQUEST*\n\n👤 Tenant: ${data.name}\n🚪 Room: ${data.room}\n📞 Phone: ${phone}\n📋 Reason: ${reason}\nPlease confirm after clearing dues.`);
+        }
+    }
+
+    await updateSession(phone, null);
 }
 
 async function handleUpdateEB(ownerPhone, room, units) {
@@ -2225,6 +2306,23 @@ async function handleOnboarding(phone, input, image) {
             }
 
             await updateSession(phone, null);
+            break;
+        }
+
+        case 'VACATE_REASON': {
+            const cleanReason = input.trim().replace(/[^\w\s]/g, '').trim();
+            if (cleanReason.toUpperCase() === 'OTHER REASON' || cleanReason.toUpperCase() === 'OTHER') {
+                await updateSession(phone, { ...state, step: 'VACATE_OTHER_REASON' });
+                await sendMessage(phone, `📝 Please type your reason for leaving:\n\n_Example: "Moving to a new city for work"_`);
+            } else {
+                await processVacateRequest(phone, cleanReason || 'Not specified');
+            }
+            break;
+        }
+
+        case 'VACATE_OTHER_REASON': {
+            const customReason = input.trim() || 'Personal reasons';
+            await processVacateRequest(phone, customReason);
             break;
         }
 

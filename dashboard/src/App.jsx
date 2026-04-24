@@ -5,7 +5,7 @@ import {
   Search, Edit3, Trash2, CheckCircle, AlertCircle, MapPin,
   ChevronRight, Plus, LogOut, LayoutDashboard, CreditCard,
   UserPlus, UserMinus, Camera, Send, Save, FileText, RefreshCw,
-  Menu, X, MessageSquare, Phone
+  Menu, X, MessageSquare, Phone, DoorOpen
 } from 'lucide-react';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
@@ -2180,8 +2180,8 @@ const App = () => {
                         onClick={() => { if (n.meta?.queryId) { setActiveTab('queries'); setNotifOpen(false); fetchQueries(); } }}
                       >
                         <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
-                          <div style={{ width: 32, height: 32, borderRadius: 8, background: n.type === 'issue_submitted' ? 'rgba(244,63,94,0.1)' : n.type === 'payment_received' ? 'rgba(16,185,129,0.1)' : n.type === 'invoice_sent' ? 'rgba(99,102,241,0.1)' : n.type === 'query_resolved' ? 'rgba(16,185,129,0.1)' : 'rgba(255,255,255,0.05)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                            {n.type === 'issue_submitted' ? <AlertCircle size={14} color="#f43f5e" /> : n.type === 'payment_received' ? <CheckCircle size={14} color="var(--secondary)" /> : n.type === 'invoice_sent' ? <FileText size={14} color="var(--primary)" /> : n.type === 'query_resolved' ? <CheckCircle size={14} color="var(--secondary)" /> : <Bell size={14} color="var(--text-muted)" />}
+                          <div style={{ width: 32, height: 32, borderRadius: 8, background: n.type === 'vacate_request' ? 'rgba(239,68,68,0.1)' : n.type === 'issue_submitted' ? 'rgba(244,63,94,0.1)' : n.type === 'payment_received' ? 'rgba(16,185,129,0.1)' : n.type === 'invoice_sent' ? 'rgba(99,102,241,0.1)' : n.type === 'query_resolved' ? 'rgba(16,185,129,0.1)' : 'rgba(255,255,255,0.05)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                            {n.type === 'vacate_request' ? <DoorOpen size={14} color="#ef4444" /> : n.type === 'issue_submitted' ? <AlertCircle size={14} color="#f43f5e" /> : n.type === 'payment_received' ? <CheckCircle size={14} color="var(--secondary)" /> : n.type === 'invoice_sent' ? <FileText size={14} color="var(--primary)" /> : n.type === 'query_resolved' ? <CheckCircle size={14} color="var(--secondary)" /> : <Bell size={14} color="var(--text-muted)" />}
                           </div>
                           <div style={{ flex: 1, minWidth: 0 }}>
                             <p style={{ fontWeight: 700, fontSize: '0.8rem', color: 'var(--text-main)', marginBottom: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{n.title}</p>

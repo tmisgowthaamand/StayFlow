@@ -84,6 +84,20 @@ export const NOTIFICATION_TYPES = {
         gradient: ['#60A5FA', '#3B82F6'],
         color: '#60A5FA',
     },
+    VACATE_REQUEST: {
+        key: 'vacate_request',
+        label: 'Vacate Request',
+        icon: 'DoorOpen',
+        gradient: ['#EF4444', '#DC2626'],
+        color: '#EF4444',
+    },
+    ISSUE_SUBMITTED: {
+        key: 'issue_submitted',
+        label: 'Issue Reported',
+        icon: 'AlertCircle',
+        gradient: ['#F59E0B', '#D97706'],
+        color: '#F59E0B',
+    },
 };
 
 /**
@@ -476,4 +490,13 @@ export const notifyDirectMessage = (name, message) =>
         message,
         { name, message },
         true // bannerOnly
+    );
+
+export const notifyVacateRequest = (tenantName, room, reason, vacateDate) =>
+    addNotification(
+        'vacate_request',
+        `🚪 Vacate Request: ${tenantName}`,
+        `Room ${room} • Reason: ${reason} • Vacate by ${vacateDate}`,
+        { tenantName, room, reason, vacateDate },
+        true // bannerOnly — server creates the bell entry
     );

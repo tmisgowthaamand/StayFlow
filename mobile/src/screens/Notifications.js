@@ -11,11 +11,11 @@ import {
 import {
     FileText, CheckCircle, UserPlus, Send, Zap, Bell,
     BellOff, Trash2, CheckCheck, Clock, X, AlertCircle, ChevronRight,
-    Megaphone
+    Megaphone, DoorOpen
 } from 'lucide-react-native';
 import { useLanguage } from '../context/LanguageContext';
 
-const ICON_MAP = { FileText, CheckCircle, UserPlus, Send, Zap, AlertCircle, Megaphone };
+const ICON_MAP = { FileText, CheckCircle, UserPlus, Send, Zap, AlertCircle, Megaphone, DoorOpen };
 
 const getTypeConfig = (type) => {
     const configs = {
@@ -26,6 +26,8 @@ const getTypeConfig = (type) => {
         bulk_notify_report: NOTIFICATION_TYPES.BULK_NOTIFY_REPORT,
         eb_split: NOTIFICATION_TYPES.EB_SPLIT,
         announcement: NOTIFICATION_TYPES.ANNOUNCEMENT,
+        vacate_request: NOTIFICATION_TYPES.VACATE_REQUEST,
+        issue_submitted: NOTIFICATION_TYPES.ISSUE_SUBMITTED,
     };
     return configs[type] || NOTIFICATION_TYPES.BULK_NOTIFY;
 };
