@@ -1651,6 +1651,56 @@ app.post('/api/mark-paid', authenticate, async (req, res) => {
     }
 });
 
+// Send overdue reminder to individual or all unpaid tenants
+app.post('/api/send-reminder', authenticate, async (req, res) => {
+    try {
+        const { phone, name } = req.body;
+        const allTenants = await sheetsService.getTenantsJSON();
+        const currentMonth = new Date().toLocaleString('default', { month: 'long' });
+
+        let targets = [];
+        if (phone) {
+            // Individual reminder
+            const tenant = allTenants.find(t => t.Phone === phone && (!name || t.Name === name));
+            if (!tenant) return res.status(404).json({ error: 'Tenant not found' });
+            targets = [tenant];
+        } else {
+            // Bulk: all unpaid tenants
+            targets = allTenants.filter(t => t.Status !== 'PAID' && t.Status !== 'VALID' && t.Status !== 'VACATED');
+        }
+
+        if (targets.length === 0) return res.json({ success: true, sent: 0, message: 'No unpaid tenants found' });
+
+        // Respond immediately
+        res.json({ success: true, sent: targets.length, message: `Sending reminders to ${targets.length} tenant(s)...` });
+
+        // Background send
+        (async () => {
+            for (const t of targets) {
+                try {
+                    const rent = parseFloat((t['Monthly Rent'] || '0').toString().replace(/[^\d.]/g, ''));
+                    const eb = parseFloat((t['EB Amount'] || '0').toString().replace(/[^\d.]/g, ''));
+                    const total = rent + eb;
+                    const razorpayLink = await createRazorpayLink(t.Phone, t.Name, total, t.Room);
+
+                    let msg = `⚠️ *Payment Reminder*\n\nHi ${t.Name},\nYour rent of *₹${total}* for ${currentMonth} is still pending.\n📅 Due Date: ${config.rentDueDate}th\n\nPlease pay immediately to avoid late fees.`;
+                    if (razorpayLink) msg += `\n\n💳 *Pay Online:* ${razorpayLink}`;
+                    msg += `\n\n💵 Or pay cash and inform admin.`;
+
+                    await sendMessage(t.Phone, msg);
+                    await new Promise(r => setTimeout(r, 1000));
+                } catch (err) {
+                    console.error(`[REMINDER] Error sending to ${t.Phone}:`, err.message);
+                }
+            }
+            console.log(`[REMINDER] Sent to ${targets.length} tenant(s).`);
+        })();
+    } catch (err) {
+        console.error('Send Reminder Error:', err.message);
+        res.status(500).json({ error: err.message });
+    }
+});
+
 app.post('/api/delete-tenant', authenticate, async (req, res) => {
     try {
         const { phone, name } = req.body;

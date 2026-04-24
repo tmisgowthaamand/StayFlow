@@ -106,7 +106,100 @@ function setupCron() {
         }
     });
 
-    // 4. Daily Database Backup at 3:00 AM (Requirement 10)
+    // 4. Overdue Reminder on the 10th at 9:00 AM
+    cron.schedule('0 9 10 * *', async () => {
+        console.log('Running 10th Day Overdue Reminder Cron...');
+        try {
+            const tenants = await sheetsService.getAllTenants();
+            const unpaid = tenants.filter(t => {
+                const s = t.get('Status');
+                return s !== 'PAID' && s !== 'VALID' && s !== 'VACATED';
+            });
+
+            if (unpaid.length === 0) {
+                console.log('[CRON 10th] All tenants paid. No reminders needed.');
+                return;
+            }
+
+            // Send individual reminders
+            for (const tenant of unpaid) {
+                const phone = tenant.get('Phone');
+                const name = tenant.get('Name');
+                const room = tenant.get('Room');
+                const totalPaise = toPaise(tenant.get('Total Amount'));
+                const total = totalPaise / 100;
+                const razorpayLink = await bot.createRazorpayLink(phone, name, total, room);
+
+                let msg = `⚠️ *Rent Reminder*\n\nHi ${name},\nYour rent of *₹${total}* for this month is still pending.\n📅 Due Date: ${config.rentDueDate}th (overdue)\n\nPlease pay before 11th to avoid late fee.`;
+                if (razorpayLink) msg += `\n\n💳 *Pay Now:* ${razorpayLink}`;
+                msg += `\n\n💵 Or pay cash and inform admin.`;
+
+                await bot.sendMessage(phone, msg);
+                await new Promise(r => setTimeout(r, 1000));
+            }
+
+            // Send admin summary
+            if (config.ownerPhone) {
+                const currentMonth = new Date().toLocaleString('default', { month: 'long', year: 'numeric' });
+                let summary = `📊 *Overdue Report — 10th ${currentMonth}*\n\n🔴 *${unpaid.length} tenant(s) have NOT paid:*\n`;
+                let totalPending = 0;
+                unpaid.forEach((t, i) => {
+                    const amt = toPaise(t.get('Total Amount')) / 100;
+                    totalPending += amt;
+                    summary += `${i + 1}. ${t.get('Name')} — Room ${t.get('Room')} — ₹${amt}\n`;
+                });
+                summary += `\n💰 *Total Pending: ₹${totalPending.toLocaleString()}*\n\nReply *SEND REMINDER* to notify them all.`;
+                await bot.sendMessage(config.ownerPhone, summary);
+            }
+
+            console.log(`[CRON 10th] Sent overdue reminders to ${unpaid.length} tenants + admin summary.`);
+        } catch (err) {
+            console.error('Cron Error (10th):', err);
+        }
+    });
+
+    // 5. Final Overdue Warning on the 11th at 9:00 AM
+    cron.schedule('0 9 11 * *', async () => {
+        console.log('Running 11th Day Final Overdue Warning Cron...');
+        try {
+            const tenants = await sheetsService.getAllTenants();
+            const unpaid = tenants.filter(t => {
+                const s = t.get('Status');
+                return s !== 'PAID' && s !== 'VALID' && s !== 'VACATED';
+            });
+
+            if (unpaid.length === 0) {
+                console.log('[CRON 11th] All tenants paid.');
+                return;
+            }
+
+            for (const tenant of unpaid) {
+                const phone = tenant.get('Phone');
+                const name = tenant.get('Name');
+                const totalPaise = toPaise(tenant.get('Total Amount'));
+                const total = totalPaise / 100;
+                const razorpayLink = await bot.createRazorpayLink(phone, name, total, tenant.get('Room'));
+
+                let msg = `🚨 *Final Reminder*\n\nHi ${name},\nYour rent of *₹${total}* is *OVERDUE*.\nThis is your final reminder before late fee applies.\n\nPlease clear your dues immediately.`;
+                if (razorpayLink) msg += `\n\n💳 *Pay Now:* ${razorpayLink}`;
+
+                await bot.sendMessage(phone, msg);
+                await new Promise(r => setTimeout(r, 1000));
+            }
+
+            // Admin update
+            if (config.ownerPhone) {
+                const currentMonth = new Date().toLocaleString('default', { month: 'long', year: 'numeric' });
+                await bot.sendMessage(config.ownerPhone, `🚨 *11th ${currentMonth} — Still ${unpaid.length} unpaid tenant(s)*\nFinal warnings sent. Check dashboard for details.`);
+            }
+
+            console.log(`[CRON 11th] Sent final warnings to ${unpaid.length} tenants.`);
+        } catch (err) {
+            console.error('Cron Error (11th):', err);
+        }
+    });
+
+    // 6. Daily Database Backup at 3:00 AM (Requirement 10)
     cron.schedule('0 3 * * *', async () => {
         console.log('Running Daily Database Backup...');
         try {
@@ -122,7 +215,7 @@ function setupCron() {
         }
     });
 
-    // 5. Full Sync with MongoDB every 6 hours
+    // 7. Full Sync with MongoDB every 6 hours
     cron.schedule('0 */6 * * *', async () => {
         console.log('Running Full MongoDB Sync Cron...');
         try {
@@ -133,7 +226,7 @@ function setupCron() {
         }
     });
 
-    console.log('🕒 Automation System Active: Daily Backups (3AM), Sync (6h), and Bills (1,3,5th).');
+    console.log('🕒 Automation System Active: Bills (1,3,5th), Overdue (10,11th), Backups (3AM), Sync (6h).');
 }
 
 export default setupCron;

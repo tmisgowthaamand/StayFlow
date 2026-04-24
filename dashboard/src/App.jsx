@@ -592,10 +592,39 @@ const App = () => {
     }
   };
 
+  const handleSendReminder = async (tenant) => {
+    try {
+      await axios.post('/api/send-reminder', { phone: tenant.Phone, name: tenant.Name });
+      showToast(`Reminder sent to ${tenant.Name}!`);
+    } catch (err) {
+      showToast('Failed to send reminder', 'error');
+    }
+  };
+
+  const handleRemindAllOverdue = () => {
+    const overdueList = activeTenants.filter(t => t.Status !== 'PAID' && t.Status !== 'VALID');
+    setActionPanel({
+      type: 'confirm',
+      title: 'Remind All Overdue',
+      message: `Send payment reminder to ${overdueList.length} unpaid tenant(s) via WhatsApp?`,
+      onConfirm: async () => {
+        try {
+          await axios.post('/api/send-reminder', {});
+          showToast(`Reminders sent to ${overdueList.length} tenants!`);
+          setActionPanel(null);
+        } catch (err) {
+          showToast('Failed to send reminders', 'error');
+        }
+      }
+    });
+  };
+
   const renderDashboard = () => {
     const unpaidTenants = activeTenants.filter(t => t.Status !== 'PAID' && t.Status !== 'VALID');
     const paidTenants = activeTenants.filter(t => t.Status === 'PAID' || t.Status === 'VALID');
     const collectionRate = activeTenants.length > 0 ? Math.round((paidTenants.length / activeTenants.length) * 100) : 0;
+    const today = new Date().getDate();
+    const isOverduePeriod = today >= 11;
 
     // Filter by search query
     const q = searchQuery.toLowerCase().trim();
@@ -613,15 +642,75 @@ const App = () => {
         {/* Stats Grid - 5 cards aligned */}
         <div className="stats-grid">
           {stats.map((stat, idx) => (
-            <SpotlightCard key={idx}>
+            <SpotlightCard key={idx} style={stat.label === 'Unpaid' && isOverduePeriod && unpaidTenants.length > 0 ? { border: '1px solid rgba(244, 63, 94, 0.4)' } : {}}>
               <div className="stat-icon-wrap" style={{ backgroundColor: stat.bg, color: stat.color }}>
                 <stat.icon size={20} />
               </div>
-              <p className="stat-label">{stat.label}</p>
+              <p className="stat-label">{stat.label}{stat.label === 'Unpaid' && isOverduePeriod && unpaidTenants.length > 0 ? ' 🔴' : ''}</p>
               <p className="stat-value">{stat.value}</p>
             </SpotlightCard>
           ))}
         </div>
+
+        {/* Overdue Payments Section - shows after 10th of month */}
+        {isOverduePeriod && unpaidTenants.length > 0 && (
+          <div className="panel" style={{ marginBottom: 20, border: '1px solid rgba(244, 63, 94, 0.25)', background: 'rgba(244, 63, 94, 0.03)' }}>
+            <div className="panel-header">
+              <h3 className="panel-title" style={{ color: '#f43f5e' }}>
+                <AlertCircle size={16} style={{ marginRight: 6 }} />
+                Overdue Payments ({unpaidTenants.length})
+              </h3>
+              <ShinyButton className="btn-small" onClick={handleRemindAllOverdue} style={{ background: 'rgba(244, 63, 94, 0.1)', color: '#f43f5e', border: '1px solid rgba(244, 63, 94, 0.3)' }}>
+                <Bell size={14} /> Remind All Overdue
+              </ShinyButton>
+            </div>
+            <div className="table-scroll">
+              <table className="custom-table">
+                <thead>
+                  <tr>
+                    <th>Resident</th>
+                    <th>Room</th>
+                    <th>Amount Due</th>
+                    <th>Days Overdue</th>
+                    <th>Status</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {unpaidTenants.map((t, i) => {
+                    const daysOverdue = today - (configData?.rentDueDate || 5);
+                    return (
+                      <tr key={i} className="table-row">
+                        <td>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                            <div style={{
+                              width: 30, height: 30, borderRadius: 8,
+                              background: 'rgba(244, 63, 94, 0.1)', color: '#f43f5e',
+                              display: 'flex', alignItems: 'center', justifyContent: 'center',
+                              fontWeight: 700, fontSize: '0.75rem'
+                            }}>{t.Name?.[0] || '?'}</div>
+                            <span style={{ fontWeight: 600, fontSize: '0.85rem' }}>{t.Name}</span>
+                          </div>
+                        </td>
+                        <td><span style={{ background: 'var(--primary-soft)', color: 'var(--primary)', padding: '3px 8px', borderRadius: 6, fontSize: '0.78rem', fontWeight: 600 }}>{t.Room}</span></td>
+                        <td style={{ fontSize: '0.85rem', fontWeight: 700, color: '#f43f5e' }}>₹{t['Total Amount'] || (parseFloat(t['Monthly Rent'] || 0) + parseFloat(t['EB Amount'] || 0))}</td>
+                        <td><span style={{ background: 'rgba(244, 63, 94, 0.1)', color: '#f43f5e', padding: '3px 10px', borderRadius: 6, fontSize: '0.78rem', fontWeight: 700 }}>{daysOverdue > 0 ? `${daysOverdue} days` : 'Due today'}</span></td>
+                        <td><span className="status-badge" style={{ background: 'rgba(244, 63, 94, 0.12)', color: '#f43f5e' }}>🔴 OVERDUE</span></td>
+                        <td>
+                          <div style={{ display: 'flex', gap: 4 }}>
+                            <button className="btn btn-glass btn-small" onClick={() => handleSendReminder(t)} title="Send Reminder" style={{ padding: '5px 8px', color: '#f43f5e' }}><Bell size={13} /></button>
+                            <button className="btn btn-glass btn-small" onClick={() => handleRecordPayment(t)} title="Mark Paid" style={{ padding: '5px 8px', color: 'var(--secondary)' }}><CheckCircle size={13} /></button>
+                            <button className="btn btn-glass btn-small" onClick={() => handleCustomMessage(t)} title="Send Message" style={{ padding: '5px 8px', color: 'var(--primary)' }}><Send size={13} /></button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
 
         {/* Main Content */}
         <div className="content-grid">
@@ -641,6 +730,7 @@ const App = () => {
                     <th>Room</th>
                     <th>Rent / EB</th>
                     <th>Status</th>
+                    <th>Paid Date</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -665,6 +755,9 @@ const App = () => {
                           {(t.Status === 'PAID' || t.Status === 'VALID') ? <CheckCircle size={10} /> : <Clock size={10} />}
                           {t.Status || 'ACTIVE'}
                         </span>
+                      </td>
+                      <td style={{ fontSize: '0.78rem', color: (t.Status === 'PAID' || t.Status === 'VALID') ? 'var(--secondary)' : 'var(--text-faint)' }}>
+                        {(t.Status === 'PAID' || t.Status === 'VALID') ? (t['Paid Date'] || '—') : '—'}
                       </td>
                     </tr>
                   ))}
@@ -771,6 +864,7 @@ const App = () => {
                 <th>Rent / EB</th>
                 <th>Join Date</th>
                 <th>Status</th>
+                <th>Paid Date</th>
                 <th>Aadhaar</th>
                 <th>Reg</th>
                 <th>Action</th>
@@ -805,6 +899,9 @@ const App = () => {
                       {(t.Status === 'PAID' || t.Status === 'VALID') ? <CheckCircle size={10} /> : <Clock size={10} />}
                       {t.Status || 'ACTIVE'}
                     </span>
+                  </td>
+                  <td style={{ fontSize: '0.78rem', color: (t.Status === 'PAID' || t.Status === 'VALID') ? 'var(--secondary)' : 'var(--text-faint)', fontWeight: (t.Status === 'PAID' || t.Status === 'VALID') ? 600 : 400 }}>
+                    {(t.Status === 'PAID' || t.Status === 'VALID') ? (t['Paid Date'] || '—') : '—'}
                   </td>
                   <td>
                     {t['Aadhaar Image'] ? (
