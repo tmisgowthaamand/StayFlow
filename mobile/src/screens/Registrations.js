@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback, memo, useRef } from 'react';
+import React, { useEffect, useState, useCallback, useMemo, memo, useRef } from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, RefreshControl, Linking, Alert, Animated, Easing } from 'react-native';
 import { Colors, Spacing, Shadows, Typography, BorderRadius, Gradients } from '../theme/theme';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -74,7 +74,20 @@ const Registrations = () => {
     const [tenants, setTenants] = useState([]);
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
+    const [searchQuery, setSearchQuery] = useState('');
     const { t } = useLanguage();
+
+    const filteredTenants = useMemo(() => {
+        if (!searchQuery.trim()) return tenants;
+        const q = searchQuery.toLowerCase().trim();
+        return tenants.filter(t => {
+            const name = (t.Name || '').toLowerCase();
+            const phone = (t.Phone || '').toString();
+            const room = (t.Room || '').toString().toLowerCase();
+            const status = (t.Status || '').toLowerCase();
+            return name.includes(q) || phone.includes(q) || room.includes(q) || status.includes(q);
+        });
+    }, [searchQuery, tenants]);
 
     const fetchRegistrations = useCallback(async () => {
         try {
@@ -101,12 +114,12 @@ const Registrations = () => {
 
     return (
         <View style={styles.container}>
-            <Header title={t('registrations')} />
+            <Header title={t('registrations')} onSearchChange={setSearchQuery} placeholder="Search by name, room, phone..." />
             {loading && !refreshing ? (
                 <View style={styles.listContent}><SkeletonCard /><SkeletonCard /><SkeletonCard /><SkeletonCard /></View>
             ) : (
                 <FlatList
-                    data={tenants} keyExtractor={keyExtractor} renderItem={renderItem} contentContainerStyle={styles.listContent}
+                    data={filteredTenants} keyExtractor={keyExtractor} renderItem={renderItem} contentContainerStyle={styles.listContent}
                     refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[Colors.primary]} tintColor={Colors.primary} progressBackgroundColor={Colors.surface} />}
                     ListEmptyComponent={<View style={styles.emptyContainer}><Text style={styles.emptyText}>{t('no_registrations')}</Text></View>}
                     showsVerticalScrollIndicator={false} removeClippedSubviews={true} maxToRenderPerBatch={8} windowSize={5}
