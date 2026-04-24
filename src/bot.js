@@ -2317,20 +2317,62 @@ async function handleOnboarding(phone, input, image) {
             state.vacateData.reason = reason;
             state.step = 'VACATE_STEP_DATE';
             await updateSession(phone, state);
-            await sendMessage(phone, `✅ *Reason saved!*\n\n📅 *Step 2/3 — Expected Vacate Date*\n\nWhen do you plan to move out?\n\n_Type date like: 25/05/2026 or "End of this month"_\n\n⚠️ _Minimum 30 days notice required._`);
+
+            // Generate date options: 30, 45, 60, 90 days + end of month options
+            const now = new Date();
+            const dateRows = [];
+            const addDays = (d, n) => { const dt = new Date(d); dt.setDate(dt.getDate() + n); return dt; };
+            const fmtDate = (d) => d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+
+            // 30 days
+            const d30 = addDays(now, 30);
+            dateRows.push({ id: `vdate_${d30.toISOString().slice(0,10)}`, title: `📅 ${fmtDate(d30)}`, description: '30 days from today (minimum notice)' });
+
+            // End of next month
+            const nextMonthEnd = new Date(now.getFullYear(), now.getMonth() + 2, 0);
+            dateRows.push({ id: `vdate_${nextMonthEnd.toISOString().slice(0,10)}`, title: `📅 ${fmtDate(nextMonthEnd)}`, description: `End of ${nextMonthEnd.toLocaleDateString('en-IN', { month: 'long' })}` });
+
+            // 45 days
+            const d45 = addDays(now, 45);
+            dateRows.push({ id: `vdate_${d45.toISOString().slice(0,10)}`, title: `📅 ${fmtDate(d45)}`, description: '45 days from today' });
+
+            // 60 days
+            const d60 = addDays(now, 60);
+            dateRows.push({ id: `vdate_${d60.toISOString().slice(0,10)}`, title: `📅 ${fmtDate(d60)}`, description: '60 days from today' });
+
+            // End of month after next
+            const month3End = new Date(now.getFullYear(), now.getMonth() + 3, 0);
+            dateRows.push({ id: `vdate_${month3End.toISOString().slice(0,10)}`, title: `📅 ${fmtDate(month3End)}`, description: `End of ${month3End.toLocaleDateString('en-IN', { month: 'long' })}` });
+
+            // 90 days
+            const d90 = addDays(now, 90);
+            dateRows.push({ id: `vdate_${d90.toISOString().slice(0,10)}`, title: `📅 ${fmtDate(d90)}`, description: '90 days from today' });
+
+            await sendListMessage(
+                phone,
+                '📅 Step 2/3 — Vacate Date',
+                `✅ *Reason saved!*\n\nSelect your expected move-out date 👇\n\n⚠️ _Minimum 30 days notice required._`,
+                '📅 Choose Date',
+                [{ title: '📅 Select Vacate Date', rows: dateRows }]
+            );
             break;
         }
 
         case 'VACATE_STEP_DATE': {
-            const dateInput = input.trim();
-            if (!dateInput || dateInput.length < 3) {
-                await sendMessage(phone, `❌ Please enter a valid date.\n\n_Example: "25/05/2026" or "End of June"_`);
-                return;
+            // Parse selected date from list (id format: vdate_YYYY-MM-DD)
+            const dateId = input.trim();
+            let vacateDateStr = dateId;
+            if (dateId.startsWith('vdate_')) {
+                const isoDate = dateId.replace('vdate_', '');
+                const parsed = new Date(isoDate);
+                if (!isNaN(parsed)) {
+                    vacateDateStr = parsed.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+                }
             }
-            state.vacateData.vacateDateInput = dateInput;
+            state.vacateData.vacateDateInput = vacateDateStr;
             state.step = 'VACATE_STEP_FEEDBACK';
             await updateSession(phone, state);
-            await sendMessage(phone, `✅ *Vacate date saved!*\n\n💬 *Step 3/3 — Feedback (Optional)*\n\nAny feedback or comments about your stay?\n\n_Type your feedback or type *SKIP* to submit without feedback._`);
+            await sendMessage(phone, `✅ *Vacate date: ${vacateDateStr}*\n\n💬 *Step 3/3 — Feedback (Optional)*\n\nAny feedback or comments about your stay?\n\n_Type your feedback or type *SKIP* to submit without feedback._`);
             break;
         }
 
