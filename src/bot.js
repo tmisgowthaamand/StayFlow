@@ -1803,13 +1803,10 @@ async function handleTenantVacateRequest(phone) {
         return;
     }
 
-    // Ask for reason via buttons
-    await sendButtons(phone,
-        `🚪 *Vacate Room Request*\n━━━━━━━━━━━━━━━━━━━━\n\n👤 *Name*          :  ${tenant.get('Name')}\n🚪 *Room*          :  ${tenant.get('Room')}\n\nPlease select your reason for leaving 👇`,
-        ['🏠 Relocating', '💼 Job Change', '📋 Other Reason']
-    );
+    // Step 1: Show tenant info & ask reason
+    await sendMessage(phone, `🚪 *Vacate Room — Fill Form*\n━━━━━━━━━━━━━━━━━━━━\n\n👤 *Name*          :  ${tenant.get('Name')}\n🚪 *Room*          :  ${tenant.get('Room')}\n💰 *Rent*            :  ₹${tenant.get('Monthly Rent') || '0'}\n💵 *Advance*      :  ₹${tenant.get('Advance') || '0'}\n\n━━━━━━━━━━━━━━━━━━━━\n📋 *Step 1/3 — Reason*\n\nPlease type your reason for leaving:\n\n_Example: "Relocating to another city for work"_`);
     await updateSession(phone, {
-        step: 'VACATE_REASON',
+        step: 'VACATE_STEP_REASON',
         contextName: tenant.get('Name'),
         vacateData: {
             name: tenant.get('Name'),
@@ -1828,7 +1825,8 @@ async function processVacateRequest(phone, reason) {
 
     const data = session.state.vacateData;
     const requestDate = new Date().toLocaleDateString('en-IN');
-    const vacateDate = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toLocaleDateString('en-IN');
+    const vacateDate = data.vacateDateInput || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toLocaleDateString('en-IN');
+    const feedback = data.feedback || 'No feedback';
 
     // Generate Vacate PDF
     try {
@@ -1836,17 +1834,18 @@ async function processVacateRequest(phone, reason) {
             ...data,
             reason,
             requestDate,
-            vacateDate
+            vacateDate,
+            feedback
         });
 
         // Send to tenant
-        const tenantMsg = `🚪 *Vacate Request Submitted*\n━━━━━━━━━━━━━━━━━━━━\n\n🆔 *Request ID*  :  ${requestId}\n👤 *Name*          :  ${data.name}\n🚪 *Room*          :  ${data.room}\n📋 *Reason*        :  ${reason}\n📅 *Requested*  :  ${requestDate}\n📅 *Vacate By*    :  ${vacateDate}\n━━━━━━━━━━━━━━━━━━━━\n_Admin will review and confirm. You will be notified._`;
+        const tenantMsg = `🚪 *Vacate Request Submitted*\n━━━━━━━━━━━━━━━━━━━━\n\n🆔 *Request ID*  :  ${requestId}\n👤 *Name*          :  ${data.name}\n🚪 *Room*          :  ${data.room}\n📋 *Reason*        :  ${reason}\n📅 *Requested*  :  ${requestDate}\n📅 *Vacate By*    :  ${vacateDate}\n💬 *Feedback*    :  ${feedback}\n━━━━━━━━━━━━━━━━━━━━\n_Admin will review and confirm. You will be notified._`;
         await sendMessage(phone, tenantMsg);
         await sendMedia(phone, filePath, `📄 Vacate Request — ${data.name}`, null, `Vacate_${data.name}.pdf`);
 
         // Send to admin
         if (config.ownerPhone) {
-            const adminMsg = `🚪 *New Vacate Request*\n━━━━━━━━━━━━━━━━━━━━\n\n🆔 *ID*                :  ${requestId}\n👤 *Tenant*        :  ${data.name}\n📞 *Phone*         :  ${phone}\n🚪 *Room*          :  ${data.room}\n💰 *Rent*            :  ₹${data.monthlyRent}\n💵 *Advance*      :  ₹${data.advance}\n📋 *Reason*        :  ${reason}\n📅 *Vacate By*    :  ${vacateDate}\n━━━━━━━━━━━━━━━━━━━━\n_Reply *VACATE ${data.room}* to confirm checkout._`;
+            const adminMsg = `🚪 *New Vacate Request*\n━━━━━━━━━━━━━━━━━━━━\n\n🆔 *ID*                :  ${requestId}\n👤 *Tenant*        :  ${data.name}\n📞 *Phone*         :  ${phone}\n🚪 *Room*          :  ${data.room}\n💰 *Rent*            :  ₹${data.monthlyRent}\n💵 *Advance*      :  ₹${data.advance}\n📋 *Reason*        :  ${reason}\n📅 *Vacate By*    :  ${vacateDate}\n💬 *Feedback*    :  ${feedback}\n━━━━━━━━━━━━━━━━━━━━\n_Reply *VACATE ${data.room}* to confirm checkout._`;
             await sendMessage(config.ownerPhone, adminMsg);
             await sendMedia(config.ownerPhone, filePath, `📄 Vacate Request — ${data.name}`, null, `Vacate_${data.name}.pdf`);
         }
@@ -2309,20 +2308,55 @@ async function handleOnboarding(phone, input, image) {
             break;
         }
 
-        case 'VACATE_REASON': {
-            const cleanReason = input.trim().replace(/[^\w\s]/g, '').trim();
-            if (cleanReason.toUpperCase() === 'OTHER REASON' || cleanReason.toUpperCase() === 'OTHER') {
-                await updateSession(phone, { ...state, step: 'VACATE_OTHER_REASON' });
-                await sendMessage(phone, `📝 Please type your reason for leaving:\n\n_Example: "Moving to a new city for work"_`);
-            } else {
-                await processVacateRequest(phone, cleanReason || 'Not specified');
+        case 'VACATE_STEP_REASON': {
+            const reason = input.trim();
+            if (!reason || reason.length < 3) {
+                await sendMessage(phone, `❌ Please enter a valid reason (at least 3 characters).\n\n_Example: "Relocating to another city"_`);
+                return;
             }
+            state.vacateData.reason = reason;
+            state.step = 'VACATE_STEP_DATE';
+            await updateSession(phone, state);
+            await sendMessage(phone, `✅ *Reason saved!*\n\n📅 *Step 2/3 — Expected Vacate Date*\n\nWhen do you plan to move out?\n\n_Type date like: 25/05/2026 or "End of this month"_\n\n⚠️ _Minimum 30 days notice required._`);
             break;
         }
 
-        case 'VACATE_OTHER_REASON': {
-            const customReason = input.trim() || 'Personal reasons';
-            await processVacateRequest(phone, customReason);
+        case 'VACATE_STEP_DATE': {
+            const dateInput = input.trim();
+            if (!dateInput || dateInput.length < 3) {
+                await sendMessage(phone, `❌ Please enter a valid date.\n\n_Example: "25/05/2026" or "End of June"_`);
+                return;
+            }
+            state.vacateData.vacateDateInput = dateInput;
+            state.step = 'VACATE_STEP_FEEDBACK';
+            await updateSession(phone, state);
+            await sendMessage(phone, `✅ *Vacate date saved!*\n\n💬 *Step 3/3 — Feedback (Optional)*\n\nAny feedback or comments about your stay?\n\n_Type your feedback or type *SKIP* to submit without feedback._`);
+            break;
+        }
+
+        case 'VACATE_STEP_FEEDBACK': {
+            const feedback = input.trim().toUpperCase() === 'SKIP' ? 'No feedback' : (input.trim() || 'No feedback');
+            state.vacateData.feedback = feedback;
+
+            // Show confirmation
+            const d = state.vacateData;
+            await sendButtons(phone,
+                `🚪 *Vacate Request — Confirm*\n━━━━━━━━━━━━━━━━━━━━\n\n👤 *Name*          :  ${d.name}\n🚪 *Room*          :  ${d.room}\n💰 *Rent*            :  ₹${d.monthlyRent}\n💵 *Advance*      :  ₹${d.advance}\n📋 *Reason*        :  ${d.reason}\n📅 *Vacate By*    :  ${d.vacateDateInput}\n💬 *Feedback*    :  ${feedback}\n\n━━━━━━━━━━━━━━━━━━━━\n_Please confirm to submit your request._`,
+                ['✅ Confirm & Submit', '❌ Cancel']
+            );
+            state.step = 'VACATE_STEP_CONFIRM';
+            await updateSession(phone, state);
+            break;
+        }
+
+        case 'VACATE_STEP_CONFIRM': {
+            const answer = input.trim().replace(/[^\w\s]/g, '').trim().toUpperCase();
+            if (answer === 'CANCEL' || answer === 'NO') {
+                await sendMessage(phone, `❌ Vacate request cancelled. We're glad you're staying! 🏠`);
+                await updateSession(phone, null);
+            } else {
+                await processVacateRequest(phone, state.vacateData.reason);
+            }
             break;
         }
 

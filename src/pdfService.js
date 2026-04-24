@@ -491,7 +491,7 @@ class PDFService {
         });
         if (typeof doc.setCharSpace === 'function') doc.setCharSpace(0);
 
-        const { name, phone, room, sharingType, monthlyRent, advance, reason, requestDate, vacateDate } = data;
+        const { name, phone, room, sharingType, monthlyRent, advance, reason, requestDate, vacateDate, feedback } = data;
 
         const vPrimary = [79, 70, 229];
         const vSecondary = [6, 182, 212];
@@ -587,6 +587,7 @@ class PDFService {
                 ['Request Date', String(requestDate)],
                 ['Expected Vacate Date', String(vacateDate)],
                 ['Reason for Leaving', String(reason || 'Not specified')],
+                ['Feedback', String(feedback || 'No feedback')],
                 ['Notice Period', '30 Days'],
                 ['Advance Refund Status', 'Pending Admin Approval'],
             ],
