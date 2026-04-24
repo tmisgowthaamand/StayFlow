@@ -1356,6 +1356,8 @@ async function handleSmartPayment(phone, body) {
     }
 
     // ===== "PAID TXNID" — Detect Transaction ID and verify =====
+    const knownCommands = ['STATEMENTS', 'PREVIOUS PAYMENT', 'SEND REMINDER', 'PAY VIA RAZORPAY', 'VACANCY ROOMS', 'REFER A FRIEND', 'HOLIDAY LIST', 'NEW REGISTER', 'MENU_REGISTER', 'MENU_STATEMENTS', 'MENU_QUERIES', 'MENU_HOLIDAYS', 'MENU_VACANCY', 'MENU_REFER', 'MENU_RULES', 'MENU_VACATE', 'MENU_RENT', 'MENU_PAY', 'MENU_EB_BILL'];
+    if (knownCommands.includes(clean)) return false;
     const trxMatch = clean.match(/[A-Z0-9]{10,}/);
     if (trxMatch || clean.startsWith('PAYMENT_')) {
         const trxId = trxMatch ? trxMatch[0] : clean;
@@ -1514,7 +1516,7 @@ async function handleMenuEBBill(phone) {
     }
 }
 
-// Handle Statements from Menu — show last 10 months as a list
+// Handle Statements from Menu — show last 3 months payment summary + list for older
 async function handleMenuStatements(phone) {
     const tenant = await sheetsService.getTenantByPhone(phone);
     if (!tenant || tenant.get('Status') === 'VACATED') {
@@ -1522,7 +1524,52 @@ async function handleMenuStatements(phone) {
         return;
     }
 
-    // Generate list of last 10 months
+    const name = tenant.get('Name');
+
+    // Fetch recent payment history
+    const paymentHistory = await sheetsService.getPaymentHistory(phone, 3);
+    const oldHistory = await sheetsService.getHistoryByPhone ? await sheetsService.getHistoryByPhone(phone) : [];
+
+    let stmtMsg = `📜 *Payment Statements*\n━━━━━━━━━━━━━━━━━━━━\n\n👤 *Tenant*        :  ${name}\n\n`;
+
+    if (paymentHistory && paymentHistory.length > 0) {
+        paymentHistory.forEach((h, i) => {
+            const monthYear = h.get('Month-Year') || 'Unknown';
+            const amount = h.get('Total Amount') || '0';
+            const mode = h.get('Payment Mode') || 'N/A';
+            const paidDate = h.get('Paid Date') || 'N/A';
+            const pStatus = h.get('Status') || 'PAID';
+            const pEmoji = pStatus === 'PAID' || pStatus === 'VALID' ? '✅' : '⏳';
+
+            stmtMsg += `${pEmoji} *${monthYear}*\n`;
+            stmtMsg += `💵 *Amount*      :  ₹${amount}\n`;
+            stmtMsg += `💳 *Mode*          :  ${mode}\n`;
+            stmtMsg += `📅 *Paid On*      :  ${paidDate}\n`;
+            if (i < paymentHistory.length - 1) stmtMsg += `\n`;
+        });
+    } else if (oldHistory && oldHistory.length > 0) {
+        oldHistory.slice(-3).reverse().forEach((h, i, arr) => {
+            const month = h.get('Month') || '';
+            const year = h.get('Year') || '';
+            const amount = h.get('Amount') || '0';
+            const mode = h.get('Mode') || 'N/A';
+            const paidDate = h.get('Date') || 'N/A';
+
+            stmtMsg += `✅ *${month} ${year}*\n`;
+            stmtMsg += `💵 *Amount*      :  ₹${amount}\n`;
+            stmtMsg += `💳 *Mode*          :  ${mode}\n`;
+            stmtMsg += `📅 *Paid On*      :  ${paidDate}\n`;
+            if (i < arr.length - 1) stmtMsg += `\n`;
+        });
+    } else {
+        stmtMsg += `_No payment records found yet._\n`;
+    }
+
+    stmtMsg += `\n━━━━━━━━━━━━━━━━━━━━\n_Type *HISTORY* to view more records._`;
+
+    await sendMessage(phone, stmtMsg);
+
+    // Also show month selector for detailed view
     const now = new Date();
     const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
     const monthRows = [];
@@ -1539,7 +1586,7 @@ async function handleMenuStatements(phone) {
     await sendListMessage(
         phone,
         '📜 Monthly Statements',
-        `Hi *${tenant.get('Name')}*! 👋\n\nSelect a month below to view your detailed payment statement for that month.`,
+        `Select a month below for detailed statement 👇`,
         '📅 Select Month',
         [{ title: '📅 Choose Month', rows: monthRows }]
     );
