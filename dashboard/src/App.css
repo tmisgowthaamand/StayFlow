@@ -165,7 +165,7 @@ header {
 .stat-value { font-size: 1.65rem; font-weight: 800; letter-spacing: -0.5px; }
 
 /* ─── Panels ───────────────────────────────────────────── */
-.content-grid { display: grid; grid-template-columns: 1.6fr 1fr; gap: 20px; }
+.content-grid { display: grid; grid-template-columns: 1.6fr 1fr; gap: 20px; align-items: start; }
 .panel {
   background: var(--bg-card); border: 1px solid var(--glass-border);
   border-radius: var(--radius-xl); padding: 24px; transition: var(--transition);
