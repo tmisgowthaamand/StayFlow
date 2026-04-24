@@ -126,6 +126,27 @@ const getFullUrl = (path) => {
 };
 
 const App = () => {
+  const [isAuthenticated, setIsAuthenticated] = useState(() => sessionStorage.getItem('stayflow_auth') === 'true');
+  const [loginForm, setLoginForm] = useState({ username: '', password: '' });
+  const [loginError, setLoginError] = useState('');
+
+  const handleLogin = (e) => {
+    e.preventDefault();
+    if (loginForm.username === 'admin' && loginForm.password === 'admin') {
+      setIsAuthenticated(true);
+      sessionStorage.setItem('stayflow_auth', 'true');
+      setLoginError('');
+    } else {
+      setLoginError('Invalid username or password');
+    }
+  };
+
+  const handleLogout = () => {
+    setIsAuthenticated(false);
+    sessionStorage.removeItem('stayflow_auth');
+    setLoginForm({ username: '', password: '' });
+  };
+
   const [tenants, setTenants] = useState([]);
   const [activeTab, setActiveTab] = useState('dashboard');
   const [loading, setLoading] = useState(true);
@@ -1715,6 +1736,103 @@ const App = () => {
     </AnimatePresence>
   );
 
+  if (!isAuthenticated) {
+    return (
+      <div style={{
+        minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center',
+        background: 'linear-gradient(135deg, #0a0a1a 0%, #1a1a2e 50%, #0a0a1a 100%)',
+        fontFamily: "'Inter', -apple-system, sans-serif",
+      }}>
+        <motion.div
+          initial={{ opacity: 0, y: 20, scale: 0.95 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          transition={{ duration: 0.4 }}
+          style={{
+            background: 'rgba(255,255,255,0.03)', backdropFilter: 'blur(20px)',
+            border: '1px solid rgba(255,255,255,0.08)', borderRadius: 20,
+            padding: '48px 40px', width: '100%', maxWidth: 400,
+            boxShadow: '0 20px 60px rgba(0,0,0,0.4)',
+          }}
+        >
+          <div style={{ textAlign: 'center', marginBottom: 32 }}>
+            <div style={{
+              width: 56, height: 56, borderRadius: 16, margin: '0 auto 16px',
+              background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              boxShadow: '0 8px 24px rgba(99, 102, 241, 0.3)',
+            }}>
+              <LayoutDashboard size={28} color="#fff" />
+            </div>
+            <h1 style={{ fontSize: '1.4rem', fontWeight: 700, color: '#fff', margin: 0 }}>StayFlow</h1>
+            <p style={{ fontSize: '0.8rem', color: 'rgba(255,255,255,0.4)', marginTop: 6 }}>Sign in to manage your property</p>
+          </div>
+
+          <form onSubmit={handleLogin}>
+            <div style={{ marginBottom: 16 }}>
+              <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: 'rgba(255,255,255,0.5)', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Username</label>
+              <input
+                type="text"
+                value={loginForm.username}
+                onChange={(e) => setLoginForm({ ...loginForm, username: e.target.value })}
+                placeholder="Enter username"
+                autoFocus
+                style={{
+                  width: '100%', padding: '12px 14px', borderRadius: 10,
+                  border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.04)',
+                  color: '#fff', fontSize: '0.9rem', outline: 'none', boxSizing: 'border-box',
+                  transition: 'border-color 0.2s',
+                }}
+                onFocus={(e) => e.target.style.borderColor = 'rgba(99,102,241,0.5)'}
+                onBlur={(e) => e.target.style.borderColor = 'rgba(255,255,255,0.1)'}
+              />
+            </div>
+            <div style={{ marginBottom: 24 }}>
+              <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: 'rgba(255,255,255,0.5)', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Password</label>
+              <input
+                type="password"
+                value={loginForm.password}
+                onChange={(e) => setLoginForm({ ...loginForm, password: e.target.value })}
+                placeholder="Enter password"
+                style={{
+                  width: '100%', padding: '12px 14px', borderRadius: 10,
+                  border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.04)',
+                  color: '#fff', fontSize: '0.9rem', outline: 'none', boxSizing: 'border-box',
+                  transition: 'border-color 0.2s',
+                }}
+                onFocus={(e) => e.target.style.borderColor = 'rgba(99,102,241,0.5)'}
+                onBlur={(e) => e.target.style.borderColor = 'rgba(255,255,255,0.1)'}
+              />
+            </div>
+            {loginError && (
+              <div style={{
+                padding: '10px 14px', borderRadius: 8, marginBottom: 16,
+                background: 'rgba(244, 63, 94, 0.1)', border: '1px solid rgba(244, 63, 94, 0.2)',
+                color: '#f43f5e', fontSize: '0.8rem', fontWeight: 500,
+                display: 'flex', alignItems: 'center', gap: 8,
+              }}>
+                <AlertCircle size={14} /> {loginError}
+              </div>
+            )}
+            <button
+              type="submit"
+              style={{
+                width: '100%', padding: '13px 0', borderRadius: 10, border: 'none',
+                background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
+                color: '#fff', fontSize: '0.9rem', fontWeight: 700, cursor: 'pointer',
+                boxShadow: '0 4px 16px rgba(99, 102, 241, 0.3)',
+                transition: 'transform 0.15s, box-shadow 0.15s',
+              }}
+              onMouseDown={(e) => e.target.style.transform = 'scale(0.98)'}
+              onMouseUp={(e) => e.target.style.transform = 'scale(1)'}
+            >
+              Sign In
+            </button>
+          </form>
+        </motion.div>
+      </div>
+    );
+  }
+
   return (
     <div className={`dashboard-container ${sidebarOpen ? 'sidebar-open' : ''}`}>
       <InteractiveGrid />
@@ -1757,6 +1875,19 @@ const App = () => {
           </div>
           <p style={{ fontSize: '0.68rem', color: 'var(--text-muted)', marginTop: 4 }}>Last sync: moments ago</p>
         </div>
+        <button
+          onClick={handleLogout}
+          style={{
+            marginTop: 12, padding: '10px 16px', width: '100%',
+            background: 'rgba(244, 63, 94, 0.08)', color: '#f43f5e',
+            border: '1px solid rgba(244, 63, 94, 0.2)', borderRadius: 'var(--radius-s)',
+            cursor: 'pointer', fontSize: '0.8rem', fontWeight: 600,
+            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+            transition: 'var(--transition)',
+          }}
+        >
+          <LogOut size={14} /> Logout
+        </button>
       </div>
 
       {/* Toast Notification */}
