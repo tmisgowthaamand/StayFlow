@@ -819,6 +819,7 @@ async function handleIncomingMessage(phone, body, messageId = null, image = null
                     regUrl,
                     '🏠 Welcome to ' + config.businessName
                 );
+                await sendMainMenuList(phone);
                 break;
             }
 
@@ -828,6 +829,7 @@ async function handleIncomingMessage(phone, body, messageId = null, image = null
                 const vacateBanner = path.join(__dirname, '../assets/Vacate.png');
                 if (fs.existsSync(vacateBanner)) await sendImage(phone, vacateBanner, `🚪 *Vacate Room*\n━━━━━━━━━━━━━━━━━━━━\nRequest to vacate your room • 30 days notice required`);
                 await handleTenantVacateRequest(phone);
+                await sendMainMenuList(phone);
                 break;
             }
 
@@ -837,6 +839,7 @@ async function handleIncomingMessage(phone, body, messageId = null, image = null
                 const rentBanner = path.join(__dirname, '../assets/Rent.png');
                 if (fs.existsSync(rentBanner)) await sendImage(phone, rentBanner, `🏠 *Rent Details*\n━━━━━━━━━━━━━━━━━━━━\nView your monthly rent & bill breakdown`);
                 await handleMenuRent(phone);
+                await sendMainMenuList(phone);
                 break;
             }
 
@@ -863,6 +866,7 @@ async function handleIncomingMessage(phone, body, messageId = null, image = null
                     await updateSession(phone, { step: 'PAYMENT_METHOD', contextName: tenantPay.get('Name') });
                 } else {
                     await sendButtons(phone, payMsg, ['📞 Contact']);
+                    await sendMainMenuList(phone);
                 }
                 break;
             }
@@ -897,6 +901,7 @@ async function handleIncomingMessage(phone, body, messageId = null, image = null
                 const ebBanner = path.join(__dirname, '../assets/EB Banner.png');
                 if (fs.existsSync(ebBanner)) await sendImage(phone, ebBanner, `⚡ *Electricity Bill*\n━━━━━━━━━━━━━━━━━━━━\nView your EB charges & unit rate`);
                 await handleMenuEBBill(phone);
+                await sendMainMenuList(phone);
                 break;
             }
 
@@ -906,6 +911,7 @@ async function handleIncomingMessage(phone, body, messageId = null, image = null
                 const stmtBanner = path.join(__dirname, '../assets/Statements.png');
                 if (fs.existsSync(stmtBanner)) await sendImage(phone, stmtBanner, `📜 *Payment Statements*\n━━━━━━━━━━━━━━━━━━━━\nMonthly payment history & records`);
                 await handleMenuStatements(phone);
+                await sendMainMenuList(phone);
                 break;
             }
 
@@ -924,6 +930,7 @@ async function handleIncomingMessage(phone, body, messageId = null, image = null
                     queriesUrl,
                     '❓ Queries & Support'
                 );
+                await sendMainMenuList(phone);
                 break;
             }
 
@@ -933,6 +940,7 @@ async function handleIncomingMessage(phone, body, messageId = null, image = null
                 const holidayBanner = path.join(__dirname, '../assets/Holidays.png');
                 if (fs.existsSync(holidayBanner)) await sendImage(phone, holidayBanner, await getHolidayCaption());
                 else await handleMenuHolidays(phone);
+                await sendMainMenuList(phone);
                 break;
             }
 
@@ -943,6 +951,7 @@ async function handleIncomingMessage(phone, body, messageId = null, image = null
                 const rulesMenuMsg = `🏢 *PG House Rules & Regulations*\n━━━━━━━━━━━━━━━━━━━━\n\n⚖️ *DO's:*\n1. Keep your room and shared areas clean and hygienic.\n2. Maintain silence after 10:00 PM for everyone's comfort.\n3. Pay rent by the 5th and EB bills by the 10th of each month.\n4. Inform the admin 30 days before vacating.\n5. Cooperate with police verification and security checks.\n\n🚫 *DON'Ts:*\n1. Strictly NO smoking, alcohol, or illegal substances.\n2. No overnight visitors allowed without prior permission.\n3. Do not use heavy appliances (Heaters/AC/Iron) without approval.\n4. No loud music, parties, or disturbances in rooms.\n5. Do not damage PG property or furniture.\n\n📜 *Note:* Rules are for the safety and comfort of all residents. Violations may lead to penalties or eviction.\n━━━━━━━━━━━━━━━━━━━━`;
                 if (fs.existsSync(rulesBanner)) await sendImage(phone, rulesBanner, rulesMenuMsg);
                 else await sendMessage(phone, rulesMenuMsg);
+                await sendMainMenuList(phone);
                 break;
             }
 
@@ -952,6 +961,7 @@ async function handleIncomingMessage(phone, body, messageId = null, image = null
                 const vacancyBanner = path.join(__dirname, '../assets/Vacancy.png');
                 if (fs.existsSync(vacancyBanner)) await sendImage(phone, vacancyBanner, `🛏️ *Vacancy Rooms*\n━━━━━━━━━━━━━━━━━━━━\nCheck available rooms & sharing types`);
                 await handleMenuVacancy(phone);
+                await sendMainMenuList(phone);
                 break;
             }
 
@@ -961,6 +971,7 @@ async function handleIncomingMessage(phone, body, messageId = null, image = null
                 const referBanner = path.join(__dirname, '../assets/Refer.png');
                 if (fs.existsSync(referBanner)) await sendImage(phone, referBanner, `👥 *Refer a Friend*\n━━━━━━━━━━━━━━━━━━━━\nInvite friends & earn rewards`);
                 await handleMenuRefer(phone);
+                await sendMainMenuList(phone);
                 break;
             }
 
@@ -1458,6 +1469,46 @@ async function handleEB(phone) {
 }
 
 // ==================== MENU HANDLER FUNCTIONS ====================
+
+// Reusable: Send main menu list to user (so they don't need to type HI again)
+async function sendMainMenuList(phone) {
+    const tenant = await sheetsService.getTenantByPhone(phone);
+    const isRegistered = tenant && tenant.get('Status') !== 'VACATED';
+
+    const mainMenuRows = [];
+    if (isRegistered) {
+        mainMenuRows.push({ id: 'menu_vacate', title: '🚪 Vacate', description: 'Request to vacate your room' });
+    } else {
+        mainMenuRows.push({ id: 'menu_register', title: '📝 New Register', description: 'Register as a new tenant' });
+    }
+    mainMenuRows.push(
+        { id: 'menu_rent', title: '🏠 Rent', description: 'View rent details & bill' },
+        { id: 'menu_pay', title: '💳 Pay Bills', description: 'Pay via Razorpay or Cash' },
+        { id: 'menu_eb_bill', title: '⚡ EB Bill', description: 'View electricity bill' },
+        { id: 'menu_statements', title: '📜 Statements', description: 'Monthly payment statements' },
+        { id: 'menu_queries', title: '❓ Queries', description: 'Submit a query or complaint' }
+    );
+
+    const infoMenuRows = [
+        { id: 'menu_holidays', title: '🎉 Holiday List', description: 'View upcoming holidays' },
+        { id: 'menu_rules', title: '📋 Rules', description: 'PG house rules & regulations' },
+        { id: 'menu_vacancy', title: '🛏️ Vacancy Rooms', description: 'Check available rooms' },
+        { id: 'menu_refer', title: '👥 Refer a Friend', description: 'Refer someone & earn rewards' }
+    ];
+
+    const sections = [
+        { title: '🏠 Services', rows: mainMenuRows },
+        { title: 'ℹ️ Information', rows: infoMenuRows }
+    ];
+
+    await sendListMessage(
+        phone,
+        `🏠 ${config.businessName}`,
+        `Need anything else? Select an option below 👇`,
+        '📋 View Menu',
+        sections
+    );
+}
 
 // Handle Rent from Menu — show rent with Pay Now / Contact buttons
 async function handleMenuRent(phone) {
