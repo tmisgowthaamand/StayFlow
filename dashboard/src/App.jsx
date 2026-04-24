@@ -1713,7 +1713,7 @@ const App = () => {
                 style={{
                   padding: '9px 12px 9px 32px', borderRadius: 'var(--radius-s)',
                   border: '1px solid var(--glass-border)', background: 'rgba(255,255,255,0.03)',
-                  color: 'var(--text-main)', fontSize: '0.825rem', width: 200, outline: 'none',
+                  color: 'var(--text-main)', fontSize: '0.825rem', width: '100%', minWidth: 140, maxWidth: 220, outline: 'none',
                   transition: 'var(--transition)',
                 }}
               />
@@ -1767,7 +1767,7 @@ const App = () => {
             </div>
 
             {/* Form Grid */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+            <div className="modal-form-grid">
               <div className="input-group">
                 <label>Full Name</label>
                 <input type="text" defaultValue={selectedTenant?.Name} onChange={(e) => handleEditChange('Name', e.target.value)} placeholder="Enter full name" />
@@ -1778,7 +1778,7 @@ const App = () => {
               </div>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+            <div className="modal-form-grid">
               <div className="input-group">
                 <label>Room Number</label>
                 <input type="text" defaultValue={selectedTenant?.Room} onChange={(e) => handleEditChange('Room', e.target.value)} placeholder="e.g. 101" />
@@ -1797,7 +1797,7 @@ const App = () => {
               </div>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+            <div className="modal-form-grid">
               <div className="input-group">
                 <label>Rent (₹)</label>
                 <input type="number" defaultValue={selectedTenant?.['Monthly Rent']} onChange={(e) => handleEditChange('Monthly Rent', e.target.value)} placeholder="Monthly rent" />
