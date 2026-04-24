@@ -290,13 +290,54 @@ const App = () => {
     });
   };
 
+  const handleStatusToggle = (tenant) => {
+    const isPaid = tenant.Status === 'PAID' || tenant.Status === 'VALID';
+    if (isPaid) {
+      // Already paid → confirm change to PENDING/ACTIVE
+      setActionPanel({
+        type: 'confirm',
+        title: 'Change Payment Status',
+        message: `${tenant.Name} is currently marked as ${tenant.Status}. Do you want to mark as PENDING (unpaid)?`,
+        data: tenant,
+        input: '',
+        input2: '',
+        onConfirm: async () => {
+          try {
+            await axios.post('/api/update-and-notify', {
+              oldPhone: tenant.Phone,
+              oldName: tenant.Name,
+              newPhone: tenant.Phone,
+              name: tenant.Name,
+              rent: tenant['Monthly Rent'],
+              eb: tenant['EB Amount'] || '0',
+              sharingType: tenant['Sharing Type'],
+              location: tenant.Location,
+              room: tenant.Room,
+              status: 'PENDING',
+            });
+            showToast(`${tenant.Name} marked as PENDING`);
+            setActionPanel(null);
+            fetchData();
+          } catch (err) {
+            showToast('Failed to update status', 'error');
+          }
+        }
+      });
+    } else {
+      // Not paid → open payment recording panel
+      handleRecordPayment(tenant);
+    }
+  };
+
   const handleRecordPayment = (tenant) => {
+    const rent = parseFloat(tenant['Monthly Rent'] || 0);
+    const eb = parseFloat(tenant['EB Amount'] || 0);
     setActionPanel({
       type: 'payment',
       title: 'Record Payment',
       data: tenant,
-      input: tenant['Total Amount'] || 0,
-      input2: 'UPI',
+      input: tenant['Total Amount'] || (rent + eb).toString(),
+      input2: 'CASH',
       onConfirm: async (amount, mode) => {
         try {
           await axios.post('/api/mark-paid', {
@@ -714,7 +755,12 @@ const App = () => {
                   <td style={{ fontSize: '0.82rem' }}>₹{t['Monthly Rent']} / ₹{t['EB Amount'] || '0'}</td>
                   <td style={{ fontSize: '0.8rem', color: 'var(--text-dim)' }}>{t['Join Date'] || 'N/A'}</td>
                   <td>
-                    <span className={`status-badge ${(t.Status || 'active').toLowerCase()}`}>
+                    <span
+                      className={`status-badge ${(t.Status || 'active').toLowerCase()}`}
+                      style={{ cursor: 'pointer' }}
+                      title="Click to change status"
+                      onClick={() => handleStatusToggle(t)}
+                    >
                       {(t.Status === 'PAID' || t.Status === 'VALID') ? <CheckCircle size={10} /> : <Clock size={10} />}
                       {t.Status || 'ACTIVE'}
                     </span>
@@ -1460,8 +1506,9 @@ const App = () => {
                       onChange={e => setActionPanel({ ...actionPanel, input2: e.target.value })}
                       style={{ width: '100%', padding: 12, borderRadius: 12, background: 'rgba(255,255,255,0.05)', color: 'white', border: '1px solid var(--glass-border)' }}
                     >
-                      <option value="UPI">UPI Payment</option>
                       <option value="CASH">Cash Payment</option>
+                      <option value="UPI">UPI / GPay</option>
+                      <option value="RAZORPAY">Razorpay</option>
                       <option value="BANK">Bank Transfer</option>
                     </select>
                   </div>
