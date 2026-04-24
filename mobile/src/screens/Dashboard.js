@@ -7,13 +7,14 @@ import { LinearGradient } from 'expo-linear-gradient';
 import Header from '../components/Header';
 import StatCard from '../components/StatCard';
 import BulkStatusModal from '../components/BulkStatusModal';
-import { getDashboardStats, getTenants, notifyAll } from '../api/api';
+import { getDashboardStats, getTenants, notifyAll, sendReminder } from '../api/api';
 import {
     Wallet, Users, Home, TrendingUp, Zap,
     ArrowUpRight, Plus, Activity, LayoutGrid,
     Calendar, Bell, Menu, Search, ChevronRight,
     Settings, LogOut, Info, ShieldCheck, User, X,
-    CreditCard, Megaphone, AlertCircle, Clock, MapPin
+    CreditCard, Megaphone, AlertCircle, Clock, MapPin,
+    Send, CheckCircle
 } from 'lucide-react-native';
 import { useNavigation } from '@react-navigation/native';
 import {
@@ -37,11 +38,46 @@ const ActivityItem = memo(({ item, index }) => {
             <View style={styles.activityMain}>
                 <Text style={styles.activityName}>{item.Name}</Text>
                 <Text style={styles.activitySub}>Room {item.Room} • {isPaid ? 'Payment Confirmed' : 'Payment Overdue'}</Text>
+                {isPaid && item['Paid Date'] && (
+                    <Text style={{ fontSize: 10, color: Colors.success, fontWeight: '700', marginTop: 2 }}>✅ Paid: {item['Paid Date']}</Text>
+                )}
             </View>
             <View style={styles.activityPrice}>
                 <Text style={[styles.priceText, { color: isPaid ? Colors.success : Colors.accent }]}>
                     {isPaid ? '✓' : '₹' + item['Monthly Rent']}
                 </Text>
+            </View>
+        </Animated.View>
+    );
+});
+
+const OverdueItem = memo(({ item, index, onRemind, onMarkPaid }) => {
+    const anim = useFadeSlideIn(300 + index * 80, 500, 12);
+    const total = parseFloat((item['Total Amount'] || item['Monthly Rent'] || '0').toString().replace(/[^\d.]/g, ''));
+    const today = new Date().getDate();
+    const daysOverdue = today - 5;
+
+    return (
+        <Animated.View style={[styles.overdueRow, anim]}>
+            <View style={styles.overdueAvatar}>
+                <LinearGradient colors={Gradients.accent} style={styles.avatarInner}>
+                    <Text style={styles.avatarLetter}>{item.Name?.[0]}</Text>
+                </LinearGradient>
+            </View>
+            <View style={{ flex: 1 }}>
+                <Text style={styles.activityName}>{item.Name}</Text>
+                <Text style={styles.activitySub}>Room {item.Room} • ₹{total}</Text>
+                <View style={styles.overdueBadge}>
+                    <Text style={styles.overdueBadgeText}>{daysOverdue > 0 ? `${daysOverdue} days overdue` : 'Due today'}</Text>
+                </View>
+            </View>
+            <View style={styles.overdueActions}>
+                <TouchableOpacity style={styles.overdueBtn} onPress={() => onRemind(item)}>
+                    <Bell size={14} color={Colors.accent} />
+                </TouchableOpacity>
+                <TouchableOpacity style={[styles.overdueBtn, { borderColor: 'rgba(16, 185, 129, 0.3)' }]} onPress={() => onMarkPaid(item)}>
+                    <CheckCircle size={14} color={Colors.success} />
+                </TouchableOpacity>
             </View>
         </Animated.View>
     );
@@ -140,6 +176,45 @@ const Dashboard = () => {
         }).start();
     };
 
+    const overdueTenants = useMemo(() => {
+        const today = new Date().getDate();
+        if (today < 11) return [];
+        return active.filter(t => t.Status !== 'PAID' && t.Status !== 'VALID');
+    }, [active]);
+
+    const handleSendReminder = async (tenant) => {
+        try {
+            await sendReminder(tenant.Phone, tenant.Name);
+            Alert.alert('Sent', `Reminder sent to ${tenant.Name}`);
+        } catch (e) {
+            Alert.alert('Error', 'Failed to send reminder');
+        }
+    };
+
+    const handleRemindAllOverdue = () => {
+        Alert.alert(
+            'Remind All Overdue',
+            `Send WhatsApp reminder to ${overdueTenants.length} unpaid tenant(s)?`,
+            [
+                { text: 'Cancel', style: 'cancel' },
+                {
+                    text: 'Send All', style: 'destructive', onPress: async () => {
+                        try {
+                            await sendReminder();
+                            Alert.alert('Done', `Reminders sent to ${overdueTenants.length} tenants`);
+                        } catch (e) {
+                            Alert.alert('Error', 'Failed to send reminders');
+                        }
+                    }
+                }
+            ]
+        );
+    };
+
+    const handleQuickMarkPaid = (tenant) => {
+        navigation.navigate('EditTenant', { tenant, focusPayment: true });
+    };
+
     const handleNotifyAll = async () => {
         Alert.alert(
             t('notify_all'),
@@ -202,6 +277,38 @@ const Dashboard = () => {
                 showsVerticalScrollIndicator={false}
                 refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Colors.primary} />}
             >
+                {/* Overdue Alert Card - shows after 11th */}
+                {!isSearching && overdueTenants.length > 0 && (
+                    <AnimatedListItem index={0}>
+                        <View style={styles.overdueCard}>
+                            <LinearGradient colors={['rgba(244, 63, 94, 0.12)', 'rgba(244, 63, 94, 0.03)']} style={styles.overdueCardInner}>
+                                <View style={styles.overdueHeader}>
+                                    <View style={styles.overdueHeaderLeft}>
+                                        <View style={styles.overdueIcon}>
+                                            <AlertCircle size={20} color={Colors.accent} />
+                                        </View>
+                                        <View>
+                                            <Text style={styles.overdueTitle}>Overdue Payments</Text>
+                                            <Text style={styles.overdueSubtitle}>{overdueTenants.length} tenant(s) unpaid</Text>
+                                        </View>
+                                    </View>
+                                    <TouchableOpacity style={styles.remindAllBtn} onPress={handleRemindAllOverdue}>
+                                        <Send size={12} color="#fff" />
+                                        <Text style={styles.remindAllText}>Remind All</Text>
+                                    </TouchableOpacity>
+                                </View>
+
+                                {overdueTenants.slice(0, 5).map((t, i) => (
+                                    <OverdueItem key={t.Phone + i} item={t} index={i} onRemind={handleSendReminder} onMarkPaid={handleQuickMarkPaid} />
+                                ))}
+                                {overdueTenants.length > 5 && (
+                                    <Text style={styles.overdueMore}>+ {overdueTenants.length - 5} more overdue tenants</Text>
+                                )}
+                            </LinearGradient>
+                        </View>
+                    </AnimatedListItem>
+                )}
+
                 {!isSearching && (
                     <>
                         {/* 1. Ultra-Premium Revenue Hero */}
@@ -540,6 +647,114 @@ const styles = StyleSheet.create({
     emptySearch: { alignItems: 'center', justifyContent: 'center', paddingVertical: 60, gap: 12 },
     emptySearchTitle: { ...Typography.h3, color: Colors.textSecondary, marginTop: 8 },
     emptySearchSub: { ...Typography.bodySmall, color: Colors.textMuted, textAlign: 'center', paddingHorizontal: 40 },
+
+    // Overdue Section
+    overdueCard: {
+        borderRadius: BorderRadius.lg,
+        marginBottom: Spacing.lg,
+        borderWidth: 1,
+        borderColor: 'rgba(244, 63, 94, 0.25)',
+        overflow: 'hidden',
+        ...Shadows.glow(Colors.accent, 0.15),
+    },
+    overdueCardInner: {
+        padding: Spacing.md,
+        borderRadius: BorderRadius.lg,
+    },
+    overdueHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: Spacing.md,
+    },
+    overdueHeaderLeft: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 12,
+    },
+    overdueIcon: {
+        width: 40,
+        height: 40,
+        borderRadius: 12,
+        backgroundColor: 'rgba(244, 63, 94, 0.15)',
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    overdueTitle: {
+        ...Typography.bodyBold,
+        color: Colors.accent,
+        fontSize: 15,
+    },
+    overdueSubtitle: {
+        ...Typography.tiny,
+        color: Colors.textMuted,
+        marginTop: 2,
+        fontSize: 9,
+    },
+    remindAllBtn: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+        backgroundColor: Colors.accent,
+        paddingHorizontal: 12,
+        paddingVertical: 8,
+        borderRadius: 10,
+    },
+    remindAllText: {
+        ...Typography.tiny,
+        color: '#fff',
+        fontSize: 9,
+        letterSpacing: 0.5,
+    },
+    overdueRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        padding: 12,
+        backgroundColor: 'rgba(244, 63, 94, 0.05)',
+        borderRadius: BorderRadius.md,
+        marginBottom: 8,
+        borderWidth: 1,
+        borderColor: 'rgba(244, 63, 94, 0.1)',
+    },
+    overdueAvatar: {
+        width: 38,
+        height: 38,
+        marginRight: 12,
+    },
+    overdueBadge: {
+        backgroundColor: 'rgba(244, 63, 94, 0.12)',
+        paddingHorizontal: 8,
+        paddingVertical: 2,
+        borderRadius: 6,
+        alignSelf: 'flex-start',
+        marginTop: 4,
+    },
+    overdueBadgeText: {
+        ...Typography.tiny,
+        color: Colors.accent,
+        fontSize: 8,
+    },
+    overdueActions: {
+        flexDirection: 'row',
+        gap: 6,
+    },
+    overdueBtn: {
+        width: 34,
+        height: 34,
+        borderRadius: 10,
+        alignItems: 'center',
+        justifyContent: 'center',
+        borderWidth: 1,
+        borderColor: 'rgba(244, 63, 94, 0.2)',
+        backgroundColor: 'rgba(255,255,255,0.03)',
+    },
+    overdueMore: {
+        ...Typography.tiny,
+        color: Colors.textMuted,
+        textAlign: 'center',
+        marginTop: 8,
+        fontSize: 9,
+    },
 });
 
 export default Dashboard;

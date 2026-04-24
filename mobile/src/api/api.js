@@ -185,5 +185,16 @@ export const clearAllNotifications = async () => {
     }
 };
 
+export const sendReminder = async (phone, name) => {
+    try {
+        const payload = phone ? { phone, name } : {};
+        const response = await api.post('/send-reminder', payload);
+        return response.data;
+    } catch (error) {
+        console.error('Send reminder failed:', error.message);
+        throw error;
+    }
+};
+
 export default api;
 
