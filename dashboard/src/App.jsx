@@ -126,15 +126,20 @@ const getFullUrl = (path) => {
 };
 
 const App = () => {
-  const [isAuthenticated, setIsAuthenticated] = useState(() => sessionStorage.getItem('stayflow_auth') === 'true');
+  const [isAuthenticated, setIsAuthenticated] = useState(() => sessionStorage.getItem('stayflow_auth') === 'true' || localStorage.getItem('stayflow_auth') === 'true');
   const [loginForm, setLoginForm] = useState({ username: '', password: '' });
   const [loginError, setLoginError] = useState('');
+  const [rememberMe, setRememberMe] = useState(false);
 
   const handleLogin = (e) => {
     e.preventDefault();
     if (loginForm.username === 'admin' && loginForm.password === 'admin') {
       setIsAuthenticated(true);
-      sessionStorage.setItem('stayflow_auth', 'true');
+      if (rememberMe) {
+        localStorage.setItem('stayflow_auth', 'true');
+      } else {
+        sessionStorage.setItem('stayflow_auth', 'true');
+      }
       setLoginError('');
     } else {
       setLoginError('Invalid username or password');
@@ -144,6 +149,7 @@ const App = () => {
   const handleLogout = () => {
     setIsAuthenticated(false);
     sessionStorage.removeItem('stayflow_auth');
+    localStorage.removeItem('stayflow_auth');
     setLoginForm({ username: '', password: '' });
   };
 
@@ -1795,7 +1801,16 @@ const App = () => {
                 onBlur={(e) => e.target.style.borderColor = 'rgba(255,255,255,0.12)'}
               />
             </div>
-            <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 24 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: '0.8rem', color: 'rgba(255,255,255,0.5)', fontWeight: 500 }}>
+                <input
+                  type="checkbox"
+                  checked={rememberMe}
+                  onChange={(e) => setRememberMe(e.target.checked)}
+                  style={{ width: 16, height: 16, accentColor: '#6366f1', cursor: 'pointer', borderRadius: 4 }}
+                />
+                Remember for 30 days
+              </label>
               <span style={{ fontSize: '0.8rem', color: '#6366f1', fontWeight: 600, cursor: 'pointer' }}>Forgot password</span>
             </div>
             {loginError && (
