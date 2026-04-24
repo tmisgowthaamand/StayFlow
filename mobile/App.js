@@ -91,13 +91,17 @@ import { ThemeProvider } from './src/context/ThemeContext';
 import * as Notifications from 'expo-notifications';
 
 // 🔔 Configure foreground notifications
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldPlaySound: true,
-    shouldSetBadge: true,
-  }),
-});
+try {
+  Notifications.setNotificationHandler({
+    handleNotification: async () => ({
+      shouldShowAlert: true,
+      shouldPlaySound: true,
+      shouldSetBadge: true,
+    }),
+  });
+} catch (e) {
+  console.warn('⚠️ Notification handler setup skipped (Expo Go limitation):', e.message);
+}
 
 LogBox.ignoreLogs(['expo-notifications', 'Remote notifications', 'Firebase']);
 

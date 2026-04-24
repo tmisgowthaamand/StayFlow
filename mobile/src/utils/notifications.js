@@ -197,18 +197,22 @@ export const addNotification = async (type, title, body, meta = {}, bannerOnly =
             await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
         }
 
-        // 🔔 Trigger System Notification
-        await Notifications.scheduleNotificationAsync({
-            content: {
-                title,
-                body,
-                data: { ...meta, type },
-                sound: 'default',
-                priority: 'max',
-                channelId: 'default'
-            },
-            trigger: null, // Immediate
-        });
+        // 🔔 Trigger System Notification (may fail in Expo Go SDK 53+)
+        try {
+            await Notifications.scheduleNotificationAsync({
+                content: {
+                    title,
+                    body,
+                    data: { ...meta, type },
+                    sound: 'default',
+                    priority: 'max',
+                    channelId: 'default'
+                },
+                trigger: null, // Immediate
+            });
+        } catch (notifErr) {
+            console.warn('⚠️ System notification skipped (Expo Go limitation):', notifErr.message);
+        }
 
         return newNotification;
     } catch (e) {
@@ -220,20 +224,26 @@ export const addNotification = async (type, title, body, meta = {}, bannerOnly =
  * Request permissions (call on app start)
  */
 export const requestNotificationPermissions = async () => {
-    // Expo Go SDK 53+ on Android has removed remote push support, 
-    // but local notifications still work. We check Device.isDevice 
-    // to avoid some unnecessary warnings on emulators.
+    // Expo Go SDK 53+ on Android has removed remote push support.
+    // We wrap everything in try/catch to gracefully degrade.
     if (Platform.OS === 'android' && !Device.isDevice) {
         return false;
     }
 
     try {
-        const { status: existingStatus } = await Notifications.getPermissionsAsync();
-        let finalStatus = existingStatus;
+        let finalStatus = 'undetermined';
 
-        if (existingStatus !== 'granted') {
-            const { status } = await Notifications.requestPermissionsAsync();
-            finalStatus = status;
+        try {
+            const { status: existingStatus } = await Notifications.getPermissionsAsync();
+            finalStatus = existingStatus;
+
+            if (existingStatus !== 'granted') {
+                const { status } = await Notifications.requestPermissionsAsync();
+                finalStatus = status;
+            }
+        } catch (permErr) {
+            console.warn('⚠️ Notification permissions check skipped (Expo Go limitation):', permErr.message);
+            return false;
         }
 
         if (finalStatus !== 'granted') {
@@ -243,15 +253,19 @@ export const requestNotificationPermissions = async () => {
 
         // Only on Android: Set up notification channel for local notifications
         if (Platform.OS === 'android') {
-            await Notifications.setNotificationChannelAsync('default', {
-                name: 'default',
-                importance: Notifications.AndroidImportance.MAX,
-                vibrationPattern: [0, 250, 250, 250],
-                lightColor: '#6C63FF',
-            });
+            try {
+                await Notifications.setNotificationChannelAsync('default', {
+                    name: 'default',
+                    importance: Notifications.AndroidImportance.MAX,
+                    vibrationPattern: [0, 250, 250, 250],
+                    lightColor: '#6C63FF',
+                });
+            } catch (channelErr) {
+                console.warn('⚠️ Notification channel setup skipped:', channelErr.message);
+            }
         }
 
-        // --- NEW: Register Push Token for Remote Notifications ---
+        // --- Register Push Token for Remote Notifications ---
         if (Device.isDevice) {
             try {
                 const tokenResponse = await Notifications.getExpoPushTokenAsync({
@@ -260,7 +274,7 @@ export const requestNotificationPermissions = async () => {
                 console.log('✅ Registered Push Token:', tokenResponse.data);
                 await registerPushToken(tokenResponse.data, Platform.OS);
             } catch (tokenErr) {
-                console.warn('Failed to get push token:', tokenErr.message);
+                console.warn('⚠️ Push token registration skipped (Expo Go limitation):', tokenErr.message);
             }
         }
 

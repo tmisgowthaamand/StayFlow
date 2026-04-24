@@ -75,6 +75,8 @@ const Dashboard = () => {
 
     const active = tenants.filter(t => t.Status !== 'VACATED');
 
+    const isSearching = searchQuery.trim().length > 0;
+
     // ─── StayFlow Smart AI Search (Gemini-Inspired) ────────────────
     const filteredActivity = useMemo(() => {
         if (!searchQuery.trim()) return active.slice(0, 6);
@@ -86,17 +88,28 @@ const Dashboard = () => {
             const phone = (t.Phone || '').toString();
             const status = (t.Status || '').toLowerCase();
             const rent = (t['Monthly Rent'] || '0').toString();
+            const floor = (t.Floor || '').toString().toLowerCase();
+            const location = (t.Location || '').toLowerCase();
+            const bed = (t.Bed || '').toString().toLowerCase();
+            const sharing = (t['Sharing Type'] || '').toLowerCase();
 
             // AI Intent Parsing (Keywords)
             const matchesStatus = query === 'paid' || query === 'valid' ? (status === 'paid' || status === 'valid') :
-                query === 'pending' || query === 'unpaid' ? (status === 'pending') : false;
+                query === 'pending' || query === 'unpaid' ? (status === 'pending' || status === 'active') :
+                query === 'active' ? (status === 'active') : false;
 
             const matchesRoom = query.startsWith('room ') ? room === query.replace('room ', '') : room.includes(query);
+            const matchesFloor = query.startsWith('floor ') ? floor === query.replace('floor ', '') : false;
+            const matchesLocation = location.includes(query);
 
             return name.includes(query) ||
                 matchesRoom ||
+                matchesFloor ||
                 phone.includes(query) ||
                 matchesStatus ||
+                matchesLocation ||
+                bed.includes(query) ||
+                sharing.includes(query) ||
                 (query.includes('rent') && rent.includes(query.replace(/\D/g, '')));
         });
     }, [searchQuery, active]);
@@ -189,128 +202,141 @@ const Dashboard = () => {
                 showsVerticalScrollIndicator={false}
                 refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Colors.primary} />}
             >
-                {/* 1. Ultra-Premium Revenue Hero */}
-                <AnimatedListItem index={1}>
-                    <View style={styles.heroWrapper}>
-                        <LinearGradient colors={Gradients.ocean} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.heroCard}>
-                            <View style={styles.heroContent}>
-                                <View style={styles.heroHeader}>
-                                    <View>
-                                        <Text style={styles.heroLabel}>{t('total_collected')}</Text>
-                                        <Text style={styles.heroValue}>₹{totalColl.toLocaleString()}</Text>
-                                    </View>
-                                    <View style={styles.heroIconBubble}>
-                                        <TrendingUp color="#fff" size={24} />
-                                    </View>
-                                </View>
+                {!isSearching && (
+                    <>
+                        {/* 1. Ultra-Premium Revenue Hero */}
+                        <AnimatedListItem index={1}>
+                            <View style={styles.heroWrapper}>
+                                <LinearGradient colors={Gradients.ocean} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.heroCard}>
+                                    <View style={styles.heroContent}>
+                                        <View style={styles.heroHeader}>
+                                            <View>
+                                                <Text style={styles.heroLabel}>{t('total_collected')}</Text>
+                                                <Text style={styles.heroValue}>₹{totalColl.toLocaleString()}</Text>
+                                            </View>
+                                            <View style={styles.heroIconBubble}>
+                                                <TrendingUp color="#fff" size={24} />
+                                            </View>
+                                        </View>
 
-                                <View style={styles.heroDivider} />
+                                        <View style={styles.heroDivider} />
 
-                                <View style={styles.heroStatsRow}>
-                                    <View style={styles.heroStatItem}>
-                                        <Text style={styles.heroStatVal}>{Math.round((totalColl / expected) * 100) || 0}%</Text>
-                                        <Text style={styles.heroStatLab}>{t('progress')}</Text>
+                                        <View style={styles.heroStatsRow}>
+                                            <View style={styles.heroStatItem}>
+                                                <Text style={styles.heroStatVal}>{Math.round((totalColl / expected) * 100) || 0}%</Text>
+                                                <Text style={styles.heroStatLab}>{t('progress')}</Text>
+                                            </View>
+                                            <View style={styles.heroStatDivider} />
+                                            <View style={styles.heroStatItem}>
+                                                <Text style={styles.heroStatVal}>₹{expected.toLocaleString()}</Text>
+                                                <Text style={styles.heroStatLab}>{t('expected')}</Text>
+                                            </View>
+                                            <View style={styles.heroStatDivider} />
+                                            <View style={styles.heroStatItem}>
+                                                <Text style={styles.heroStatVal}>{active.length}</Text>
+                                                <Text style={styles.heroStatLab}>{t('residents')}</Text>
+                                            </View>
+                                        </View>
                                     </View>
-                                    <View style={styles.heroStatDivider} />
-                                    <View style={styles.heroStatItem}>
-                                        <Text style={styles.heroStatVal}>₹{expected.toLocaleString()}</Text>
-                                        <Text style={styles.heroStatLab}>{t('expected')}</Text>
-                                    </View>
-                                    <View style={styles.heroStatDivider} />
-                                    <View style={styles.heroStatItem}>
-                                        <Text style={styles.heroStatVal}>{active.length}</Text>
-                                        <Text style={styles.heroStatLab}>{t('residents')}</Text>
-                                    </View>
-                                </View>
+                                </LinearGradient>
                             </View>
-                        </LinearGradient>
-                    </View>
-                </AnimatedListItem>
+                        </AnimatedListItem>
 
-                {/* 2. Grid Overview */}
-                <View style={styles.sectionHeader}>
-                    <LayoutGrid size={18} color={Colors.primary} />
-                    <Text style={styles.sectionTitle}>{t('insights')}</Text>
-                </View>
+                        {/* 2. Grid Overview */}
+                        <View style={styles.sectionHeader}>
+                            <LayoutGrid size={18} color={Colors.primary} />
+                            <Text style={styles.sectionTitle}>{t('insights')}</Text>
+                        </View>
 
-                <View style={styles.bentoGrid}>
-                    <View style={styles.bentoRow}>
-                        <StatCard
-                            title={t('pending_verif')}
-                            value={pendingCount.toString()}
-                            icon={Clock}
-                            color={Colors.accent}
-                            index={2}
-                            size="small"
-                            onPress={() => navigation.navigate('Residents', { filter: 'PENDING' })}
-                        />
-                        <StatCard
-                            title={t('unpaid')}
-                            value={unpaidCount.toString()}
-                            icon={AlertCircle}
-                            color={Colors.accent}
-                            index={3}
-                            size="small"
-                            onPress={() => navigation.navigate('Residents', { filter: 'ACTIVE' })}
-                        />
-                    </View>
-                    <View style={styles.bentoRow}>
-                        <StatCard
-                            title={t('vacant_beds')}
-                            value={vacantBeds > 0 ? vacantBeds.toString() : t('full')}
-                            icon={MapPin}
-                            color={Colors.secondary}
-                            index={4}
-                            size="small"
-                            onPress={() => navigation.navigate('Rooms')}
-                        />
-                        <StatCard
-                            title={t('total_rooms')}
-                            value={uniqueRooms.length.toString()}
-                            icon={Home}
-                            color={Colors.accentAlt}
-                            index={5}
-                            size="small"
-                            onPress={() => navigation.navigate('Rooms')}
-                        />
-                    </View>
-                </View>
+                        <View style={styles.bentoGrid}>
+                            <View style={styles.bentoRow}>
+                                <StatCard
+                                    title={t('pending_verif')}
+                                    value={pendingCount.toString()}
+                                    icon={Clock}
+                                    color={Colors.accent}
+                                    index={2}
+                                    size="small"
+                                    onPress={() => navigation.navigate('Residents', { filter: 'PENDING' })}
+                                />
+                                <StatCard
+                                    title={t('unpaid')}
+                                    value={unpaidCount.toString()}
+                                    icon={AlertCircle}
+                                    color={Colors.accent}
+                                    index={3}
+                                    size="small"
+                                    onPress={() => navigation.navigate('Residents', { filter: 'ACTIVE' })}
+                                />
+                            </View>
+                            <View style={styles.bentoRow}>
+                                <StatCard
+                                    title={t('vacant_beds')}
+                                    value={vacantBeds > 0 ? vacantBeds.toString() : t('full')}
+                                    icon={MapPin}
+                                    color={Colors.secondary}
+                                    index={4}
+                                    size="small"
+                                    onPress={() => navigation.navigate('Rooms')}
+                                />
+                                <StatCard
+                                    title={t('total_rooms')}
+                                    value={uniqueRooms.length.toString()}
+                                    icon={Home}
+                                    color={Colors.accentAlt}
+                                    index={5}
+                                    size="small"
+                                    onPress={() => navigation.navigate('Rooms')}
+                                />
+                            </View>
+                        </View>
 
-                {/* 3. Modern Actions */}
-                <View style={styles.actionRow}>
-                    <TouchableOpacity style={styles.actionBtn} onPress={() => navigation.navigate('Announcements')}>
-                        <LinearGradient colors={['rgba(124, 58, 237, 0.1)', 'rgba(124, 58, 237, 0.02)']} style={styles.actionBtnGradient}>
-                            <Megaphone size={18} color={Colors.primary} />
-                            <Text style={styles.actionBtnText}>{t('announcements')}</Text>
-                        </LinearGradient>
-                    </TouchableOpacity>
-                    <TouchableOpacity style={styles.actionBtn} onPress={handleNotifyAll}>
-                        <LinearGradient colors={['rgba(16, 185, 129, 0.1)', 'rgba(16, 185, 129, 0.02)']} style={styles.actionBtnGradient}>
-                            <Bell size={18} color={Colors.secondary} />
-                            <Text style={styles.actionBtnText}>{t('notify_all')}</Text>
-                        </LinearGradient>
-                    </TouchableOpacity>
-                    <TouchableOpacity style={[styles.actionBtn, { flex: 0.8 }]} onPress={() => navigation.navigate('Rooms')}>
-                        <LinearGradient colors={['rgba(37, 99, 235, 0.1)', 'rgba(37, 99, 235, 0.02)']} style={styles.actionBtnGradient}>
-                            <LayoutGrid size={18} color={Colors.accentAlt} />
-                            <Text style={styles.actionBtnText}>{t('rooms')}</Text>
-                        </LinearGradient>
-                    </TouchableOpacity>
-                </View>
+                        {/* 3. Modern Actions */}
+                        <View style={styles.actionRow}>
+                            <TouchableOpacity style={styles.actionBtn} onPress={() => navigation.navigate('Announcements')}>
+                                <LinearGradient colors={['rgba(124, 58, 237, 0.1)', 'rgba(124, 58, 237, 0.02)']} style={styles.actionBtnGradient}>
+                                    <Megaphone size={18} color={Colors.primary} />
+                                    <Text style={styles.actionBtnText}>{t('announcements')}</Text>
+                                </LinearGradient>
+                            </TouchableOpacity>
+                            <TouchableOpacity style={styles.actionBtn} onPress={handleNotifyAll}>
+                                <LinearGradient colors={['rgba(16, 185, 129, 0.1)', 'rgba(16, 185, 129, 0.02)']} style={styles.actionBtnGradient}>
+                                    <Bell size={18} color={Colors.secondary} />
+                                    <Text style={styles.actionBtnText}>{t('notify_all')}</Text>
+                                </LinearGradient>
+                            </TouchableOpacity>
+                            <TouchableOpacity style={[styles.actionBtn, { flex: 0.8 }]} onPress={() => navigation.navigate('Rooms')}>
+                                <LinearGradient colors={['rgba(37, 99, 235, 0.1)', 'rgba(37, 99, 235, 0.02)']} style={styles.actionBtnGradient}>
+                                    <LayoutGrid size={18} color={Colors.accentAlt} />
+                                    <Text style={styles.actionBtnText}>{t('rooms')}</Text>
+                                </LinearGradient>
+                            </TouchableOpacity>
+                        </View>
+                    </>
+                )}
 
-                {/* 4. Activity Section */}
+                {/* 4. Activity / Search Results Section */}
                 <View style={styles.sectionHeader}>
                     <Activity size={18} color={Colors.primary} />
-                    <Text style={styles.sectionTitle}>{searchQuery ? t('ai_search') : t('recent_activity')}</Text>
-                    {searchQuery.length > 0 && (
+                    <Text style={styles.sectionTitle}>{isSearching ? t('ai_search') : t('recent_activity')}</Text>
+                    {isSearching && (
                         <View style={styles.aiBadge}>
                             <Zap size={10} color={Colors.secondary} fill={Colors.secondary} />
-                            <Text style={styles.aiBadgeText}>{t('ai_active')}</Text>
+                            <Text style={styles.aiBadgeText}>{filteredActivity.length} {t('residents')}</Text>
                         </View>
                     )}
                 </View>
 
-                {loading ? <SkeletonCard lines={2} /> : filteredActivity.map((item, idx) => <ActivityItem key={idx} item={item} index={idx} />)}
+                {loading ? <SkeletonCard lines={2} /> : filteredActivity.length > 0 ?
+                    filteredActivity.map((item, idx) => <ActivityItem key={(item.Phone || '') + idx} item={item} index={idx} />) :
+                    isSearching && (
+                        <View style={styles.emptySearch}>
+                            <Search size={40} color={Colors.textMuted} />
+                            <Text style={styles.emptySearchTitle}>No results found</Text>
+                            <Text style={styles.emptySearchSub}>Try searching by name, room, phone, or status (paid, pending)</Text>
+                        </View>
+                    )
+                }
 
                 <View style={{ height: 120 }} />
             </ScrollView>
@@ -509,6 +535,11 @@ const styles = StyleSheet.create({
     logoutBtn: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 12, borderRadius: 12, backgroundColor: 'rgba(255, 68, 68, 0.1)' },
     logoutText: { ...Typography.bodyBold, color: Colors.accent },
     versionTag: { ...Typography.tiny, color: Colors.textMuted, textAlign: 'center', opacity: 0.5 },
+
+    // Empty search state
+    emptySearch: { alignItems: 'center', justifyContent: 'center', paddingVertical: 60, gap: 12 },
+    emptySearchTitle: { ...Typography.h3, color: Colors.textSecondary, marginTop: 8 },
+    emptySearchSub: { ...Typography.bodySmall, color: Colors.textMuted, textAlign: 'center', paddingHorizontal: 40 },
 });
 
 export default Dashboard;

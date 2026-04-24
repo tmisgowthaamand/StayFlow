@@ -2014,10 +2014,17 @@ app.use((err, req, res, next) => {
     });
 });
 
-app.listen(port, () => {
-    console.log(`Server running on port ${port}`);
-    // Start keep-alive service to prevent Render sleep
-    keepAliveService.start();
-});
+// Pre-initialize Google Sheets before accepting requests
+sheetsService.init().then(() => {
+    console.log('[STARTUP] Google Sheets pre-initialized successfully');
+}).catch(err => {
+    console.error('[STARTUP] Google Sheets pre-init failed (will retry on first request):', err.message);
+}).finally(() => {
+    app.listen(port, () => {
+        console.log(`Server running on port ${port}`);
+        // Start keep-alive service to prevent Render sleep
+        keepAliveService.start();
+    });
 
-setupCron();
+    setupCron();
+});
