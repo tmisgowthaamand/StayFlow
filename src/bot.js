@@ -809,11 +809,12 @@ async function handleIncomingMessage(phone, body, messageId = null, image = null
             case 'MENU_REGISTER':
             case '📝 NEW REGISTER': {
                 const regBanner = path.join(__dirname, '../assets/JOIN.png');
-                if (fs.existsSync(regBanner)) await sendImage(phone, regBanner);
                 const regUrl = config.googleFormUrl || 'https://forms.gle/YOUR_FORM_ID';
+                const regCaption = `📝 *New Registration*\n━━━━━━━━━━━━━━━━━━━━\n\nJoin *${config.businessName}* by filling out the registration form.\n\nClick the button below to register 👇`;
+                if (fs.existsSync(regBanner)) await sendImage(phone, regBanner, regCaption);
                 await sendCTAButton(
                     phone,
-                    `📝 *New Registration*\n\nJoin *${config.businessName}* by filling out the registration form.\n\nClick the button below to register 👇`,
+                    `📝 *Register Now*\n_Fill the form below to get started_`,
                     '📝 Register Now',
                     regUrl,
                     '🏠 Welcome to ' + config.businessName
@@ -825,7 +826,7 @@ async function handleIncomingMessage(phone, body, messageId = null, image = null
             case 'MENU_VACATE':
             case '🚪 VACATE': {
                 const vacateBanner = path.join(__dirname, '../assets/Vacate.png');
-                if (fs.existsSync(vacateBanner)) await sendImage(phone, vacateBanner);
+                if (fs.existsSync(vacateBanner)) await sendImage(phone, vacateBanner, `🚪 *Vacate Room*\n━━━━━━━━━━━━━━━━━━━━\nRequest to vacate your room • 30 days notice required`);
                 await handleTenantVacateRequest(phone);
                 break;
             }
@@ -834,7 +835,7 @@ async function handleIncomingMessage(phone, body, messageId = null, image = null
             case 'MENU_RENT':
             case '🏠 RENT': {
                 const rentBanner = path.join(__dirname, '../assets/Rent.png');
-                if (fs.existsSync(rentBanner)) await sendImage(phone, rentBanner);
+                if (fs.existsSync(rentBanner)) await sendImage(phone, rentBanner, `🏠 *Rent Details*\n━━━━━━━━━━━━━━━━━━━━\nView your monthly rent & bill breakdown`);
                 await handleMenuRent(phone);
                 break;
             }
@@ -843,7 +844,7 @@ async function handleIncomingMessage(phone, body, messageId = null, image = null
             case 'MENU_PAY':
             case '💳 PAY BILLS': {
                 const payBanner = path.join(__dirname, '../assets/Payment Banner.png');
-                if (fs.existsSync(payBanner)) await sendImage(phone, payBanner);
+                if (fs.existsSync(payBanner)) await sendImage(phone, payBanner, `💳 *Pay Bills*\n━━━━━━━━━━━━━━━━━━━━\nPay via Razorpay • UPI • Cash`);
                 const tenantPay = await sheetsService.getTenantByPhone(phone);
                 if (!tenantPay || tenantPay.get('Status') === 'VACATED') {
                     await sendMessage(phone, "You're not registered. Type *HI* to start.");
@@ -894,7 +895,7 @@ async function handleIncomingMessage(phone, body, messageId = null, image = null
             case 'MENU_EB_BILL':
             case '⚡ EB BILL': {
                 const ebBanner = path.join(__dirname, '../assets/EB Banner.png');
-                if (fs.existsSync(ebBanner)) await sendImage(phone, ebBanner);
+                if (fs.existsSync(ebBanner)) await sendImage(phone, ebBanner, `⚡ *Electricity Bill*\n━━━━━━━━━━━━━━━━━━━━\nView your EB charges & unit rate`);
                 await handleMenuEBBill(phone);
                 break;
             }
@@ -903,7 +904,7 @@ async function handleIncomingMessage(phone, body, messageId = null, image = null
             case 'MENU_STATEMENTS':
             case '📜 STATEMENTS': {
                 const stmtBanner = path.join(__dirname, '../assets/Statements.png');
-                if (fs.existsSync(stmtBanner)) await sendImage(phone, stmtBanner);
+                if (fs.existsSync(stmtBanner)) await sendImage(phone, stmtBanner, `📜 *Payment Statements*\n━━━━━━━━━━━━━━━━━━━━\nMonthly payment history & records`);
                 await handleMenuStatements(phone);
                 break;
             }
@@ -912,12 +913,13 @@ async function handleIncomingMessage(phone, body, messageId = null, image = null
             case 'MENU_QUERIES':
             case '❓ QUERIES': {
                 const queryBanner = path.join(__dirname, '../assets/Queries.png');
-                if (fs.existsSync(queryBanner)) await sendImage(phone, queryBanner);
                 const baseUrl = config.whatsapp.callbackUrl ? config.whatsapp.callbackUrl.replace('/webhook', '') : 'https://stayflow.onrender.com';
                 const queriesUrl = `${baseUrl}/queries.html?phone=${encodeURIComponent(phone)}`;
+                const queryCaption = `❓ *Queries & Support*\n━━━━━━━━━━━━━━━━━━━━\n\nHave a question or concern? Use the form below to send us your queries.\n\nOur team will review and get back to you shortly! 🙏`;
+                if (fs.existsSync(queryBanner)) await sendImage(phone, queryBanner, queryCaption);
                 await sendCTAButton(
                     phone,
-                    `❓ *Submit a Query*\n\nHave a question or concern? Use the form below to send us your queries.\n\nOur team will review and get back to you shortly! 🙏`,
+                    `📝 *Submit a Query*\n_Click below to fill the form 👇_`,
                     '📝 Fill Query Form',
                     queriesUrl,
                     '❓ Queries & Support'
@@ -929,8 +931,8 @@ async function handleIncomingMessage(phone, body, messageId = null, image = null
             case 'MENU_HOLIDAYS':
             case '🎉 HOLIDAY LIST': {
                 const holidayBanner = path.join(__dirname, '../assets/Holidays.png');
-                if (fs.existsSync(holidayBanner)) await sendImage(phone, holidayBanner);
-                await handleMenuHolidays(phone);
+                if (fs.existsSync(holidayBanner)) await sendImage(phone, holidayBanner, await getHolidayCaption());
+                else await handleMenuHolidays(phone);
                 break;
             }
 
@@ -938,9 +940,9 @@ async function handleIncomingMessage(phone, body, messageId = null, image = null
             case 'MENU_RULES':
             case '📋 RULES': {
                 const rulesBanner = path.join(__dirname, '../assets/Rules.png');
-                if (fs.existsSync(rulesBanner)) await sendImage(phone, rulesBanner);
                 const rulesMenuMsg = `🏢 *PG House Rules & Regulations*\n━━━━━━━━━━━━━━━━━━━━\n\n⚖️ *DO's:*\n1. Keep your room and shared areas clean and hygienic.\n2. Maintain silence after 10:00 PM for everyone's comfort.\n3. Pay rent by the 5th and EB bills by the 10th of each month.\n4. Inform the admin 30 days before vacating.\n5. Cooperate with police verification and security checks.\n\n🚫 *DON'Ts:*\n1. Strictly NO smoking, alcohol, or illegal substances.\n2. No overnight visitors allowed without prior permission.\n3. Do not use heavy appliances (Heaters/AC/Iron) without approval.\n4. No loud music, parties, or disturbances in rooms.\n5. Do not damage PG property or furniture.\n\n📜 *Note:* Rules are for the safety and comfort of all residents. Violations may lead to penalties or eviction.\n━━━━━━━━━━━━━━━━━━━━`;
-                await sendMessage(phone, rulesMenuMsg);
+                if (fs.existsSync(rulesBanner)) await sendImage(phone, rulesBanner, rulesMenuMsg);
+                else await sendMessage(phone, rulesMenuMsg);
                 break;
             }
 
@@ -948,7 +950,7 @@ async function handleIncomingMessage(phone, body, messageId = null, image = null
             case 'MENU_VACANCY':
             case '🛏️ VACANCY ROOMS': {
                 const vacancyBanner = path.join(__dirname, '../assets/Vacancy.png');
-                if (fs.existsSync(vacancyBanner)) await sendImage(phone, vacancyBanner);
+                if (fs.existsSync(vacancyBanner)) await sendImage(phone, vacancyBanner, `🛏️ *Vacancy Rooms*\n━━━━━━━━━━━━━━━━━━━━\nCheck available rooms & sharing types`);
                 await handleMenuVacancy(phone);
                 break;
             }
@@ -957,7 +959,7 @@ async function handleIncomingMessage(phone, body, messageId = null, image = null
             case 'MENU_REFER':
             case '👥 REFER A FRIEND': {
                 const referBanner = path.join(__dirname, '../assets/Refer.png');
-                if (fs.existsSync(referBanner)) await sendImage(phone, referBanner);
+                if (fs.existsSync(referBanner)) await sendImage(phone, referBanner, `👥 *Refer a Friend*\n━━━━━━━━━━━━━━━━━━━━\nInvite friends & earn rewards`);
                 await handleMenuRefer(phone);
                 break;
             }
@@ -1592,12 +1594,15 @@ async function handleMenuStatements(phone) {
     );
 }
 
+// Get Holiday caption text (reusable for image+caption combo)
+async function getHolidayCaption() {
+    const year = new Date().getFullYear();
+    return `🎉 *Holiday List — ${year}*\n━━━━━━━━━━━━━━━━━━━━\n\n🇮🇳 *National Holidays:*\n📅 Jan 26 — Republic Day\n📅 Mar 14 — Holi\n📅 Apr 14 — Tamil New Year\n📅 May 01 — May Day\n📅 Aug 15 — Independence Day\n📅 Sep 07 — Vinayagar Chaturthi\n📅 Oct 02 — Gandhi Jayanti\n📅 Oct 12 — Dussehra\n📅 Nov 01 — Deepavali\n📅 Dec 25 — Christmas\n\n🏠 *PG Specific:*\n📅 Every Sunday — Common Area Cleaning Day\n📅 1st of Month — Rent Due Reminder\n\n━━━━━━━━━━━━━━━━━━━━\n_Holidays may include reduced mess/services. Plan accordingly!_`;
+}
+
 // Handle Holiday List from Menu
 async function handleMenuHolidays(phone) {
-    // Admin can update this list from the backend. For now, show common holidays.
-    const now = new Date();
-    const year = now.getFullYear();
-    const holidayMsg = `🎉 *Holiday List — ${year}*\n━━━━━━━━━━━━━━━━━━━━\n\n🇮🇳 *National Holidays:*\n📅 Jan 26 — Republic Day\n📅 Mar 14 — Holi\n📅 Apr 14 — Tamil New Year\n📅 May 01 — May Day\n📅 Aug 15 — Independence Day\n📅 Sep 07 — Vinayagar Chaturthi\n📅 Oct 02 — Gandhi Jayanti\n📅 Oct 12 — Dussehra\n📅 Nov 01 — Deepavali\n📅 Dec 25 — Christmas\n\n🏠 *PG Specific:*\n📅 Every Sunday — Common Area Cleaning Day\n📅 1st of Month — Rent Due Reminder\n\n━━━━━━━━━━━━━━━━━━━━\n_Holidays may include reduced mess/services. Plan accordingly!_`;
+    const holidayMsg = await getHolidayCaption();
     await sendMessage(phone, holidayMsg);
 }
 
