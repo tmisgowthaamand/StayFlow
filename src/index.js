@@ -1049,11 +1049,11 @@ app.post('/api/submit-query', async (req, res) => {
         });
 
         // Send confirmation to the user via WhatsApp
-        await sendMessage(phone, `✅ *Query Received!*\n\n🆔 Query ID: *#${queryId}*\n📋 Category: ${category || 'General'}\n📝 Issue: "${description}"\n\nOur team will review and get back to you shortly. Thank you for your patience! 🙏`);
+        await sendMessage(phone, `✅ *Query Received!*\n━━━━━━━━━━━━━━━━━━━━\n\n🆔 *ID*            :  *#${queryId}*\n📋 *Category*  :  ${category || 'General'}\n📝 *Issue*        :  "${description}"\n\n━━━━━━━━━━━━━━━━━━━━\nOur team will review and get back to you shortly. Thank you for your patience! 🙏`);
 
         // Notify admin
         if (config.ownerPhone) {
-            await sendMessage(config.ownerPhone, `🆘 *New Query #${queryId}*\n━━━━━━━━━━━━━━━━━━━━\n👤 Name: ${name}\n📞 Phone: ${phone}\n🚪 Room: ${room || 'N/A'}\n📋 Category: ${category || 'General'}\n📝 Query: ${description}\n━━━━━━━━━━━━━━━━━━━━\n_Reply from app/dashboard to respond._`);
+            await sendMessage(config.ownerPhone, `🆘 *New Query #${queryId}*\n━━━━━━━━━━━━━━━━━━━━\n\n👤 *Name*          :  ${name}\n📞 *Phone*         :  ${phone}\n🚪 *Room*          :  ${room || 'N/A'}\n📋 *Category*    :  ${category || 'General'}\n📝 *Query*         :  ${description}\n\n━━━━━━━━━━━━━━━━━━━━\n_Reply from app/dashboard to respond._`);
         }
 
         // 🔔 Create In-App Notification
@@ -1110,7 +1110,7 @@ app.post('/api/queries/:queryId/reply', authenticate, async (req, res) => {
         await query.save();
 
         // Send reply to tenant via WhatsApp
-        await sendMessage(query.phone, `💬 *Admin Reply — Query #${queryId}*\n━━━━━━━━━━━━━━━━━━━━\n\n📝 Your issue: "${query.message}"\n\n✅ *Response:* ${reply}\n\n━━━━━━━━━━━━━━━━━━━━\n_If the issue persists, submit a new query._`);
+        await sendMessage(query.phone, `💬 *Admin Reply — Query #${queryId}*\n━━━━━━━━━━━━━━━━━━━━\n\n📝 *Issue*           :  "${query.message}"\n✅ *Response*  :  ${reply}\n\n━━━━━━━━━━━━━━━━━━━━\n_If the issue persists, submit a new query._`);
 
         // Create notification
         await Notification.create({

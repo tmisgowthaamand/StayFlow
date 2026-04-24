@@ -243,7 +243,7 @@ function setupCron() {
             }
 
             for (const query of pendingQueries) {
-                await bot.sendMessage(query.phone, `🔔 *Query Update — #${query.queryId}*\n━━━━━━━━━━━━━━━━━━━━\n\nYour query has been accepted and noted by our team.\n\n📝 Issue: "${query.message}"\n\nWe are working on it and will resolve it as soon as possible.\nThank you for your patience! 🙏`);
+                await bot.sendMessage(query.phone, `🔔 *Query Update — #${query.queryId}*\n━━━━━━━━━━━━━━━━━━━━\n\n📝 *Issue*           :  "${query.message}"\n📌 *Status*         :  Accepted & Noted\n\n━━━━━━━━━━━━━━━━━━━━\nWe are working on it and will resolve it as soon as possible.\nThank you for your patience! 🙏`);
                 query.autoReplySent = true;
                 query.status = 'ACKNOWLEDGED';
                 await query.save();
