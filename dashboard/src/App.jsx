@@ -129,7 +129,7 @@ const App = () => {
   const [isAuthenticated, setIsAuthenticated] = useState(() => sessionStorage.getItem('stayflow_auth') === 'true' || localStorage.getItem('stayflow_auth') === 'true');
   const [loginForm, setLoginForm] = useState({ username: '', password: '' });
   const [loginError, setLoginError] = useState('');
-  const [rememberMe, setRememberMe] = useState(false);
+  const [rememberMe, setRememberMe] = useState(true);
 
   const handleLogin = (e) => {
     e.preventDefault();
