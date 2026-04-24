@@ -827,8 +827,17 @@ async function handleIncomingMessage(phone, body, messageId = null, image = null
             case 'MENU_VACATE':
             case '🚪 VACATE': {
                 const vacateBanner = path.join(__dirname, '../assets/Vacate.png');
-                if (fs.existsSync(vacateBanner)) await sendImage(phone, vacateBanner, `🚪 *Vacate Room*\n━━━━━━━━━━━━━━━━━━━━\nRequest to vacate your room • 30 days notice required`);
-                await handleTenantVacateRequest(phone);
+                const vBaseUrl = config.whatsapp.callbackUrl ? config.whatsapp.callbackUrl.replace('/webhook', '') : 'https://stayflow.onrender.com';
+                const vacateUrl = `${vBaseUrl}/vacate.html?phone=${encodeURIComponent(phone)}`;
+                const vacateCaption = `🚪 *Vacate Room*\n━━━━━━━━━━━━━━━━━━━━\n\nFill the vacate request form to initiate your checkout process.\n\n⚠️ 30 days notice required.\n📄 PDF will be sent to you & admin on WhatsApp.`;
+                if (fs.existsSync(vacateBanner)) await sendImage(phone, vacateBanner, vacateCaption);
+                await sendCTAButton(
+                    phone,
+                    `🚪 *Submit Vacate Request*\n_Click below to fill the form 👇_`,
+                    '🚪 Fill Vacate Form',
+                    vacateUrl,
+                    '🚪 Vacate Room'
+                );
                 await sendMainMenuList(phone);
                 break;
             }

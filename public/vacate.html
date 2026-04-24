@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>StayFlow - Vacate Room Request</title>
+    <meta name="description" content="Submit your room vacate request to StayFlow PG management.">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: linear-gradient(135deg, #1a0a0a 0%, #4a1c1c 50%, #2d1515 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            color: #e0e0e0;
+        }
+        .container {
+            width: 100%;
+            max-width: 480px;
+            background: rgba(255,255,255,0.05);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 24px;
+            padding: 32px 28px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.4);
+        }
+        .logo {
+            text-align: center;
+            margin-bottom: 24px;
+        }
+        .logo h1 {
+            font-size: 28px;
+            font-weight: 700;
+            background: linear-gradient(135deg, #ef4444, #dc2626);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 4px;
+        }
+        .logo p {
+            font-size: 14px;
+            color: #c0a0a0;
+        }
+        .tenant-info {
+            background: rgba(239,68,68,0.08);
+            border: 1px solid rgba(239,68,68,0.2);
+            border-radius: 14px;
+            padding: 16px;
+            margin-bottom: 24px;
+            display: none;
+        }
+        .tenant-info .row {
+            display: flex;
+            justify-content: space-between;
+            padding: 6px 0;
+            font-size: 14px;
+        }
+        .tenant-info .row .label { color: #c0a0a0; font-weight: 500; }
+        .tenant-info .row .value { color: #fff; font-weight: 600; }
+        .form-group {
+            margin-bottom: 20px;
+        }
+        label {
+            display: block;
+            font-size: 13px;
+            font-weight: 600;
+            color: #c0a0a0;
+            margin-bottom: 6px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .step-badge {
+            display: inline-block;
+            background: rgba(239,68,68,0.2);
+            color: #ef4444;
+            font-size: 11px;
+            font-weight: 700;
+            padding: 2px 8px;
+            border-radius: 6px;
+            margin-bottom: 4px;
+        }
+        input, select, textarea {
+            width: 100%;
+            padding: 14px 16px;
+            border: 1px solid rgba(255,255,255,0.12);
+            border-radius: 12px;
+            background: rgba(255,255,255,0.06);
+            color: #e0e0e0;
+            font-family: 'Inter', sans-serif;
+            font-size: 15px;
+            outline: none;
+            transition: all 0.3s;
+        }
+        input:focus, select:focus, textarea:focus {
+            border-color: #ef4444;
+            box-shadow: 0 0 0 3px rgba(239,68,68,0.15);
+            background: rgba(255,255,255,0.08);
+        }
+        input::placeholder, textarea::placeholder {
+            color: rgba(255,255,255,0.3);
+        }
+        input[readonly] {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+        select option {
+            background: #2d1515;
+            color: #e0e0e0;
+        }
+        textarea {
+            min-height: 100px;
+            resize: vertical;
+        }
+        .submit-btn {
+            width: 100%;
+            padding: 16px;
+            background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+            color: white;
+            border: none;
+            border-radius: 12px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            position: relative;
+            overflow: hidden;
+        }
+        .submit-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(239,68,68,0.35);
+        }
+        .submit-btn:active { transform: translateY(0); }
+        .submit-btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+        .notice-box {
+            background: rgba(245,158,11,0.1);
+            border: 1px solid rgba(245,158,11,0.25);
+            border-radius: 12px;
+            padding: 14px;
+            margin-bottom: 20px;
+            font-size: 13px;
+            color: #fbbf24;
+            line-height: 1.5;
+        }
+        .notice-box strong { color: #f59e0b; }
+        .success-msg {
+            display: none;
+            text-align: center;
+            padding: 24px;
+        }
+        .success-msg .icon { font-size: 48px; margin-bottom: 12px; }
+        .success-msg h2 {
+            font-size: 20px;
+            font-weight: 700;
+            color: #4ade80;
+            margin-bottom: 8px;
+        }
+        .success-msg p {
+            font-size: 14px;
+            color: #c0a0a0;
+            line-height: 1.6;
+        }
+        .success-msg .req-id {
+            display: inline-block;
+            margin-top: 12px;
+            padding: 8px 20px;
+            background: rgba(74,222,128,0.1);
+            border: 1px solid rgba(74,222,128,0.3);
+            border-radius: 10px;
+            color: #4ade80;
+            font-size: 16px;
+            font-weight: 700;
+        }
+        .error-toast {
+            display: none;
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 12px 24px;
+            background: #ef4444;
+            color: white;
+            border-radius: 10px;
+            font-size: 14px;
+            box-shadow: 0 4px 15px rgba(239,68,68,0.3);
+            z-index: 100;
+        }
+        .loading-text {
+            display: none;
+            text-align: center;
+            padding: 40px;
+            color: #c0a0a0;
+            font-size: 14px;
+        }
+        .loading-text .spinner {
+            width: 32px; height: 32px;
+            border: 3px solid rgba(255,255,255,0.1);
+            border-top-color: #ef4444;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            margin: 0 auto 12px;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="logo">
+            <h1>🚪 Vacate Room</h1>
+            <p>Submit your room vacate request</p>
+        </div>
+
+        <div class="loading-text" id="loadingState">
+            <div class="spinner"></div>
+            <p>Loading your details...</p>
+        </div>
+
+        <div class="tenant-info" id="tenantInfo">
+            <div class="row"><span class="label">👤 Name</span><span class="value" id="tenantName">—</span></div>
+            <div class="row"><span class="label">🚪 Room</span><span class="value" id="tenantRoom">—</span></div>
+            <div class="row"><span class="label">💰 Rent</span><span class="value" id="tenantRent">—</span></div>
+            <div class="row"><span class="label">💵 Advance</span><span class="value" id="tenantAdvance">—</span></div>
+        </div>
+
+        <form id="vacateForm" style="display:none;">
+            <div class="notice-box">
+                ⚠️ <strong>Important:</strong> A minimum 30-day notice period is required. Admin will review your request and confirm via WhatsApp.
+            </div>
+
+            <div class="form-group">
+                <span class="step-badge">Step 1 of 3</span>
+                <label>Reason for Leaving</label>
+                <select id="reason" required>
+                    <option value="">Select reason...</option>
+                    <option value="Relocating">🏠 Relocating to another city</option>
+                    <option value="Job Change">💼 Job change / transfer</option>
+                    <option value="Higher Studies">🎓 Higher studies</option>
+                    <option value="Family Reasons">👨‍👩‍👧 Family reasons</option>
+                    <option value="Better Accommodation">🏢 Found better accommodation</option>
+                    <option value="Financial Reasons">💸 Financial reasons</option>
+                    <option value="Health Reasons">🏥 Health reasons</option>
+                    <option value="End of Internship">📋 End of internship / project</option>
+                    <option value="Other">📝 Other</option>
+                </select>
+            </div>
+
+            <div class="form-group" id="otherReasonGroup" style="display:none;">
+                <label>Specify Reason</label>
+                <input type="text" id="otherReason" placeholder="Please describe your reason...">
+            </div>
+
+            <div class="form-group">
+                <span class="step-badge">Step 2 of 3</span>
+                <label>Expected Vacate Date</label>
+                <input type="date" id="vacateDate" required>
+            </div>
+
+            <div class="form-group">
+                <span class="step-badge">Step 3 of 3</span>
+                <label>Feedback / Comments (Optional)</label>
+                <textarea id="feedback" placeholder="Any feedback about your stay? Suggestions for improvement?"></textarea>
+            </div>
+
+            <button type="submit" class="submit-btn" id="submitBtn">🚪 Submit Vacate Request</button>
+        </form>
+
+        <div class="success-msg" id="successMsg">
+            <div class="icon">✅</div>
+            <h2>Vacate Request Submitted!</h2>
+            <p>Your request has been sent to the admin. You will receive a confirmation PDF on WhatsApp shortly.</p>
+            <div class="req-id" id="requestId"></div>
+            <p style="margin-top: 16px; font-size: 13px;">The admin will review and confirm your request. You'll be notified via WhatsApp.</p>
+        </div>
+    </div>
+
+    <div class="error-toast" id="errorToast">Something went wrong. Please try again.</div>
+
+    <script>
+        const params = new URLSearchParams(window.location.search);
+        const phoneParam = params.get('phone');
+
+        // Set minimum date to 30 days from today
+        const dateInput = document.getElementById('vacateDate');
+        const minDate = new Date();
+        minDate.setDate(minDate.getDate() + 30);
+        dateInput.min = minDate.toISOString().split('T')[0];
+        dateInput.value = minDate.toISOString().split('T')[0];
+
+        // Show/hide other reason field
+        document.getElementById('reason').addEventListener('change', (e) => {
+            document.getElementById('otherReasonGroup').style.display = e.target.value === 'Other' ? 'block' : 'none';
+        });
+
+        // Fetch tenant info on load
+        async function loadTenantInfo() {
+            if (!phoneParam) {
+                document.getElementById('loadingState').style.display = 'none';
+                document.getElementById('vacateForm').style.display = 'block';
+                return;
+            }
+
+            document.getElementById('loadingState').style.display = 'block';
+
+            try {
+                const res = await fetch(`/api/tenant-info?phone=${encodeURIComponent(phoneParam)}`);
+                if (res.ok) {
+                    const data = await res.json();
+                    if (data.success && data.tenant) {
+                        document.getElementById('tenantName').textContent = data.tenant.name || '—';
+                        document.getElementById('tenantRoom').textContent = data.tenant.room || '—';
+                        document.getElementById('tenantRent').textContent = '₹' + (data.tenant.rent || '0');
+                        document.getElementById('tenantAdvance').textContent = '₹' + (data.tenant.advance || '0');
+                        document.getElementById('tenantInfo').style.display = 'block';
+                    }
+                }
+            } catch (e) {
+                console.warn('Could not load tenant info:', e);
+            }
+
+            document.getElementById('loadingState').style.display = 'none';
+            document.getElementById('vacateForm').style.display = 'block';
+        }
+
+        loadTenantInfo();
+
+        document.getElementById('vacateForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const btn = document.getElementById('submitBtn');
+            btn.disabled = true;
+            btn.textContent = '⏳ Submitting...';
+
+            let reason = document.getElementById('reason').value;
+            if (reason === 'Other') {
+                const other = document.getElementById('otherReason').value.trim();
+                reason = other || 'Other';
+            }
+
+            const data = {
+                phone: phoneParam || '',
+                reason,
+                vacateDate: document.getElementById('vacateDate').value,
+                feedback: document.getElementById('feedback').value.trim() || 'No feedback'
+            };
+
+            try {
+                const res = await fetch('/api/submit-vacate', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
+
+                const result = await res.json();
+                if (res.ok && result.success) {
+                    document.getElementById('vacateForm').style.display = 'none';
+                    document.getElementById('tenantInfo').style.display = 'none';
+                    document.getElementById('successMsg').style.display = 'block';
+                    document.getElementById('requestId').textContent = '🆔 ' + (result.requestId || 'Submitted');
+                } else {
+                    throw new Error(result.error || 'Failed');
+                }
+            } catch (err) {
+                const toast = document.getElementById('errorToast');
+                toast.textContent = err.message || 'Something went wrong. Please try again.';
+                toast.style.display = 'block';
+                setTimeout(() => toast.style.display = 'none', 4000);
+            }
+
+            btn.disabled = false;
+            btn.textContent = '🚪 Submit Vacate Request';
+        });
+    </script>
+</body>
+</html>

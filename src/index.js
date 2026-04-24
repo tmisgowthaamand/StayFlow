@@ -1081,6 +1081,107 @@ app.post('/api/submit-query', async (req, res) => {
     }
 });
 
+// API to get tenant info (for vacate form auto-fill)
+app.get('/api/tenant-info', async (req, res) => {
+    try {
+        const { phone } = req.query;
+        if (!phone) return res.status(400).json({ error: 'Phone required' });
+
+        const tenant = await sheetsService.getTenantByPhone(phone);
+        if (!tenant || tenant.get('Status') === 'VACATED') {
+            return res.json({ success: false, error: 'Tenant not found' });
+        }
+
+        res.json({
+            success: true,
+            tenant: {
+                name: tenant.get('Name'),
+                room: tenant.get('Room'),
+                rent: tenant.get('Monthly Rent') || '0',
+                advance: tenant.get('Advance') || '0',
+                sharingType: tenant.get('Sharing Type') || 'N/A'
+            }
+        });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// API to submit vacate request (from vacate.html form)
+app.post('/api/submit-vacate', async (req, res) => {
+    try {
+        const { phone, reason, vacateDate, feedback } = req.body;
+        if (!phone || !reason || !vacateDate) {
+            return res.status(400).json({ error: 'Phone, reason and vacate date are required' });
+        }
+
+        const tenant = await sheetsService.getTenantByPhone(phone);
+        if (!tenant || tenant.get('Status') === 'VACATED') {
+            return res.status(404).json({ error: 'Active tenant not found for this phone' });
+        }
+
+        const name = tenant.get('Name');
+        const room = tenant.get('Room');
+        const monthlyRent = tenant.get('Monthly Rent') || '0';
+        const advance = tenant.get('Advance') || '0';
+        const sharingType = tenant.get('Sharing Type') || 'N/A';
+        const requestDate = new Date().toLocaleDateString('en-IN');
+        const formattedVacateDate = new Date(vacateDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+
+        // Generate Vacate PDF
+        const { filePath, requestId } = await pdfService.generateVacateForm({
+            name, phone, room, sharingType, monthlyRent, advance,
+            reason, requestDate, vacateDate: formattedVacateDate,
+            feedback: feedback || 'No feedback'
+        });
+
+        // Send to tenant via WhatsApp
+        await sendMessage(phone, `🚪 *Vacate Request Submitted*\n━━━━━━━━━━━━━━━━━━━━\n\n🆔 *Request ID*  :  ${requestId}\n👤 *Name*          :  ${name}\n🚪 *Room*          :  ${room}\n📋 *Reason*        :  ${reason}\n📅 *Requested*  :  ${requestDate}\n📅 *Vacate By*    :  ${formattedVacateDate}\n💬 *Feedback*    :  ${feedback || 'No feedback'}\n━━━━━━━━━━━━━━━━━━━━\n_Admin will review and confirm. You will be notified._`);
+        await sendMedia(phone, filePath, `📄 Vacate Request — ${name}`, null, `Vacate_${name}.pdf`);
+
+        // Send to admin via WhatsApp
+        if (config.ownerPhone) {
+            await sendMessage(config.ownerPhone, `🚪 *New Vacate Request*\n━━━━━━━━━━━━━━━━━━━━\n\n🆔 *ID*                :  ${requestId}\n👤 *Tenant*        :  ${name}\n📞 *Phone*         :  ${phone}\n🚪 *Room*          :  ${room}\n💰 *Rent*            :  ₹${monthlyRent}\n💵 *Advance*      :  ₹${advance}\n📋 *Reason*        :  ${reason}\n📅 *Vacate By*    :  ${formattedVacateDate}\n💬 *Feedback*    :  ${feedback || 'No feedback'}\n━━━━━━━━━━━━━━━━━━━━\n_Reply *VACATE ${room}* to confirm checkout._`);
+            await sendMedia(config.ownerPhone, filePath, `📄 Vacate Request — ${name}`, null, `Vacate_${name}.pdf`);
+        }
+
+        // 🔔 Create In-App Notification
+        try {
+            const title = `🚪 Vacate Request: ${name}`;
+            const body = `Room ${room} • Reason: ${reason} • Vacate by ${formattedVacateDate}`;
+
+            await Notification.create({
+                type: 'vacate_request',
+                title,
+                body,
+                meta: { tenantName: name, room, phone, reason, requestDate, vacateDate: formattedVacateDate, requestId, feedback }
+            });
+
+            await sendPushNotification(title, body, {
+                type: 'vacate_request',
+                tenantName: name,
+                room,
+                reason,
+                vacateDate: formattedVacateDate
+            });
+        } catch (e) {
+            console.error('Failed to create vacate notification:', e.message);
+        }
+
+        // Log
+        await Log.create({
+            phone,
+            action: 'VACATE_REQUEST',
+            details: { requestId, name, room, reason, vacateDate: formattedVacateDate, feedback, timestamp: new Date().toISOString() }
+        });
+
+        res.json({ success: true, requestId });
+    } catch (err) {
+        console.error('Vacate submit error:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
 // Get all queries (admin)
 app.get('/api/queries', authenticate, async (req, res) => {
     try {
