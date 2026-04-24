@@ -1,3 +1,4 @@
+import './src/utils/suppressWarnings';
 import React, { useRef, useEffect } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
@@ -85,25 +86,14 @@ import AddTenant from './src/screens/AddTenant';
 import NotificationsScreen from './src/screens/Notifications';
 import GeneralSettings from './src/screens/GeneralSettings';
 import Login from './src/screens/Login';
-import { requestNotificationPermissions } from './src/utils/notifications';
+import { requestNotificationPermissions, setupNotificationHandler } from './src/utils/notifications';
 import { LanguageProvider, useLanguage } from './src/context/LanguageContext';
 import { ThemeProvider } from './src/context/ThemeContext';
-import * as Notifications from 'expo-notifications';
 
-// 🔔 Configure foreground notifications
-try {
-  Notifications.setNotificationHandler({
-    handleNotification: async () => ({
-      shouldShowAlert: true,
-      shouldPlaySound: true,
-      shouldSetBadge: true,
-    }),
-  });
-} catch (e) {
-  console.warn('⚠️ Notification handler setup skipped (Expo Go limitation):', e.message);
-}
+// 🔔 Configure foreground notifications (safe for Expo Go)
+setupNotificationHandler();
 
-LogBox.ignoreLogs(['expo-notifications', 'Remote notifications', 'Firebase']);
+LogBox.ignoreLogs(['expo-notifications', 'Remote notifications', 'Firebase', 'Android Push notifications']);
 
 const Tab = createBottomTabNavigator();
 const Stack = createStackNavigator();

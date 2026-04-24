@@ -3,11 +3,29 @@
  * Persists notifications locally using AsyncStorage.
  * Supports: invoice_sent, payment_received, new_registration
  */
+import './suppressWarnings';
 import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Notifications from 'expo-notifications';
 import * as Device from 'expo-device';
 import Constants from 'expo-constants';
+
+/**
+ * Setup notification handler (safe for Expo Go SDK 53+)
+ */
+export const setupNotificationHandler = () => {
+    try {
+        Notifications.setNotificationHandler({
+            handleNotification: async () => ({
+                shouldShowAlert: true,
+                shouldPlaySound: true,
+                shouldSetBadge: true,
+            }),
+        });
+    } catch (e) {
+        // Silently skip in Expo Go
+    }
+};
 
 const STORAGE_KEY = '@stayflow_notifications';
 const DELETED_IDS_KEY = '@stayflow_deleted_ids';
