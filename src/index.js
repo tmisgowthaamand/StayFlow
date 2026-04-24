@@ -25,7 +25,7 @@ const wweb = {
     sendImage: () => Promise.reject(new Error('WWeb not available'))
 };
 import pdfService from './pdfService.js';
-import { Log, Media, Tenant, Notification, PushToken } from './db.js';
+import { Log, Media, Tenant, Notification, Query, PushToken } from './db.js';
 import { sendPushNotification } from './pushService.js';
 import keepAliveService from './keepAlive.js';
 
@@ -1026,19 +1026,34 @@ app.post('/api/submit-query', async (req, res) => {
             return res.status(400).json({ error: 'Name, phone and description are required' });
         }
 
+        // Generate unique query ID
+        const count = await Query.countDocuments();
+        const queryId = `Q${(count + 1001).toString()}`;
+
+        // Save to Query collection
+        const query = await Query.create({
+            queryId,
+            tenantName: name,
+            phone,
+            room: room || 'N/A',
+            category: category || 'General',
+            message: description,
+            status: 'PENDING'
+        });
+
         // Log to MongoDB
         await Log.create({
             phone,
             action: 'QUERY_SUBMITTED',
-            details: { name, room, category, description, timestamp: new Date().toISOString() }
+            details: { queryId, name, room, category, description, timestamp: new Date().toISOString() }
         });
 
         // Send confirmation to the user via WhatsApp
-        await sendMessage(phone, `\u2705 *Query Received!*\n\n\ud83d\udccb Category: ${category || 'General'}\n\ud83d\udcdd Issue: "${description}"\n\nOur team will review and get back to you shortly. Thank you for your patience! \ud83d\ude4f`);
+        await sendMessage(phone, `✅ *Query Received!*\n\n🆔 Query ID: *#${queryId}*\n📋 Category: ${category || 'General'}\n📝 Issue: "${description}"\n\nOur team will review and get back to you shortly. Thank you for your patience! 🙏`);
 
         // Notify admin
         if (config.ownerPhone) {
-            await sendMessage(config.ownerPhone, `\ud83c\udd98 *New Query Received*\n\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\n\ud83d\udc64 Name: ${name}\n\ud83d\udcde Phone: ${phone}\n\ud83d\udeaa Room: ${room || 'N/A'}\n\ud83d\udccb Category: ${category || 'General'}\n\ud83d\udcdd Query: ${description}\n\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\n_Reply to ${phone} directly to respond._`);
+            await sendMessage(config.ownerPhone, `🆘 *New Query #${queryId}*\n━━━━━━━━━━━━━━━━━━━━\n👤 Name: ${name}\n📞 Phone: ${phone}\n🚪 Room: ${room || 'N/A'}\n📋 Category: ${category || 'General'}\n📝 Query: ${description}\n━━━━━━━━━━━━━━━━━━━━\n_Reply from app/dashboard to respond._`);
         }
 
         // 🔔 Create In-App Notification
@@ -1050,7 +1065,7 @@ app.post('/api/submit-query', async (req, res) => {
                 type: 'issue_submitted',
                 title,
                 body,
-                meta: { tenantName: name, room, category, issue: description, phone }
+                meta: { queryId, tenantName: name, room, category, issue: description, phone }
             });
 
             // 🚀 Send Remote Push Notification (Drop-down)
@@ -1059,9 +1074,74 @@ app.post('/api/submit-query', async (req, res) => {
             console.error('Failed to create in-app notification:', e.message);
         }
 
-        res.json({ success: true });
+        res.json({ success: true, queryId });
     } catch (err) {
         console.error('Query submit error:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Get all queries (admin)
+app.get('/api/queries', authenticate, async (req, res) => {
+    try {
+        const { status } = req.query;
+        const filter = status ? { status: status.toUpperCase() } : {};
+        const queries = await Query.find(filter).sort({ createdAt: -1 }).lean();
+        res.json(queries);
+    } catch (err) {
+        console.error('Fetch queries error:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Reply to a query (admin)
+app.post('/api/queries/:queryId/reply', authenticate, async (req, res) => {
+    try {
+        const { queryId } = req.params;
+        const { reply } = req.body;
+        if (!reply) return res.status(400).json({ error: 'Reply message is required' });
+
+        const query = await Query.findOne({ queryId });
+        if (!query) return res.status(404).json({ error: 'Query not found' });
+
+        query.adminReply = reply;
+        query.status = 'RESOLVED';
+        query.resolvedAt = new Date();
+        await query.save();
+
+        // Send reply to tenant via WhatsApp
+        await sendMessage(query.phone, `💬 *Admin Reply — Query #${queryId}*\n━━━━━━━━━━━━━━━━━━━━\n\n📝 Your issue: "${query.message}"\n\n✅ *Response:* ${reply}\n\n━━━━━━━━━━━━━━━━━━━━\n_If the issue persists, submit a new query._`);
+
+        // Create notification
+        await Notification.create({
+            type: 'query_resolved',
+            title: `✅ Query #${queryId} Resolved`,
+            body: `Reply sent to ${query.tenantName}: ${reply.slice(0, 50)}`,
+            meta: { queryId, tenantName: query.tenantName, phone: query.phone }
+        });
+
+        res.json({ success: true, query });
+    } catch (err) {
+        console.error('Reply query error:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Mark query as resolved without reply
+app.patch('/api/queries/:queryId/resolve', authenticate, async (req, res) => {
+    try {
+        const { queryId } = req.params;
+        const query = await Query.findOne({ queryId });
+        if (!query) return res.status(404).json({ error: 'Query not found' });
+
+        query.status = 'RESOLVED';
+        query.resolvedAt = new Date();
+        if (req.body.reply) query.adminReply = req.body.reply;
+        await query.save();
+
+        res.json({ success: true, query });
+    } catch (err) {
+        console.error('Resolve query error:', err);
         res.status(500).json({ error: err.message });
     }
 });

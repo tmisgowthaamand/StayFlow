@@ -24,6 +24,7 @@ const ResidentItem = memo(({ item, index, onMenuPress, onRemind }) => {
 
     return (
         <AnimatedListItem index={index}>
+            <TouchableOpacity activeOpacity={0.85} onPress={() => navigation.navigate('TenantDetails', { tenant: item })}>
             <Animated.View style={[styles.card, scaleStyle, { backgroundColor: colors.backgroundAlt, borderColor: colors.border }]} onTouchStart={onPressIn} onTouchEnd={onPressOut} onTouchCancel={onPressOut}>
                 <View style={styles.cardHeader}>
                     <View style={styles.avatarWrapper}>
@@ -65,6 +66,7 @@ const ResidentItem = memo(({ item, index, onMenuPress, onRemind }) => {
 
                 {/* Actions Row removed for cleaner UI as buttons moved to header */}
             </Animated.View>
+            </TouchableOpacity>
         </AnimatedListItem>
     );
 });

@@ -4,7 +4,7 @@ import path from 'path';
 import sheetsService from './sheets.js';
 import * as bot from './bot.js';
 import config from './config.js';
-import { exportAllData } from './db.js';
+import { exportAllData, Query } from './db.js';
 import { fileURLToPath } from 'url';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -226,7 +226,37 @@ function setupCron() {
         }
     });
 
-    console.log('🕒 Automation System Active: Bills (1,3,5th), Overdue (10,11th), Backups (3AM), Sync (6h).');
+    // 8. Auto-reply to pending queries after 1 hour
+    cron.schedule('*/30 * * * *', async () => {
+        console.log('[CRON] Checking for unanswered queries (1hr auto-reply)...');
+        try {
+            const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
+            const pendingQueries = await Query.find({
+                status: 'PENDING',
+                autoReplySent: false,
+                createdAt: { $lte: oneHourAgo }
+            });
+
+            if (pendingQueries.length === 0) {
+                console.log('[CRON] No pending queries older than 1 hour.');
+                return;
+            }
+
+            for (const query of pendingQueries) {
+                await bot.sendMessage(query.phone, `🔔 *Query Update — #${query.queryId}*\n━━━━━━━━━━━━━━━━━━━━\n\nYour query has been accepted and noted by our team.\n\n📝 Issue: "${query.message}"\n\nWe are working on it and will resolve it as soon as possible.\nThank you for your patience! 🙏`);
+                query.autoReplySent = true;
+                query.status = 'ACKNOWLEDGED';
+                await query.save();
+                await new Promise(r => setTimeout(r, 1000));
+            }
+
+            console.log(`[CRON] Auto-replied to ${pendingQueries.length} pending queries.`);
+        } catch (err) {
+            console.error('Cron Error (Query Auto-Reply):', err.message);
+        }
+    });
+
+    console.log('🕒 Automation System Active: Bills (1,3,5th), Overdue (10,11th), Backups (3AM), Sync (6h), Query Auto-Reply (30min).');
 }
 
 export default setupCron;

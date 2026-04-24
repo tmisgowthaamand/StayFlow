@@ -5,7 +5,7 @@ import {
   Search, Edit3, Trash2, CheckCircle, AlertCircle, MapPin,
   ChevronRight, Plus, LogOut, LayoutDashboard, CreditCard,
   UserPlus, UserMinus, Camera, Send, Save, FileText, RefreshCw,
-  Menu, X
+  Menu, X, MessageSquare, Phone
 } from 'lucide-react';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
@@ -175,10 +175,48 @@ const App = () => {
   const [billingLoading, setBillingLoading] = useState(false);
   const [billingProgress, setBillingProgress] = useState({ current: 0, total: 0, status: '' });
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [notifications, setNotifications] = useState([]);
+  const [notifOpen, setNotifOpen] = useState(false);
+  const [queries, setQueries] = useState([]);
+  const [queryReplyPanel, setQueryReplyPanel] = useState(null);
+  const [queryReplyText, setQueryReplyText] = useState('');
 
   const showToast = (message, type = 'success') => {
     setToast({ message, type });
     setTimeout(() => setToast(null), 3000);
+  };
+
+  const fetchNotifications = async () => {
+    try {
+      const res = await axios.get('/api/notifications');
+      setNotifications(Array.isArray(res.data) ? res.data : []);
+    } catch (e) { console.error('Notif fetch error:', e); }
+  };
+
+  const fetchQueries = async () => {
+    try {
+      const res = await axios.get('/api/queries');
+      setQueries(Array.isArray(res.data) ? res.data : []);
+    } catch (e) { console.error('Queries fetch error:', e); }
+  };
+
+  const handleQueryReply = async (queryId) => {
+    if (!queryReplyText.trim()) return showToast('Enter a reply', 'error');
+    try {
+      await axios.post(`/api/queries/${queryId}/reply`, { reply: queryReplyText.trim() });
+      showToast('Reply sent via WhatsApp!');
+      setQueryReplyPanel(null);
+      setQueryReplyText('');
+      fetchQueries();
+    } catch (e) { showToast('Failed to send reply', 'error'); }
+  };
+
+  const handleQueryResolve = async (queryId) => {
+    try {
+      await axios.patch(`/api/queries/${queryId}/resolve`);
+      showToast('Query resolved!');
+      fetchQueries();
+    } catch (e) { showToast('Failed to resolve', 'error'); }
   };
 
 
@@ -187,6 +225,10 @@ const App = () => {
     fetchArchivedData();
     fetchConfig();
     fetchLocations();
+    fetchNotifications();
+    fetchQueries();
+    const notifInterval = setInterval(fetchNotifications, 30000);
+    return () => clearInterval(notifInterval);
   }, []);
 
   const fetchLocations = async () => {
@@ -1502,6 +1544,159 @@ const App = () => {
     );
   };
 
+  const renderQueries = () => {
+    const pendingQueries = queries.filter(q => q.status === 'PENDING');
+    const ackQueries = queries.filter(q => q.status === 'ACKNOWLEDGED');
+    const resolvedQueries = queries.filter(q => q.status === 'RESOLVED');
+    const quickReplies = ['We are looking into it.', 'Technician will visit tomorrow.', 'Issue has been resolved. Please check now.', 'Will be fixed within 24 hours.'];
+
+    return (
+      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+        {/* Stats */}
+        <div className="stats-grid" style={{ gridTemplateColumns: 'repeat(4, 1fr)' }}>
+          <SpotlightCard><div className="stat-icon-wrap" style={{ background: 'var(--primary-soft)', color: 'var(--primary)' }}><MessageSquare size={20} /></div><p className="stat-label">Total Queries</p><p className="stat-value">{queries.length}</p></SpotlightCard>
+          <SpotlightCard style={{ border: pendingQueries.length > 0 ? '1px solid rgba(244,63,94,0.3)' : undefined }}><div className="stat-icon-wrap" style={{ background: 'rgba(244,63,94,0.1)', color: '#f43f5e' }}><AlertCircle size={20} /></div><p className="stat-label">Pending</p><p className="stat-value" style={{ color: '#f43f5e' }}>{pendingQueries.length}</p></SpotlightCard>
+          <SpotlightCard><div className="stat-icon-wrap" style={{ background: 'rgba(245,158,11,0.1)', color: '#f59e0b' }}><Clock size={20} /></div><p className="stat-label">Acknowledged</p><p className="stat-value" style={{ color: '#f59e0b' }}>{ackQueries.length}</p></SpotlightCard>
+          <SpotlightCard><div className="stat-icon-wrap" style={{ background: 'var(--secondary-soft)', color: 'var(--secondary)' }}><CheckCircle size={20} /></div><p className="stat-label">Resolved</p><p className="stat-value" style={{ color: 'var(--secondary)' }}>{resolvedQueries.length}</p></SpotlightCard>
+        </div>
+
+        {/* Pending Queries */}
+        {pendingQueries.length > 0 && (
+          <div className="panel" style={{ marginBottom: 20, border: '1px solid rgba(244,63,94,0.25)', background: 'rgba(244,63,94,0.02)' }}>
+            <div className="panel-header"><h3 className="panel-title" style={{ color: '#f43f5e' }}><AlertCircle size={16} style={{ marginRight: 6 }} /> Pending ({pendingQueries.length})</h3></div>
+            <div className="table-scroll">
+              <table className="custom-table">
+                <thead><tr><th>Query ID</th><th>Tenant</th><th>Room</th><th>Category</th><th>Issue</th><th>Time</th><th>Actions</th></tr></thead>
+                <tbody>
+                  {pendingQueries.map((q, i) => (
+                    <tr key={q.queryId || i} className="table-row">
+                      <td><span style={{ fontWeight: 700, color: 'var(--primary)', fontSize: '0.82rem' }}>#{q.queryId}</span></td>
+                      <td><div style={{ display: 'flex', alignItems: 'center', gap: 8 }}><div style={{ width: 28, height: 28, borderRadius: 7, background: 'rgba(244,63,94,0.1)', color: '#f43f5e', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: '0.7rem' }}>{q.tenantName?.[0]}</div><span style={{ fontWeight: 600, fontSize: '0.82rem' }}>{q.tenantName}</span></div></td>
+                      <td><span style={{ background: 'var(--primary-soft)', color: 'var(--primary)', padding: '3px 8px', borderRadius: 6, fontSize: '0.75rem', fontWeight: 600 }}>{q.room}</span></td>
+                      <td style={{ fontSize: '0.8rem', color: 'var(--text-dim)' }}>{q.category}</td>
+                      <td style={{ fontSize: '0.8rem', maxWidth: 200, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={q.message}>{q.message}</td>
+                      <td style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{new Date(q.createdAt).toLocaleString()}</td>
+                      <td>
+                        <div style={{ display: 'flex', gap: 4 }}>
+                          <button className="btn btn-glass btn-small" style={{ padding: '5px 10px', color: 'var(--primary)' }} onClick={() => { setQueryReplyPanel(q); setQueryReplyText(''); }} title="Reply"><Send size={13} /></button>
+                          <button className="btn btn-glass btn-small" style={{ padding: '5px 8px', color: 'var(--secondary)' }} onClick={() => handleQueryResolve(q.queryId)} title="Resolve"><CheckCircle size={13} /></button>
+                          <button className="btn btn-glass btn-small" style={{ padding: '5px 8px', color: 'var(--text-dim)' }} onClick={() => window.open(`tel:${q.phone}`)} title="Call"><Phone size={13} /></button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {/* Acknowledged */}
+        {ackQueries.length > 0 && (
+          <div className="panel" style={{ marginBottom: 20, border: '1px solid rgba(245,158,11,0.2)' }}>
+            <div className="panel-header"><h3 className="panel-title" style={{ color: '#f59e0b' }}><Clock size={16} style={{ marginRight: 6 }} /> Acknowledged ({ackQueries.length})</h3></div>
+            <div className="table-scroll">
+              <table className="custom-table">
+                <thead><tr><th>Query ID</th><th>Tenant</th><th>Room</th><th>Issue</th><th>Auto-Reply</th><th>Time</th><th>Actions</th></tr></thead>
+                <tbody>
+                  {ackQueries.map((q, i) => (
+                    <tr key={q.queryId || i} className="table-row">
+                      <td><span style={{ fontWeight: 700, color: '#f59e0b', fontSize: '0.82rem' }}>#{q.queryId}</span></td>
+                      <td style={{ fontWeight: 600, fontSize: '0.82rem' }}>{q.tenantName}</td>
+                      <td><span style={{ background: 'var(--primary-soft)', color: 'var(--primary)', padding: '3px 8px', borderRadius: 6, fontSize: '0.75rem', fontWeight: 600 }}>{q.room}</span></td>
+                      <td style={{ fontSize: '0.8rem', maxWidth: 200, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={q.message}>{q.message}</td>
+                      <td><span className="status-badge" style={{ background: 'rgba(245,158,11,0.1)', color: '#f59e0b' }}>✅ Sent</span></td>
+                      <td style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{new Date(q.createdAt).toLocaleString()}</td>
+                      <td>
+                        <div style={{ display: 'flex', gap: 4 }}>
+                          <button className="btn btn-glass btn-small" style={{ padding: '5px 10px', color: 'var(--primary)' }} onClick={() => { setQueryReplyPanel(q); setQueryReplyText(''); }}><Send size={13} /></button>
+                          <button className="btn btn-glass btn-small" style={{ padding: '5px 8px', color: 'var(--secondary)' }} onClick={() => handleQueryResolve(q.queryId)}><CheckCircle size={13} /></button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {/* Resolved */}
+        {resolvedQueries.length > 0 && (
+          <div className="panel" style={{ marginBottom: 20 }}>
+            <div className="panel-header"><h3 className="panel-title" style={{ color: 'var(--secondary)' }}><CheckCircle size={16} style={{ marginRight: 6 }} /> Resolved ({resolvedQueries.length})</h3></div>
+            <div className="table-scroll">
+              <table className="custom-table">
+                <thead><tr><th>Query ID</th><th>Tenant</th><th>Room</th><th>Issue</th><th>Reply</th><th>Resolved</th></tr></thead>
+                <tbody>
+                  {resolvedQueries.slice(0, 15).map((q, i) => (
+                    <tr key={q.queryId || i} className="table-row">
+                      <td><span style={{ fontWeight: 700, color: 'var(--secondary)', fontSize: '0.82rem' }}>#{q.queryId}</span></td>
+                      <td style={{ fontWeight: 600, fontSize: '0.82rem' }}>{q.tenantName}</td>
+                      <td>{q.room}</td>
+                      <td style={{ fontSize: '0.8rem', maxWidth: 180, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={q.message}>{q.message}</td>
+                      <td style={{ fontSize: '0.8rem', color: 'var(--secondary)', maxWidth: 200, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={q.adminReply}>✅ {q.adminReply || 'Resolved'}</td>
+                      <td style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{q.resolvedAt ? new Date(q.resolvedAt).toLocaleString() : '—'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {queries.length === 0 && (
+          <div className="panel" style={{ textAlign: 'center', padding: 60 }}>
+            <MessageSquare size={40} style={{ color: 'var(--text-muted)', marginBottom: 12, opacity: 0.3 }} />
+            <p style={{ fontWeight: 700, fontSize: '1rem', color: 'var(--text-dim)' }}>No queries yet</p>
+            <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', marginTop: 4 }}>Tenant queries will appear here when submitted via WhatsApp</p>
+          </div>
+        )}
+
+        {/* Reply Side Panel */}
+        <AnimatePresence>
+          {queryReplyPanel && (
+            <div className="modal-backdrop" onClick={() => setQueryReplyPanel(null)} style={{ justifyContent: 'flex-end', padding: 0, zIndex: 10000 }}>
+              <motion.div initial={{ x: '100%' }} animate={{ x: 0 }} exit={{ x: '100%' }} className="panel" onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: 420, height: '100vh', borderRadius: 0, margin: 0, display: 'flex', flexDirection: 'column', borderLeft: '1px solid var(--glass-border)', background: 'rgba(15,23,42,0.98)', backdropFilter: 'blur(20px)' }}>
+                <div className="panel-header" style={{ padding: '20px 24px' }}>
+                  <h3 className="panel-title">Reply to #{queryReplyPanel.queryId}</h3>
+                  <button className="btn btn-glass btn-small" onClick={() => setQueryReplyPanel(null)}><X size={16} /></button>
+                </div>
+                <div style={{ flex: 1, overflowY: 'auto', padding: '0 24px' }}>
+                  <div style={{ background: 'rgba(255,255,255,0.03)', padding: 16, borderRadius: 'var(--radius-s)', border: '1px solid var(--glass-border)', marginBottom: 20 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8, fontSize: '0.82rem' }}><span style={{ color: 'var(--text-muted)' }}>Tenant:</span><span style={{ fontWeight: 700 }}>{queryReplyPanel.tenantName}</span></div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8, fontSize: '0.82rem' }}><span style={{ color: 'var(--text-muted)' }}>Phone:</span><span style={{ fontWeight: 600 }}>{queryReplyPanel.phone}</span></div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8, fontSize: '0.82rem' }}><span style={{ color: 'var(--text-muted)' }}>Room:</span><span style={{ fontWeight: 600 }}>{queryReplyPanel.room}</span></div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.82rem' }}><span style={{ color: 'var(--text-muted)' }}>Category:</span><span style={{ fontWeight: 600 }}>{queryReplyPanel.category}</span></div>
+                  </div>
+                  <div style={{ background: 'rgba(244,63,94,0.04)', padding: 14, borderRadius: 'var(--radius-s)', border: '1px solid rgba(244,63,94,0.15)', marginBottom: 20 }}>
+                    <p style={{ fontSize: '0.72rem', fontWeight: 800, color: '#f43f5e', marginBottom: 6 }}>ISSUE</p>
+                    <p style={{ fontSize: '0.88rem', color: 'var(--text-main)', fontStyle: 'italic', lineHeight: 1.5 }}>"{queryReplyPanel.message}"</p>
+                  </div>
+                  <p style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)', marginBottom: 10 }}>QUICK REPLIES</p>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 20 }}>
+                    {quickReplies.map((qr, i) => (
+                      <button key={i} className="btn btn-glass btn-small" style={{ fontSize: '0.72rem', padding: '6px 12px' }} onClick={() => setQueryReplyText(qr)}>{qr}</button>
+                    ))}
+                  </div>
+                  <div className="input-group">
+                    <label>Your Reply (sent via WhatsApp to {queryReplyPanel.phone})</label>
+                    <textarea rows={4} value={queryReplyText} onChange={e => setQueryReplyText(e.target.value)} placeholder="Type your reply..." style={{ resize: 'vertical', minHeight: 80 }} />
+                  </div>
+                </div>
+                <div style={{ padding: '16px 24px', borderTop: '1px solid var(--glass-border)' }}>
+                  <ShinyButton style={{ width: '100%', justifyContent: 'center', gap: 8 }} onClick={() => handleQueryReply(queryReplyPanel.queryId)} disabled={!queryReplyText.trim()}>
+                    <Send size={16} /> Send Reply via WhatsApp
+                  </ShinyButton>
+                </div>
+              </motion.div>
+            </div>
+          )}
+        </AnimatePresence>
+      </motion.div>
+    );
+  };
+
   const renderSettings = () => (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
       <div className="panel">
@@ -1875,6 +2070,7 @@ const App = () => {
           <div className={`nav-link ${activeTab === 'map' ? 'active' : ''}`} onClick={() => { setActiveTab('map'); setSidebarOpen(false); }}><MapPin size={20} /> Room Map</div>
           <div className={`nav-link ${activeTab === 'locations' ? 'active' : ''}`} onClick={() => { setActiveTab('locations'); setSidebarOpen(false); }}><MapPin size={20} /> Locations</div>
           <div className={`nav-link ${activeTab === 'archive' ? 'active' : ''}`} onClick={() => { setActiveTab('archive'); setSidebarOpen(false); }}><Settings size={20} /> Archive</div>
+          <div className={`nav-link ${activeTab === 'queries' ? 'active' : ''}`} onClick={() => { setActiveTab('queries'); setSidebarOpen(false); fetchQueries(); }}><MessageSquare size={20} /> Queries {queries.filter(q => q.status === 'PENDING').length > 0 && <span style={{ marginLeft: 'auto', background: 'var(--accent)', color: '#fff', borderRadius: 10, padding: '1px 7px', fontSize: '0.7rem', fontWeight: 800 }}>{queries.filter(q => q.status === 'PENDING').length}</span>}</div>
           <div className={`nav-link ${activeTab === 'tools' ? 'active' : ''}`} onClick={() => { setActiveTab('tools'); setSidebarOpen(false); }}><Zap size={20} /> Auto-Tools</div>
           <div className={`nav-link ${activeTab === 'settings' ? 'active' : ''}`} onClick={() => { setActiveTab('settings'); setSidebarOpen(false); }}><Settings size={20} /> App Settings</div>
         </nav>
@@ -1929,7 +2125,7 @@ const App = () => {
               <Menu size={20} />
             </button>
             <div className="header-meta">
-              <h1>{activeTab === 'dashboard' ? 'Dashboard' : activeTab === 'billing' ? 'Monthly Billing' : activeTab === 'tenants' ? 'Members' : activeTab === 'map' ? 'Room Map' : activeTab === 'locations' ? 'Locations' : activeTab === 'archive' ? 'Archive' : activeTab === 'tools' ? 'Auto-Tools' : activeTab === 'settings' ? 'App Settings' : activeTab.charAt(0).toUpperCase() + activeTab.slice(1)}</h1>
+              <h1>{activeTab === 'dashboard' ? 'Dashboard' : activeTab === 'billing' ? 'Monthly Billing' : activeTab === 'tenants' ? 'Members' : activeTab === 'map' ? 'Room Map' : activeTab === 'locations' ? 'Locations' : activeTab === 'archive' ? 'Archive' : activeTab === 'queries' ? 'Tenant Queries' : activeTab === 'tools' ? 'Auto-Tools' : activeTab === 'settings' ? 'App Settings' : activeTab.charAt(0).toUpperCase() + activeTab.slice(1)}</h1>
               <p>Welcome back, Owner. Here's what's happening at StayFlow.</p>
             </div>
           </div>
@@ -1956,7 +2152,50 @@ const App = () => {
                 }}
               />
             </div>
-            <button className="btn btn-glass btn-small" style={{ padding: 9 }}><Bell size={16} /></button>
+            <div style={{ position: 'relative' }}>
+              <button className="btn btn-glass btn-small" style={{ padding: 9, position: 'relative' }} onClick={() => { setNotifOpen(!notifOpen); if (!notifOpen) fetchNotifications(); }}>
+                <Bell size={16} />
+                {notifications.filter(n => !n.read).length > 0 && (
+                  <span style={{ position: 'absolute', top: -4, right: -4, width: 18, height: 18, borderRadius: '50%', background: 'var(--accent)', color: '#fff', fontSize: '0.6rem', fontWeight: 900, display: 'flex', alignItems: 'center', justifyContent: 'center', border: '2px solid var(--bg-base)' }}>
+                    {notifications.filter(n => !n.read).length > 9 ? '9+' : notifications.filter(n => !n.read).length}
+                  </span>
+                )}
+              </button>
+              {notifOpen && (
+                <div style={{ position: 'absolute', right: 0, top: 44, width: 380, maxHeight: 480, background: 'rgba(15,23,42,0.98)', border: '1px solid var(--glass-border)', borderRadius: 'var(--radius-m)', boxShadow: '0 20px 60px rgba(0,0,0,0.5)', zIndex: 9999, overflow: 'hidden', backdropFilter: 'blur(20px)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '14px 16px', borderBottom: '1px solid var(--glass-border)' }}>
+                    <span style={{ fontWeight: 800, fontSize: '0.9rem' }}>Notifications</span>
+                    <button className="btn btn-glass btn-small" style={{ padding: '4px 8px', fontSize: '0.7rem' }} onClick={() => setNotifOpen(false)}>
+                      <X size={14} />
+                    </button>
+                  </div>
+                  <div style={{ maxHeight: 400, overflowY: 'auto' }}>
+                    {notifications.length === 0 ? (
+                      <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)' }}>
+                        <Bell size={28} style={{ marginBottom: 8, opacity: 0.3 }} />
+                        <p style={{ fontSize: '0.82rem' }}>No notifications</p>
+                      </div>
+                    ) : notifications.slice(0, 20).map((n, i) => (
+                      <div key={n._id || i} style={{ padding: '12px 16px', borderBottom: '1px solid rgba(255,255,255,0.03)', cursor: 'pointer', background: n.read ? 'transparent' : 'rgba(99,102,241,0.04)', transition: 'background 0.2s' }}
+                        onClick={() => { if (n.meta?.queryId) { setActiveTab('queries'); setNotifOpen(false); fetchQueries(); } }}
+                      >
+                        <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+                          <div style={{ width: 32, height: 32, borderRadius: 8, background: n.type === 'issue_submitted' ? 'rgba(244,63,94,0.1)' : n.type === 'payment_received' ? 'rgba(16,185,129,0.1)' : n.type === 'invoice_sent' ? 'rgba(99,102,241,0.1)' : n.type === 'query_resolved' ? 'rgba(16,185,129,0.1)' : 'rgba(255,255,255,0.05)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                            {n.type === 'issue_submitted' ? <AlertCircle size={14} color="#f43f5e" /> : n.type === 'payment_received' ? <CheckCircle size={14} color="var(--secondary)" /> : n.type === 'invoice_sent' ? <FileText size={14} color="var(--primary)" /> : n.type === 'query_resolved' ? <CheckCircle size={14} color="var(--secondary)" /> : <Bell size={14} color="var(--text-muted)" />}
+                          </div>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <p style={{ fontWeight: 700, fontSize: '0.8rem', color: 'var(--text-main)', marginBottom: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{n.title}</p>
+                            <p style={{ fontSize: '0.75rem', color: 'var(--text-dim)', lineHeight: 1.4 }}>{n.body}</p>
+                            <p style={{ fontSize: '0.65rem', color: 'var(--text-muted)', marginTop: 4 }}>{new Date(n.timestamp).toLocaleString()}</p>
+                          </div>
+                          {!n.read && <div style={{ width: 6, height: 6, borderRadius: 3, background: 'var(--primary)', marginTop: 6, flexShrink: 0 }} />}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         </header>
 
@@ -1977,6 +2216,7 @@ const App = () => {
             {activeTab === 'map' && renderMap()}
             {activeTab === 'locations' && renderLocations()}
             {activeTab === 'archive' && renderArchive()}
+            {activeTab === 'queries' && renderQueries()}
             {activeTab === 'tools' && renderTools()}
             {activeTab === 'settings' && renderSettings()}
           </>

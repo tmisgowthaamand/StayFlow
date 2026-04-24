@@ -68,6 +68,20 @@ const paymentSchema = new mongoose.Schema({
     timestamp: { type: Date, default: Date.now }
 });
 
+const querySchema = new mongoose.Schema({
+    queryId: { type: String, unique: true, required: true },
+    tenantName: String,
+    phone: String,
+    room: String,
+    category: { type: String, default: 'General' },
+    message: String,
+    status: { type: String, enum: ['PENDING', 'ACKNOWLEDGED', 'RESOLVED'], default: 'PENDING' },
+    adminReply: String,
+    autoReplySent: { type: Boolean, default: false },
+    createdAt: { type: Date, default: Date.now },
+    resolvedAt: Date
+});
+
 const pushTokenSchema = new mongoose.Schema({
     token: { type: String, unique: true, required: true },
     platform: String,
@@ -80,6 +94,7 @@ const Tenant = mongoose.model('Tenant', tenantSchema);
 const Notification = mongoose.model('Notification', notificationSchema);
 const Session = mongoose.model('Session', sessionSchema);
 const Payment = mongoose.model('Payment', paymentSchema);
+const Query = mongoose.model('Query', querySchema);
 const PushToken = mongoose.model('PushToken', pushTokenSchema);
 
 /**
@@ -93,4 +108,4 @@ async function exportAllData() {
     return { tenants, payments, logs, timestamp: new Date().toISOString() };
 }
 
-export { Log, Media, Tenant, Notification, Session, Payment, PushToken, exportAllData };
+export { Log, Media, Tenant, Notification, Session, Payment, Query, PushToken, exportAllData };

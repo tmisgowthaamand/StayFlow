@@ -7,10 +7,12 @@ import { getTenants } from '../api/api';
 import { FileText, Calendar, ExternalLink, Clock } from 'lucide-react-native';
 import { usePressAnimation, useFadeSlideIn, SkeletonCard } from '../utils/animations';
 import { useLanguage } from '../context/LanguageContext';
+import { useNavigation } from '@react-navigation/native';
 
 // ─── Animated Registration Card ────────────────────────────────
 const RegistrationCard = memo(({ item, index, openDocument }) => {
     const { t } = useLanguage();
+    const navigation = useNavigation();
     const hasDoc = !!item['Registration Form'];
     const joinDate = item['Join Date'] || t('unknown');
     const isPaid = item.Status === 'PAID' || item.Status === 'VALID';
@@ -29,6 +31,7 @@ const RegistrationCard = memo(({ item, index, openDocument }) => {
     }, []);
 
     return (
+        <TouchableOpacity activeOpacity={0.85} onPress={() => navigation.navigate('TenantDetails', { tenant: item })}>
         <Animated.View
             style={[styles.card, Shadows.sm, scaleStyle, { opacity, transform: [...scaleStyle.transform, { translateY }] }]}
             onTouchStart={onPressIn}
@@ -67,6 +70,7 @@ const RegistrationCard = memo(({ item, index, openDocument }) => {
                 )}
             </TouchableOpacity>
         </Animated.View>
+        </TouchableOpacity>
     );
 });
 

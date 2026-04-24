@@ -185,6 +185,37 @@ export const clearAllNotifications = async () => {
     }
 };
 
+export const getQueries = async (status) => {
+    try {
+        const params = status ? { status } : {};
+        const response = await api.get('/queries', { params });
+        return response.data;
+    } catch (error) {
+        console.error('Get queries failed:', error.message);
+        throw error;
+    }
+};
+
+export const replyToQuery = async (queryId, reply) => {
+    try {
+        const response = await api.post(`/queries/${queryId}/reply`, { reply });
+        return response.data;
+    } catch (error) {
+        console.error('Reply query failed:', error.message);
+        throw error;
+    }
+};
+
+export const resolveQuery = async (queryId, reply) => {
+    try {
+        const response = await api.patch(`/queries/${queryId}/resolve`, { reply });
+        return response.data;
+    } catch (error) {
+        console.error('Resolve query failed:', error.message);
+        throw error;
+    }
+};
+
 export const sendReminder = async (phone, name) => {
     try {
         const payload = phone ? { phone, name } : {};

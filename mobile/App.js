@@ -85,6 +85,8 @@ import PDFViewer from './src/screens/PDFViewer';
 import AddTenant from './src/screens/AddTenant';
 import NotificationsScreen from './src/screens/Notifications';
 import GeneralSettings from './src/screens/GeneralSettings';
+import Queries from './src/screens/Queries';
+import TenantDetails from './src/screens/TenantDetails';
 import Login from './src/screens/Login';
 import { requestNotificationPermissions, setupNotificationHandler } from './src/utils/notifications';
 import { LanguageProvider, useLanguage } from './src/context/LanguageContext';
@@ -248,6 +250,8 @@ export default function App() {
                 <Stack.Screen name="AddTenant" component={AddTenant} />
                 <Stack.Screen name="Notifications" component={NotificationsScreen} />
                 <Stack.Screen name="GeneralSettings" component={GeneralSettings} />
+                <Stack.Screen name="Queries" component={Queries} />
+                <Stack.Screen name="TenantDetails" component={TenantDetails} />
               </Stack.Navigator>
             </NavigationContainer>
           </ThemeProvider>

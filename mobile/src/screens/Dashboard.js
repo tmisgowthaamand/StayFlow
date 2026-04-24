@@ -516,6 +516,14 @@ const Dashboard = () => {
                                         <Text style={styles.menuItemText}>{t('notifications')}</Text>
                                     </TouchableOpacity>
 
+                                    <TouchableOpacity style={styles.menuItem} onPress={() => { closeMenu(); navigation.navigate('Queries'); }}>
+                                        <View style={styles.menuIconBox}><AlertCircle size={20} color={Colors.accent} /></View>
+                                        <View>
+                                            <Text style={styles.menuItemText}>Queries</Text>
+                                            <Text style={styles.menuItemSub}>Tenant issues & complaints</Text>
+                                        </View>
+                                    </TouchableOpacity>
+
                                     <View style={styles.menuDivider} />
                                     <Text style={styles.menuSectionTitle}>{t('system')}</Text>
 
