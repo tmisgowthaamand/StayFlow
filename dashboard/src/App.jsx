@@ -1750,58 +1750,53 @@ const App = () => {
           style={{
             background: 'rgba(255,255,255,0.03)', backdropFilter: 'blur(20px)',
             border: '1px solid rgba(255,255,255,0.08)', borderRadius: 20,
-            padding: '48px 40px', width: '100%', maxWidth: 400,
+            padding: '48px 40px', width: '100%', maxWidth: 420,
             boxShadow: '0 20px 60px rgba(0,0,0,0.4)',
           }}
         >
-          <div style={{ textAlign: 'center', marginBottom: 32 }}>
-            <div style={{
-              width: 56, height: 56, borderRadius: 16, margin: '0 auto 16px',
-              background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              boxShadow: '0 8px 24px rgba(99, 102, 241, 0.3)',
-            }}>
-              <LayoutDashboard size={28} color="#fff" />
-            </div>
-            <h1 style={{ fontSize: '1.4rem', fontWeight: 700, color: '#fff', margin: 0 }}>StayFlow</h1>
-            <p style={{ fontSize: '0.8rem', color: 'rgba(255,255,255,0.4)', marginTop: 6 }}>Sign in to manage your property</p>
+          <div style={{ marginBottom: 36 }}>
+            <h1 style={{ fontSize: '1.8rem', fontWeight: 800, color: '#fff', margin: 0 }}>Welcome back</h1>
+            <p style={{ fontSize: '0.88rem', color: 'rgba(255,255,255,0.4)', marginTop: 8 }}>Please enter your details</p>
           </div>
 
           <form onSubmit={handleLogin}>
-            <div style={{ marginBottom: 16 }}>
-              <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: 'rgba(255,255,255,0.5)', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Username</label>
+            <div style={{ marginBottom: 20 }}>
+              <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, color: 'rgba(255,255,255,0.7)', marginBottom: 8 }}>Username</label>
               <input
                 type="text"
                 value={loginForm.username}
                 onChange={(e) => setLoginForm({ ...loginForm, username: e.target.value })}
-                placeholder="Enter username"
+                placeholder="Enter your username"
                 autoFocus
                 style={{
                   width: '100%', padding: '12px 14px', borderRadius: 10,
-                  border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.04)',
+                  border: '1px solid rgba(255,255,255,0.12)', background: 'rgba(255,255,255,0.04)',
                   color: '#fff', fontSize: '0.9rem', outline: 'none', boxSizing: 'border-box',
                   transition: 'border-color 0.2s',
                 }}
                 onFocus={(e) => e.target.style.borderColor = 'rgba(99,102,241,0.5)'}
-                onBlur={(e) => e.target.style.borderColor = 'rgba(255,255,255,0.1)'}
+                onBlur={(e) => e.target.style.borderColor = 'rgba(255,255,255,0.12)'}
               />
             </div>
-            <div style={{ marginBottom: 24 }}>
-              <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: 'rgba(255,255,255,0.5)', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Password</label>
+            <div style={{ marginBottom: 20 }}>
+              <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, color: 'rgba(255,255,255,0.7)', marginBottom: 8 }}>Password</label>
               <input
                 type="password"
                 value={loginForm.password}
                 onChange={(e) => setLoginForm({ ...loginForm, password: e.target.value })}
-                placeholder="Enter password"
+                placeholder="Enter your password"
                 style={{
                   width: '100%', padding: '12px 14px', borderRadius: 10,
-                  border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.04)',
+                  border: '1px solid rgba(255,255,255,0.12)', background: 'rgba(255,255,255,0.04)',
                   color: '#fff', fontSize: '0.9rem', outline: 'none', boxSizing: 'border-box',
                   transition: 'border-color 0.2s',
                 }}
                 onFocus={(e) => e.target.style.borderColor = 'rgba(99,102,241,0.5)'}
-                onBlur={(e) => e.target.style.borderColor = 'rgba(255,255,255,0.1)'}
+                onBlur={(e) => e.target.style.borderColor = 'rgba(255,255,255,0.12)'}
               />
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 24 }}>
+              <span style={{ fontSize: '0.8rem', color: '#6366f1', fontWeight: 600, cursor: 'pointer' }}>Forgot password</span>
             </div>
             {loginError && (
               <div style={{
@@ -1825,7 +1820,7 @@ const App = () => {
               onMouseDown={(e) => e.target.style.transform = 'scale(0.98)'}
               onMouseUp={(e) => e.target.style.transform = 'scale(1)'}
             >
-              Sign In
+              Sign in
             </button>
           </form>
         </motion.div>
