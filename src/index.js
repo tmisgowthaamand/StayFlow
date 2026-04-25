@@ -25,6 +25,7 @@ const wweb = {
     sendImage: () => Promise.reject(new Error('WWeb not available'))
 };
 import pdfService from './pdfService.js';
+import { generateVacateApprovalCard } from './imageService.js';
 import { Log, Media, Tenant, Notification, Query, PushToken } from './db.js';
 import { sendPushNotification } from './pushService.js';
 import keepAliveService from './keepAlive.js';
@@ -1947,9 +1948,11 @@ app.post('/api/vacate-tenant', authenticate, async (req, res) => {
                 { read: true }
             );
 
-            // Send WhatsApp confirmation to tenant
+            // Send WhatsApp image card + caption to tenant
             try {
-                await sendMessage(phone, `✅ *Vacate Request Approved*\n━━━━━━━━━━━━━━━━━━━━\n\n👤 *Name*          :  ${tenantName}\n🚪 *Room*          :  ${room}\n📋 *Reason*        :  ${reason}\n📅 *Vacate By*    :  ${vacateDate}\n📌 *Status*          :  ✅ APPROVED (by Admin)\n━━━━━━━━━━━━━━━━━━━━\n\nYour vacate request has been approved by the admin.\nPlease clear any pending dues and return your room key.\n\nThank you for staying with us! 🙏`);
+                const cardPath = generateVacateApprovalCard({ name: tenantName, room, reason, vacateDate, approvedBy: 'Admin' });
+                const caption = `✅ *Vacate Request Approved*\n━━━━━━━━━━━━━━━━━━━━\n\n👤 *Name*          :  ${tenantName}\n🚪 *Room*          :  ${room}\n📋 *Reason*        :  ${reason}\n📅 *Vacate By*    :  ${vacateDate}\n📌 *Status*          :  ✅ APPROVED (by Admin)\n━━━━━━━━━━━━━━━━━━━━\n\nYour vacate request has been approved by the admin.\nPlease clear any pending dues and return your room key.\n\nThank you for staying with us! 🙏`;
+                await sendMedia(phone, cardPath, caption);
             } catch (e) {
                 console.error('Failed to send vacate WhatsApp to tenant:', e.message);
             }

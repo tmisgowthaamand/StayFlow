@@ -6,6 +6,7 @@ import * as bot from './bot.js';
 import config from './config.js';
 import { exportAllData, Query, Notification, Tenant, Log } from './db.js';
 import { fileURLToPath } from 'url';
+import { generateVacateApprovalCard } from './imageService.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -295,8 +296,10 @@ function setupCron() {
                         details: { name: tenantName, room, autoApproved: true, reason }
                     });
 
-                    // 4. Send WhatsApp confirmation to tenant
-                    await bot.sendMessage(phone, `✅ *Vacate Request Approved*\n━━━━━━━━━━━━━━━━━━━━\n\n👤 *Name*          :  ${tenantName}\n🚪 *Room*          :  ${room}\n📋 *Reason*        :  ${reason || 'N/A'}\n📅 *Vacate By*    :  ${vacateDate || 'N/A'}\n📌 *Status*          :  ✅ APPROVED\n━━━━━━━━━━━━━━━━━━━━\n\nYour vacate request has been *auto-approved*.\nPlease clear any pending dues and return your room key.\n\nThank you for staying with us! 🙏`);
+                    // 4. Send WhatsApp image card + caption to tenant
+                    const cardPath = generateVacateApprovalCard({ name: tenantName, room, reason: reason || 'N/A', vacateDate: vacateDate || 'N/A', approvedBy: 'Auto' });
+                    const caption = `✅ *Vacate Request Approved*\n━━━━━━━━━━━━━━━━━━━━\n\n👤 *Name*          :  ${tenantName}\n🚪 *Room*          :  ${room}\n📋 *Reason*        :  ${reason || 'N/A'}\n📅 *Vacate By*    :  ${vacateDate || 'N/A'}\n📌 *Status*          :  ✅ APPROVED (Auto)\n━━━━━━━━━━━━━━━━━━━━\n\nYour vacate request has been *auto-approved*.\nPlease clear any pending dues and return your room key.\n\nThank you for staying with us! 🙏`;
+                    await bot.sendMedia(phone, cardPath, caption);
 
                     // 5. Notify admin
                     if (config.ownerPhone) {
