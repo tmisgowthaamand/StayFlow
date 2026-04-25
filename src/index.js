@@ -831,6 +831,11 @@ app.get('/api/media/:id', authenticate, async (req, res) => {
 
                 const mediaDoc = await Media.findOne({ $or: mediaQuery });
 
+                if (mediaDoc?.url) {
+                    console.log(`Redirecting Cloudinary media: ${safeMediaId}`);
+                    return res.redirect(mediaDoc.url);
+                }
+
                 if (mediaDoc?.data) {
                     console.log(`Serving Mongo media: ${safeMediaId}`);
                     res.setHeader('Content-Type', mediaDoc.mimeType || 'application/octet-stream');
@@ -1021,20 +1026,44 @@ const upload = multer({
     }
 });
 
+async function saveUploadToCloudinary(file, phone, type = 'AADHAAR') {
+    const uploadResult = await cloudinaryService.uploadLocalFile(file.path, {
+        folder: `stayflow/${type.toLowerCase()}`,
+        filename: file.originalname || file.filename,
+        mimeType: file.mimetype,
+        publicId: `${type.toLowerCase()}_${phone}_${Date.now()}`
+    });
+
+    const mediaDoc = await Media.create({
+        phone,
+        type,
+        mediaId: file.filename,
+        filename: file.originalname || file.filename,
+        mimeType: file.mimetype,
+        provider: uploadResult.provider,
+        publicId: uploadResult.publicId,
+        url: uploadResult.url,
+        resourceType: uploadResult.resourceType,
+        format: uploadResult.format,
+        bytes: uploadResult.bytes
+    });
+
+    try {
+        if (file.path && fs.existsSync(file.path)) fs.unlinkSync(file.path);
+    } catch (cleanupErr) {
+        console.warn('Temp upload cleanup failed:', cleanupErr.message);
+    }
+
+    return mediaDoc;
+}
+
 app.post('/api/upload-aadhaar', authenticate, upload.single('aadhaar'), async (req, res) => {
     try {
         const { phone } = req.body;
         const file = req.file;
         if (!file || !phone) return res.status(400).json({ error: 'File and phone required' });
 
-        const mediaDoc = await Media.create({
-            phone,
-            type: 'AADHAAR',
-            mediaId: file.filename,
-            filename: file.originalname || file.filename,
-            mimeType: file.mimetype,
-            data: fs.readFileSync(file.path)
-        });
+        const mediaDoc = await saveUploadToCloudinary(file, phone, 'AADHAAR');
 
         await sheetsService.updateTenant(phone, {
             'Aadhaar Image': mediaDoc._id.toString()
@@ -1306,14 +1335,7 @@ app.post('/api/web-register', upload.single('aadhaar'), async (req, res) => {
 
         let aadhaarImage = '';
         if (file) {
-            const mediaDoc = await Media.create({
-                phone,
-                type: 'AADHAAR',
-                mediaId: file.filename,
-                filename: file.originalname || file.filename,
-                mimeType: file.mimetype,
-                data: fs.readFileSync(file.path)
-            });
+            const mediaDoc = await saveUploadToCloudinary(file, phone, 'AADHAAR');
             aadhaarImage = mediaDoc._id.toString();
         }
 
@@ -1367,14 +1389,7 @@ app.post('/api/public/register', upload.single('aadhaar'), async (req, res) => {
 
         let aadhaarImage = '';
         if (file) {
-            const mediaDoc = await Media.create({
-                phone,
-                type: 'AADHAAR',
-                mediaId: file.filename,
-                filename: file.originalname || file.filename,
-                mimeType: file.mimetype,
-                data: fs.readFileSync(file.path)
-            });
+            const mediaDoc = await saveUploadToCloudinary(file, phone, 'AADHAAR');
             aadhaarImage = mediaDoc._id.toString();
         }
 

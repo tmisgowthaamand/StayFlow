@@ -546,6 +546,31 @@ async function uploadMedia(filePath) {
     }
 }
 
+async function saveWhatsAppAadhaarToCloudinary(image, phone) {
+    const mediaId = image.id;
+    const uploadResult = await cloudinaryService.uploadWhatsAppMedia(mediaId, {
+        folder: 'stayflow/aadhaar',
+        filename: `aadhaar-${phone}-${Date.now()}`,
+        publicId: `aadhaar_${phone}_${Date.now()}`
+    });
+
+    const mediaDoc = await Media.create({
+        phone,
+        type: 'AADHAAR',
+        mediaId,
+        filename: uploadResult.originalFilename || `aadhaar-${phone}`,
+        mimeType: image.mimeType || image.mimetype || 'image/jpeg',
+        provider: uploadResult.provider,
+        publicId: uploadResult.publicId,
+        url: uploadResult.url,
+        resourceType: uploadResult.resourceType,
+        format: uploadResult.format,
+        bytes: uploadResult.bytes
+    });
+
+    return mediaDoc;
+}
+
 
 const logFile = path.join(__dirname, '../bot.log');
 function logToFile(msg) {
