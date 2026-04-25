@@ -813,7 +813,32 @@ app.get('/api/media/:id', authenticate, async (req, res) => {
 
         console.log(`Media Request: ${safeMediaId}`);
 
-        // 1. Try serving from local disk (unless refresh is requested)
+        // 1. Try serving from MongoDB first (persistent storage across Render restarts/redeploys)
+        if (!req.query.refresh) {
+            try {
+                const mediaQuery = [
+                    { mediaId: safeMediaId },
+                    { filename: safeMediaId }
+                ];
+
+                if (mongoose.Types.ObjectId.isValid(safeMediaId)) {
+                    mediaQuery.push({ _id: safeMediaId });
+                }
+
+                const mediaDoc = await Media.findOne({ $or: mediaQuery });
+
+                if (mediaDoc?.data) {
+                    console.log(`Serving Mongo media: ${safeMediaId}`);
+                    res.setHeader('Content-Type', mediaDoc.mimeType || 'application/octet-stream');
+                    res.setHeader('Content-Disposition', `inline; filename="${mediaDoc.filename || mediaDoc.mediaId || safeMediaId}"`);
+                    return res.send(mediaDoc.data);
+                }
+            } catch (mongoMediaErr) {
+                console.warn(`Mongo media lookup failed for ${safeMediaId}:`, mongoMediaErr.message);
+            }
+        }
+
+        // 2. Try serving from local disk (unless refresh is requested)
         if (!req.query.refresh && fs.existsSync(localPath) && fs.lstatSync(localPath).isFile()) {
             console.log(`Serving local media: ${safeMediaId}`);
             const ext = path.extname(safeMediaId).toLowerCase();
@@ -825,7 +850,7 @@ app.get('/api/media/:id', authenticate, async (req, res) => {
             return res.sendFile(localPath);
         }
 
-        // 2. FALLBACK: On-the-fly PDF Regeneration if missing on disk (common after redeploy)
+        // 3. FALLBACK: On-the-fly PDF Regeneration if missing on disk (common after redeploy)
         if (safeMediaId.startsWith('registration_') || safeMediaId.startsWith('invoice_')) {
             console.log(`PDF missing on disk, attempting to regenerate: ${safeMediaId}`);
             try {
@@ -875,7 +900,7 @@ app.get('/api/media/:id', authenticate, async (req, res) => {
             }
         }
 
-        // 3. Try fetching from WhatsApp (ONLY if it looks like a WhatsApp media ID)
+        // 4. Try fetching from WhatsApp (ONLY if it looks like a WhatsApp media ID)
         // WhatsApp IDs are numeric strings. Local filenames (with extensions) or hashes should not be proxied to WhatsApp.
         const isWhatsAppId = /^\d+$/.test(mediaId) || mediaId.startsWith('wweb_');
 
@@ -900,7 +925,7 @@ app.get('/api/media/:id', authenticate, async (req, res) => {
             }
         }
 
-        // 4. Default 404 if everything failed
+        // 5. Default 404 if everything failed
         console.warn(`Media NOT found: ${safeMediaId}`);
         res.status(404).send(`Media document [${safeMediaId}] not found on server. If this was a web upload, it may have been cleared by a server restart/redeploy. Please re-upload it via the resident edit profile.`);
     } catch (err) {
@@ -998,11 +1023,20 @@ app.post('/api/upload-aadhaar', authenticate, upload.single('aadhaar'), async (r
         const file = req.file;
         if (!file || !phone) return res.status(400).json({ error: 'File and phone required' });
 
-        await sheetsService.updateTenant(phone, {
-            'Aadhaar Image': file.filename
+        const mediaDoc = await Media.create({
+            phone,
+            type: 'AADHAAR',
+            mediaId: file.filename,
+            filename: file.originalname || file.filename,
+            mimeType: file.mimetype,
+            data: fs.readFileSync(file.path)
         });
 
-        res.json({ success: true, filename: file.filename });
+        await sheetsService.updateTenant(phone, {
+            'Aadhaar Image': mediaDoc._id.toString()
+        });
+
+        res.json({ success: true, filename: mediaDoc._id.toString() });
     } catch (err) {
         console.error('File Upload Error:', err);
         res.status(500).json({ error: err.message });
