@@ -19,6 +19,9 @@ const mediaSchema = new mongoose.Schema({
     type: { type: String, enum: ['AADHAAR', 'PAYMENT_PROOF', 'OTHER'] },
     mediaId: String,
     url: String,
+    filename: String,
+    mimeType: String,
+    data: Buffer,
     timestamp: { type: Date, default: Date.now }
 });
 

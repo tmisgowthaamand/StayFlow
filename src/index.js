@@ -1266,6 +1266,19 @@ app.post('/api/web-register', upload.single('aadhaar'), async (req, res) => {
 
         console.log(`Web Registration: ${name} (${phone})`);
 
+        let aadhaarImage = '';
+        if (file) {
+            const mediaDoc = await Media.create({
+                phone,
+                type: 'AADHAAR',
+                mediaId: file.filename,
+                filename: file.originalname || file.filename,
+                mimeType: file.mimetype,
+                data: fs.readFileSync(file.path)
+            });
+            aadhaarImage = mediaDoc._id.toString();
+        }
+
         const detailedRules = `🏢 *PG House Rules & Regulations*\n━━━━━━━━━━━━━━━━━━━━\n⚖️ *DO's:*\n1. Keep your room and shared areas clean and hygienic.\n2. Maintain silence after 10:00 PM for everyone's comfort.\n3. Pay rent by the 5th and EB bills by the 10th of each month.\n4. Inform the admin 30 days before vacating.\n5. Cooperate with police verification and security checks.\n\n🚫 *DON'Ts:*\n1. Strictly NO smoking, alcohol, or illegal substances.\n2. No overnight visitors allowed without prior permission.\n3. Do not use heavy appliances (Heaters/AC/Iron) without approval.\n4. No loud music, parties, or disturbances in rooms.\n5. Do not damage PG property or furniture.\n\n📜 *Note:* Rules are for the safety and comfort of all residents.\n━━━━━━━━━━━━━━━━━━━━`;
 
         const { fileName: regFile, filePath: regPath } = await pdfService.generateRegistrationForm({
@@ -1280,7 +1293,7 @@ app.post('/api/web-register', upload.single('aadhaar'), async (req, res) => {
             sharingType: sharing,
             advance,
             monthlyRent: '0',
-            aadhaarImage: file ? file.filename : '',
+            aadhaarImage,
             registrationForm: regFile
         });
 
@@ -1314,6 +1327,19 @@ app.post('/api/public/register', upload.single('aadhaar'), async (req, res) => {
 
         console.log(`[PUBLIC REG] Received registration request for ${name} (${phone})`);
 
+        let aadhaarImage = '';
+        if (file) {
+            const mediaDoc = await Media.create({
+                phone,
+                type: 'AADHAAR',
+                mediaId: file.filename,
+                filename: file.originalname || file.filename,
+                mimeType: file.mimetype,
+                data: fs.readFileSync(file.path)
+            });
+            aadhaarImage = mediaDoc._id.toString();
+        }
+
         // 1. Generate Registration Form PDF
         const { fileName: regFile, filePath: regPath } = await pdfService.generateRegistrationForm({
             name,
@@ -1334,7 +1360,7 @@ app.post('/api/public/register', upload.single('aadhaar'), async (req, res) => {
             room: room || 'Pending',
             monthlyRent: rent || '0',
             advance: advance || '0',
-            aadhaarImage: file ? file.filename : '',
+            aadhaarImage,
             registrationForm: regFile
         };
 
