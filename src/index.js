@@ -58,9 +58,13 @@ app.use(cors({
 // PHASE 2 REQ 7: Rate Limiting
 const apiLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,
-    max: 100,
+    max: 1000,
     standardHeaders: true,
     legacyHeaders: false,
+    skip: (req) => {
+        const apiKey = req.headers['x-api-key'] || req.query.key;
+        return apiKey && apiKey === config.adminApiKey;
+    },
     message: { error: 'Too many requests from this IP' }
 });
 
