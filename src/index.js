@@ -1920,10 +1920,13 @@ app.post('/api/vacate-tenant', authenticate, async (req, res) => {
         const tenant = await sheetsService.getTenantByPhone(phone, name);
         if (!tenant) return res.status(404).json({ error: 'Tenant not found' });
 
+        const tenantName = tenant.get('Name');
+        const room = tenant.get('Room');
+
         await Log.create({
             phone,
             action: 'VACATED_TENANT',
-            details: { name: tenant.get('Name'), room: tenant.get('Room') }
+            details: { name: tenantName, room }
         });
 
         await Tenant.findOneAndUpdate({ phone: tenant.get('Phone') }, {
@@ -1931,8 +1934,30 @@ app.post('/api/vacate-tenant', authenticate, async (req, res) => {
         });
 
         const success = await sheetsService.updateTenant(phone, { 'Status': 'VACATED' }, name);
-        if (success) res.json({ success: true });
-        else res.status(404).json({ error: 'Failed to update tenant status' });
+
+        if (success) {
+            // Get vacate request details from notification
+            const vacateNotif = await Notification.findOne({ type: 'vacate_request', 'meta.phone': phone, read: false }).sort({ timestamp: -1 });
+            const reason = vacateNotif?.meta?.reason || 'N/A';
+            const vacateDate = vacateNotif?.meta?.vacateDate || 'N/A';
+
+            // Mark any pending vacate notifications as read
+            await Notification.updateMany(
+                { type: 'vacate_request', 'meta.phone': phone, read: false },
+                { read: true }
+            );
+
+            // Send WhatsApp confirmation to tenant
+            try {
+                await sendMessage(phone, `✅ *Vacate Request Approved*\n━━━━━━━━━━━━━━━━━━━━\n\n👤 *Name*          :  ${tenantName}\n🚪 *Room*          :  ${room}\n📋 *Reason*        :  ${reason}\n📅 *Vacate By*    :  ${vacateDate}\n📌 *Status*          :  ✅ APPROVED (by Admin)\n━━━━━━━━━━━━━━━━━━━━\n\nYour vacate request has been approved by the admin.\nPlease clear any pending dues and return your room key.\n\nThank you for staying with us! 🙏`);
+            } catch (e) {
+                console.error('Failed to send vacate WhatsApp to tenant:', e.message);
+            }
+
+            res.json({ success: true });
+        } else {
+            res.status(404).json({ error: 'Failed to update tenant status' });
+        }
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
