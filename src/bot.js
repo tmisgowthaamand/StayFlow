@@ -10,6 +10,7 @@ import sheetsService from './sheets.js';
 import pdfService from './pdfService.js';
 import { Log, Media, Notification, Session, Payment, Tenant } from './db.js';
 import { sendPushNotification } from './pushService.js';
+import { generateVacateSubmittedCard } from './imageService.js';
 // We'll use dynamic import for wweb to avoid circular dependency issues at top level
 // import wweb from './wweb.js';
 

@@ -154,4 +154,131 @@ export function generateVacateApprovalCard(data) {
     return filePath;
 }
 
-export default { generateVacateApprovalCard };
+/**
+ * Generate a vacate request submitted card image (900x600, 3:2 ratio)
+ * @param {Object} data - { requestId, name, room, reason, requestDate, vacateDate, feedback }
+ * @returns {string} filePath to the generated PNG
+ */
+export function generateVacateSubmittedCard(data) {
+    const { requestId, name, room, reason, requestDate, vacateDate, feedback } = data;
+    const W = 900, H = 600;
+    const canvas = createCanvas(W, H);
+    const ctx = canvas.getContext('2d');
+
+    // === BACKGROUND ===
+    const bgGrad = ctx.createLinearGradient(0, 0, W, H);
+    bgGrad.addColorStop(0, '#0f172a');
+    bgGrad.addColorStop(0.5, '#1e293b');
+    bgGrad.addColorStop(1, '#0f172a');
+    ctx.fillStyle = bgGrad;
+    ctx.fillRect(0, 0, W, H);
+
+    // Subtle grid pattern
+    ctx.strokeStyle = 'rgba(255,255,255,0.03)';
+    ctx.lineWidth = 1;
+    for (let i = 0; i < W; i += 30) { ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i, H); ctx.stroke(); }
+    for (let i = 0; i < H; i += 30) { ctx.beginPath(); ctx.moveTo(0, i); ctx.lineTo(W, i); ctx.stroke(); }
+
+    // === TOP ACCENT BAR ===
+    const topGrad = ctx.createLinearGradient(0, 0, W, 0);
+    topGrad.addColorStop(0, '#f59e0b');
+    topGrad.addColorStop(1, '#ef4444');
+    ctx.fillStyle = topGrad;
+    ctx.fillRect(0, 0, W, 6);
+
+    // === STAYFLOW BRANDING (top-left) ===
+    ctx.font = 'bold 20px Arial, sans-serif';
+    ctx.fillStyle = '#4f46e5';
+    ctx.fillText('Stay', 40, 45);
+    ctx.fillStyle = '#06b6d4';
+    ctx.fillText('Flow', 82, 45);
+    ctx.font = '11px Arial, sans-serif';
+    ctx.fillStyle = '#64748b';
+    ctx.fillText('PREMIUM PG MANAGEMENT', 40, 60);
+
+    // === AMBER BADGE - Pending ===
+    roundRect(ctx, W - 220, 25, 180, 40, 20);
+    ctx.fillStyle = '#f59e0b';
+    ctx.fill();
+    ctx.font = 'bold 15px Arial, sans-serif';
+    ctx.fillStyle = '#000000';
+    ctx.fillText('⏳ PENDING REVIEW', W - 200, 51);
+
+    // === TITLE ===
+    ctx.font = 'bold 30px Arial, sans-serif';
+    ctx.fillStyle = '#ffffff';
+    ctx.fillText('Vacate Request Submitted', 40, 110);
+
+    // === DIVIDER ===
+    const divGrad = ctx.createLinearGradient(40, 0, W - 40, 0);
+    divGrad.addColorStop(0, '#f59e0b');
+    divGrad.addColorStop(0.5, '#ef4444');
+    divGrad.addColorStop(1, 'rgba(239,68,68,0)');
+    ctx.fillStyle = divGrad;
+    ctx.fillRect(40, 125, W - 80, 3);
+
+    // === DETAILS CARD ===
+    roundRect(ctx, 40, 145, W - 80, 340, 16);
+    ctx.fillStyle = 'rgba(30, 41, 59, 0.8)';
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(100, 116, 139, 0.3)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+
+    // Detail rows
+    const details = [
+        { icon: '🆔', label: 'Request ID', value: requestId || 'N/A' },
+        { icon: '👤', label: 'Name', value: name || 'N/A' },
+        { icon: '🚪', label: 'Room', value: room || 'N/A' },
+        { icon: '📋', label: 'Reason', value: reason || 'N/A' },
+        { icon: '📅', label: 'Requested', value: requestDate || 'N/A' },
+        { icon: '📅', label: 'Vacate By', value: vacateDate || 'N/A' },
+        { icon: '💬', label: 'Feedback', value: feedback || 'No feedback' },
+    ];
+
+    let yPos = 185;
+    details.forEach((d) => {
+        ctx.font = '20px Arial, sans-serif';
+        ctx.fillStyle = '#ffffff';
+        ctx.fillText(d.icon, 70, yPos);
+
+        ctx.font = 'bold 17px Arial, sans-serif';
+        ctx.fillStyle = '#94a3b8';
+        ctx.fillText(d.label, 110, yPos);
+
+        ctx.fillStyle = '#64748b';
+        ctx.fillText(':', 260, yPos);
+
+        ctx.font = '17px Arial, sans-serif';
+        ctx.fillStyle = '#f1f5f9';
+        const val = String(d.value).length > 38 ? String(d.value).substring(0, 35) + '...' : String(d.value);
+        ctx.fillText(val, 280, yPos);
+
+        yPos += 42;
+    });
+
+    // === BOTTOM MESSAGE ===
+    ctx.font = 'italic 16px Arial, sans-serif';
+    ctx.fillStyle = '#f59e0b';
+    ctx.fillText('Admin will review and confirm. You will be notified.', 40, 535);
+
+    // === BOTTOM ACCENT BAR ===
+    const botGrad = ctx.createLinearGradient(0, 0, W, 0);
+    botGrad.addColorStop(0, '#f59e0b');
+    botGrad.addColorStop(1, '#ef4444');
+    ctx.fillStyle = botGrad;
+    ctx.fillRect(0, H - 6, W, 6);
+
+    // === SAVE ===
+    const uploadsDir = path.join(__dirname, '../uploads');
+    if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
+
+    const fileName = `vacate_submitted_${Date.now()}.png`;
+    const filePath = path.join(uploadsDir, fileName);
+    const buffer = canvas.toBuffer('image/png');
+    fs.writeFileSync(filePath, buffer);
+
+    return filePath;
+}
+
+export default { generateVacateApprovalCard, generateVacateSubmittedCard };

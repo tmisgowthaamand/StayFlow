@@ -25,7 +25,7 @@ const wweb = {
     sendImage: () => Promise.reject(new Error('WWeb not available'))
 };
 import pdfService from './pdfService.js';
-import { generateVacateApprovalCard } from './imageService.js';
+import { generateVacateApprovalCard, generateVacateSubmittedCard } from './imageService.js';
 import { Log, Media, Tenant, Notification, Query, PushToken } from './db.js';
 import { sendPushNotification } from './pushService.js';
 import keepAliveService from './keepAlive.js';
@@ -1136,8 +1136,10 @@ app.post('/api/submit-vacate', async (req, res) => {
             feedback: feedback || 'No feedback'
         });
 
-        // Send to tenant via WhatsApp
-        await sendMessage(phone, `🚪 *Vacate Request Submitted*\n━━━━━━━━━━━━━━━━━━━━\n\n🆔 *Request ID*  :  ${requestId}\n👤 *Name*          :  ${name}\n🚪 *Room*          :  ${room}\n📋 *Reason*        :  ${reason}\n📅 *Requested*  :  ${requestDate}\n📅 *Vacate By*    :  ${formattedVacateDate}\n💬 *Feedback*    :  ${feedback || 'No feedback'}\n━━━━━━━━━━━━━━━━━━━━\n_Admin will review and confirm. You will be notified._`);
+        // Send image card + caption to tenant via WhatsApp
+        const submittedCardPath = generateVacateSubmittedCard({ requestId, name, room, reason, requestDate, vacateDate: formattedVacateDate, feedback: feedback || 'No feedback' });
+        const tenantCaption = `🚪 *Vacate Request Submitted*\n━━━━━━━━━━━━━━━━━━━━\n\n🆔 *Request ID*  :  ${requestId}\n👤 *Name*          :  ${name}\n🚪 *Room*          :  ${room}\n📋 *Reason*        :  ${reason}\n📅 *Requested*  :  ${requestDate}\n📅 *Vacate By*    :  ${formattedVacateDate}\n💬 *Feedback*    :  ${feedback || 'No feedback'}\n━━━━━━━━━━━━━━━━━━━━\n_Admin will review and confirm. You will be notified._`;
+        await sendMedia(phone, submittedCardPath, tenantCaption);
         await sendMedia(phone, filePath, `📄 Vacate Request — ${name}`, null, `Vacate_${name}.pdf`);
 
         // Send to admin via WhatsApp
