@@ -2177,7 +2177,28 @@ const App = () => {
                       </div>
                     ) : notifications.slice(0, 20).map((n, i) => (
                       <div key={n._id || i} style={{ padding: '12px 16px', borderBottom: '1px solid rgba(255,255,255,0.03)', cursor: 'pointer', background: n.read ? 'transparent' : 'rgba(99,102,241,0.04)', transition: 'background 0.2s' }}
-                        onClick={() => { if (n.meta?.queryId) { setActiveTab('queries'); setNotifOpen(false); fetchQueries(); } }}
+                        onClick={() => { 
+                          if (n.type === 'vacate_request') {
+                            setNotifOpen(false);
+                            setActionPanel({
+                              type: 'confirm',
+                              title: `Process Vacate for ${n.meta?.tenantName || 'Resident'}`,
+                              message: `Are you sure you want to mark ${n.meta?.tenantName || 'this resident'} in Room ${n.meta?.room} as VACATED?\n\nReason: ${n.meta?.reason || 'Not specified'}`,
+                              onConfirm: async () => {
+                                try {
+                                  await axios.post('/api/vacate-tenant', { phone: n.meta?.phone, name: n.meta?.tenantName });
+                                  showToast(`${n.meta?.tenantName || 'Resident'} marked as vacated`, 'success');
+                                  setActionPanel(null);
+                                  fetchData();
+                                } catch (err) {
+                                  showToast('Failed to vacate resident', 'error');
+                                }
+                              }
+                            });
+                          } else if (n.meta?.queryId) { 
+                            setActiveTab('queries'); setNotifOpen(false); fetchQueries(); 
+                          } 
+                        }}
                       >
                         <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
                           <div style={{ width: 32, height: 32, borderRadius: 8, background: n.type === 'vacate_request' ? 'rgba(239,68,68,0.1)' : n.type === 'issue_submitted' ? 'rgba(244,63,94,0.1)' : n.type === 'payment_received' ? 'rgba(16,185,129,0.1)' : n.type === 'invoice_sent' ? 'rgba(99,102,241,0.1)' : n.type === 'query_resolved' ? 'rgba(16,185,129,0.1)' : 'rgba(255,255,255,0.05)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>

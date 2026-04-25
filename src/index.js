@@ -1886,31 +1886,53 @@ app.post('/api/delete-tenant', authenticate, async (req, res) => {
     try {
         const { phone, name } = req.body;
 
-        // Archive to MongoDB before deleting
         const tenant = await sheetsService.getTenantByPhone(phone, name);
         if (tenant) {
-            await Tenant.create({
+            await Log.create({
+                phone,
+                action: 'DELETED_TENANT',
+                details: { name: tenant.get('Name'), room: tenant.get('Room') }
+            });
+
+            await Tenant.findOneAndUpdate({ phone: tenant.get('Phone') }, {
                 name: tenant.get('Name'),
-                phone: tenant.get('Phone'),
                 room: tenant.get('Room'),
-                bed: tenant.get('Bed'),
-                floor: tenant.get('Floor'),
-                location: tenant.get('Location'),
-                sharingType: tenant.get('Sharing Type'),
-                advance: tenant.get('Advance'),
                 monthlyRent: tenant.get('Monthly Rent'),
                 ebAmount: tenant.get('EB Amount'),
                 totalAmount: tenant.get('Total Amount'),
                 status: 'DELETED_FROM_SHEET',
                 joinDate: tenant.get('Join Date'),
-                paidDate: tenant.get('Paid Date'),
-                aadhaarImage: tenant.get('Aadhaar Image')
             });
         }
 
         const success = await sheetsService.deleteTenant(phone, name);
         if (success) res.json({ success: true });
         else res.status(404).json({ error: 'Tenant not found' });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.post('/api/vacate-tenant', authenticate, async (req, res) => {
+    try {
+        const { phone, name } = req.body;
+
+        const tenant = await sheetsService.getTenantByPhone(phone, name);
+        if (!tenant) return res.status(404).json({ error: 'Tenant not found' });
+
+        await Log.create({
+            phone,
+            action: 'VACATED_TENANT',
+            details: { name: tenant.get('Name'), room: tenant.get('Room') }
+        });
+
+        await Tenant.findOneAndUpdate({ phone: tenant.get('Phone') }, {
+            status: 'VACATED'
+        });
+
+        const success = await sheetsService.updateTenant(phone, { 'Status': 'VACATED' }, name);
+        if (success) res.json({ success: true });
+        else res.status(404).json({ error: 'Failed to update tenant status' });
     } catch (err) {
         res.status(500).json({ error: err.message });
     }

@@ -14,6 +14,7 @@ import {
     Megaphone, DoorOpen
 } from 'lucide-react-native';
 import { useLanguage } from '../context/LanguageContext';
+import { vacateTenant } from '../api/api';
 
 const ICON_MAP = { FileText, CheckCircle, UserPlus, Send, Zap, AlertCircle, Megaphone, DoorOpen };
 
@@ -101,8 +102,37 @@ const Notifications = ({ navigation }) => {
 
     const handleRead = useCallback(async (id) => {
         const item = notifications.find(n => n.id === id);
-        await markAsRead(id, item?.isServer);
-        setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
+        if (!item) return;
+
+        if (item.type === 'vacate_request' && item.meta) {
+            Alert.alert(
+                `Process Vacate: ${item.meta.tenantName || 'Resident'}`,
+                `Are you sure you want to mark ${item.meta.tenantName || 'this resident'} in Room ${item.meta.room} as VACATED?\n\nReason: ${item.meta.reason || 'Not specified'}`,
+                [
+                    { text: "Cancel", style: "cancel", onPress: () => markAsRead(id, item.isServer).then(() => setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n))) },
+                    {
+                        text: "Vacate Resident",
+                        style: "destructive",
+                        onPress: async () => {
+                            try {
+                                setLoading(true);
+                                await vacateTenant(item.meta.phone, item.meta.tenantName);
+                                await markAsRead(id, item.isServer);
+                                setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
+                                Alert.alert("Success", "Resident marked as vacated successfully.");
+                            } catch (e) {
+                                Alert.alert("Error", "Failed to vacate resident");
+                            } finally {
+                                setLoading(false);
+                            }
+                        }
+                    }
+                ]
+            );
+        } else {
+            await markAsRead(id, item.isServer);
+            setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
+        }
     }, [notifications]);
 
     const handleDelete = useCallback(async (id) => {

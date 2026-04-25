@@ -80,6 +80,16 @@ export const deleteTenant = async (phone, name) => {
     }
 };
 
+export const vacateTenant = async (phone, name) => {
+    try {
+        const response = await api.post('/vacate-tenant', { phone, name });
+        return response.data;
+    } catch (error) {
+        console.error('Vacate tenant failed:', error.message);
+        throw error;
+    }
+};
+
 export const updateTenant = async (data) => {
     try {
         const response = await api.post('/update-and-notify', data);
