@@ -4,9 +4,8 @@ import path from 'path';
 import sheetsService from './sheets.js';
 import * as bot from './bot.js';
 import config from './config.js';
-import { exportAllData, Query, Notification, Tenant, Log } from './db.js';
+import { exportAllData, Query } from './db.js';
 import { fileURLToPath } from 'url';
-import { generateVacateApprovalCard } from './imageService.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -257,70 +256,7 @@ function setupCron() {
         }
     });
 
-    // 9. Auto-Approve Vacate Requests after 2 minutes
-    cron.schedule('* * * * *', async () => {
-        try {
-            const twoMinAgo = new Date(Date.now() - 2 * 60 * 1000);
-            const pendingVacates = await Notification.find({
-                type: 'vacate_request',
-                read: false,
-                timestamp: { $lte: twoMinAgo }
-            });
-
-            if (pendingVacates.length === 0) return;
-
-            console.log(`[CRON] Auto-approving ${pendingVacates.length} vacate request(s) older than 2 min...`);
-
-            for (const notif of pendingVacates) {
-                const { phone, tenantName, room, reason, vacateDate } = notif.meta || {};
-                if (!phone) {
-                    notif.read = true;
-                    await notif.save();
-                    continue;
-                }
-
-                try {
-                    // 1. Update Google Sheets
-                    const tenant = await sheetsService.getTenantByPhone(phone, tenantName);
-                    if (tenant && tenant.get('Status') !== 'VACATED') {
-                        await sheetsService.updateTenant(phone, { 'Status': 'VACATED' }, tenantName);
-                    }
-
-                    // 2. Update MongoDB
-                    await Tenant.findOneAndUpdate({ phone }, { status: 'VACATED' });
-
-                    // 3. Log the action
-                    await Log.create({
-                        phone,
-                        action: 'VACATED_TENANT_AUTO',
-                        details: { name: tenantName, room, autoApproved: true, reason }
-                    });
-
-                    // 4. Send WhatsApp image card + caption to tenant
-                    const cardPath = generateVacateApprovalCard({ name: tenantName, room, reason: reason || 'N/A', vacateDate: vacateDate || 'N/A', approvedBy: 'Auto' });
-                    const caption = `✅ *Vacate Request Approved*\n━━━━━━━━━━━━━━━━━━━━\n\n👤 *Name*          :  ${tenantName}\n🚪 *Room*          :  ${room}\n📋 *Reason*        :  ${reason || 'N/A'}\n📅 *Vacate By*    :  ${vacateDate || 'N/A'}\n📌 *Status*          :  ✅ APPROVED (Auto)\n━━━━━━━━━━━━━━━━━━━━\n\nYour vacate request has been *auto-approved*.\nPlease clear any pending dues and return your room key.\n\nThank you for staying with us! 🙏`;
-                    await bot.sendMedia(phone, cardPath, caption);
-
-                    // 5. Notify admin
-                    if (config.ownerPhone) {
-                        await bot.sendMessage(config.ownerPhone, `🤖 *Auto-Approved Vacate*\n━━━━━━━━━━━━━━━━━━━━\n\n👤 *Tenant*        :  ${tenantName}\n🚪 *Room*          :  ${room}\n📋 *Reason*        :  ${reason || 'N/A'}\n📅 *Vacate By*    :  ${vacateDate || 'N/A'}\n━━━━━━━━━━━━━━━━━━━━\n_Auto-approved after 2 minutes with no manual action._`);
-                    }
-
-                    console.log(`[CRON] Auto-approved vacate: ${tenantName} - Room ${room}`);
-                } catch (e) {
-                    console.error(`[CRON] Failed to auto-approve vacate for ${tenantName}:`, e.message);
-                }
-
-                // Mark notification as read
-                notif.read = true;
-                await notif.save();
-            }
-        } catch (err) {
-            console.error('Cron Error (Vacate Auto-Approve):', err.message);
-        }
-    });
-
-    console.log('🕒 Automation System Active: Bills (1,3,5th), Overdue (10,11th), Backups (3AM), Sync (6h), Query Auto-Reply (30min), Vacate Auto-Approve (2min).');
+    console.log('🕒 Automation System Active: Bills (1,3,5th), Overdue (10,11th), Backups (3AM), Sync (6h), Query Auto-Reply (30min).');
 }
 
 export default setupCron;
