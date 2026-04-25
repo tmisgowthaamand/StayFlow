@@ -2095,6 +2095,15 @@ app.delete('/api/notifications', authenticate, async (req, res) => {
     }
 });
 
+app.delete('/api/notifications/:id', authenticate, async (req, res) => {
+    try {
+        await Notification.findByIdAndDelete(req.params.id);
+        res.json({ success: true });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
 app.get('/api/locations', authenticate, async (req, res) => {
     try { res.json(await sheetsService.getAllLocations()); }
     catch (err) { res.status(500).json({ error: err.message }); }

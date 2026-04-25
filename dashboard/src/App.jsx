@@ -2165,9 +2165,24 @@ const App = () => {
                 <div style={{ position: 'absolute', right: 0, top: 44, width: 380, maxHeight: 480, background: 'rgba(15,23,42,0.98)', border: '1px solid var(--glass-border)', borderRadius: 'var(--radius-m)', boxShadow: '0 20px 60px rgba(0,0,0,0.5)', zIndex: 9999, overflow: 'hidden', backdropFilter: 'blur(20px)' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '14px 16px', borderBottom: '1px solid var(--glass-border)' }}>
                     <span style={{ fontWeight: 800, fontSize: '0.9rem' }}>Notifications</span>
-                    <button className="btn btn-glass btn-small" style={{ padding: '4px 8px', fontSize: '0.7rem' }} onClick={() => setNotifOpen(false)}>
-                      <X size={14} />
-                    </button>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      {notifications.length > 0 && (
+                        <button className="btn btn-glass btn-small" style={{ padding: '4px 8px', fontSize: '0.7rem', color: 'var(--accent)' }} onClick={async () => {
+                          if (window.confirm('Clear all notifications?')) {
+                            try {
+                              await axios.delete('/api/notifications');
+                              setNotifications([]);
+                              showToast('Notifications cleared', 'success');
+                            } catch (e) {}
+                          }
+                        }}>
+                          <Trash2 size={14} /> Clear All
+                        </button>
+                      )}
+                      <button className="btn btn-glass btn-small" style={{ padding: '4px 8px', fontSize: '0.7rem' }} onClick={() => setNotifOpen(false)}>
+                        <X size={14} />
+                      </button>
+                    </div>
                   </div>
                   <div style={{ maxHeight: 400, overflowY: 'auto' }}>
                     {notifications.length === 0 ? (
@@ -2176,31 +2191,35 @@ const App = () => {
                         <p style={{ fontSize: '0.82rem' }}>No notifications</p>
                       </div>
                     ) : notifications.slice(0, 20).map((n, i) => (
-                      <div key={n._id || i} style={{ padding: '12px 16px', borderBottom: '1px solid rgba(255,255,255,0.03)', cursor: 'pointer', background: n.read ? 'transparent' : 'rgba(99,102,241,0.04)', transition: 'background 0.2s' }}
-                        onClick={() => { 
-                          if (n.type === 'vacate_request') {
-                            setNotifOpen(false);
-                            setActionPanel({
-                              type: 'confirm',
-                              title: `Process Vacate for ${n.meta?.tenantName || 'Resident'}`,
-                              message: `Are you sure you want to mark ${n.meta?.tenantName || 'this resident'} in Room ${n.meta?.room} as VACATED?\n\nReason: ${n.meta?.reason || 'Not specified'}`,
-                              onConfirm: async () => {
-                                try {
-                                  await axios.post('/api/vacate-tenant', { phone: n.meta?.phone, name: n.meta?.tenantName });
-                                  showToast(`${n.meta?.tenantName || 'Resident'} marked as vacated`, 'success');
-                                  setActionPanel(null);
-                                  fetchData();
-                                } catch (err) {
-                                  showToast('Failed to vacate resident', 'error');
+                      <div key={n._id || i} style={{ display: 'flex', padding: '12px 16px', borderBottom: '1px solid rgba(255,255,255,0.03)', background: n.read ? 'transparent' : 'rgba(99,102,241,0.04)', transition: 'background 0.2s' }}>
+                        <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start', flex: 1, cursor: 'pointer' }}
+                          onClick={async () => {
+                            if (!n.read && n._id) {
+                              try { await axios.post('/api/notifications/mark-read', { id: n._id }); } catch (e) {}
+                              setNotifications(prev => prev.map(notif => notif._id === n._id ? { ...notif, read: true } : notif));
+                            }
+                            if (n.type === 'vacate_request') {
+                              setNotifOpen(false);
+                              setActionPanel({
+                                type: 'confirm',
+                                title: `Process Vacate for ${n.meta?.tenantName || 'Resident'}`,
+                                message: `Are you sure you want to mark ${n.meta?.tenantName || 'this resident'} in Room ${n.meta?.room} as VACATED?\n\nReason: ${n.meta?.reason || 'Not specified'}`,
+                                onConfirm: async () => {
+                                  try {
+                                    await axios.post('/api/vacate-tenant', { phone: n.meta?.phone, name: n.meta?.tenantName });
+                                    showToast(`${n.meta?.tenantName || 'Resident'} marked as vacated`, 'success');
+                                    setActionPanel(null);
+                                    fetchData();
+                                  } catch (err) {
+                                    showToast('Failed to vacate resident', 'error');
+                                  }
                                 }
-                              }
-                            });
-                          } else if (n.meta?.queryId) { 
-                            setActiveTab('queries'); setNotifOpen(false); fetchQueries(); 
-                          } 
-                        }}
-                      >
-                        <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+                              });
+                            } else if (n.meta?.queryId) {
+                              setActiveTab('queries'); setNotifOpen(false); fetchQueries();
+                            }
+                          }}
+                        >
                           <div style={{ width: 32, height: 32, borderRadius: 8, background: n.type === 'vacate_request' ? 'rgba(239,68,68,0.1)' : n.type === 'issue_submitted' ? 'rgba(244,63,94,0.1)' : n.type === 'payment_received' ? 'rgba(16,185,129,0.1)' : n.type === 'invoice_sent' ? 'rgba(99,102,241,0.1)' : n.type === 'query_resolved' ? 'rgba(16,185,129,0.1)' : 'rgba(255,255,255,0.05)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                             {n.type === 'vacate_request' ? <DoorOpen size={14} color="#ef4444" /> : n.type === 'issue_submitted' ? <AlertCircle size={14} color="#f43f5e" /> : n.type === 'payment_received' ? <CheckCircle size={14} color="var(--secondary)" /> : n.type === 'invoice_sent' ? <FileText size={14} color="var(--primary)" /> : n.type === 'query_resolved' ? <CheckCircle size={14} color="var(--secondary)" /> : <Bell size={14} color="var(--text-muted)" />}
                           </div>
@@ -2211,6 +2230,17 @@ const App = () => {
                           </div>
                           {!n.read && <div style={{ width: 6, height: 6, borderRadius: 3, background: 'var(--primary)', marginTop: 6, flexShrink: 0 }} />}
                         </div>
+                        <button className="btn btn-glass btn-small" style={{ padding: '4px', alignSelf: 'flex-start', opacity: 0.5 }} onClick={async (e) => {
+                          e.stopPropagation();
+                          if (n._id) {
+                            try {
+                              await axios.delete(`/api/notifications/${n._id}`);
+                              setNotifications(prev => prev.filter(notif => notif._id !== n._id));
+                            } catch (err) {}
+                          }
+                        }}>
+                          <X size={14} />
+                        </button>
                       </div>
                     ))}
                   </div>
