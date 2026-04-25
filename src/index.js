@@ -29,6 +29,7 @@ import { generateVacateApprovalCard, generateVacateSubmittedCard } from './image
 import { Log, Media, Tenant, Notification, Query, PushToken } from './db.js';
 import { sendPushNotification } from './pushService.js';
 import keepAliveService from './keepAlive.js';
+import cloudinaryService from './cloudinaryService.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
