@@ -38,6 +38,9 @@ const config = {
     },
     mongoUri: process.env.MONGODB_URI || 'mongodb://localhost:27017/stayflow',
     adminApiKey: process.env.ADMIN_API_KEY || 'stayflow_dev_key_123',
+    jwtSecret: process.env.JWT_SECRET,
+    adminPassword: process.env.ADMIN_PASSWORD,
+    encryptionKey: process.env.ENCRYPTION_KEY,
     geminiApiKey: process.env.GEMINI_API_KEY,
     groqApiKey: process.env.GROQ_API_KEY,
     googleMapsApiKey: process.env.GOOGLE_MAPS_API_KEY,
@@ -74,7 +77,10 @@ const requiredEnv = [
     'RAZORPAY_KEY_ID',
     'RAZORPAY_KEY_SECRET',
     'RAZORPAY_WEBHOOK_SECRET',
-    'WHATSAPP_APP_SECRET'
+    'WHATSAPP_APP_SECRET',
+    'JWT_SECRET',
+    'ADMIN_PASSWORD',
+    'ENCRYPTION_KEY'
 ];
 
 const missing = requiredEnv.filter(key => !process.env[key]);

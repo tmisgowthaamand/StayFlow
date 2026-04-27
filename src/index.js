@@ -11,6 +11,7 @@ import multer from 'multer';
 import helmet from 'helmet';
 
 import config from './config.js';
+import { generateToken, validatePassword, verifyToken } from './auth.js';
 import { handleIncomingMessage, sendMessage, sendMedia, setTenantContext, handleUpdateEB, createRazorpayLink, handleRazorpaySuccess } from './bot.js';
 import crypto from 'crypto';
 import Razorpay from 'razorpay';
@@ -98,11 +99,17 @@ if (!fs.existsSync(uploadsDir)) {
 
 // Authentication Middleware
 const authenticate = (req, res, next) => {
-    const apiKey = req.headers['x-api-key'];
-    if (!apiKey || apiKey !== config.adminApiKey) {
-        return res.status(401).json({ error: 'Unauthorized: Invalid or missing API Key' });
+    const authHeader = req.headers['authorization'];
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+        return res.status(401).json({ error: 'Missing or invalid authorization header' });
     }
-    next();
+    try {
+        const token = authHeader.split(' ')[1];
+        req.user = verifyToken(token);
+        next();
+    } catch (err) {
+        return res.status(401).json({ error: 'Invalid or expired token' });
+    }
 };
 
 // Serve dashboard, uploads, and public files statically
@@ -2382,6 +2389,16 @@ app.get('/health', (req, res) => {
         timestamp: new Date().toISOString(),
         uptime: process.uptime()
     });
+});
+
+// Login endpoint - JWT authentication
+app.post('/api/login', (req, res) => {
+    const { username, password } = req.body;
+    if (username !== 'admin' || !validatePassword(password)) {
+        return res.status(401).json({ error: 'Invalid credentials' });
+    }
+    const token = generateToken(username);
+    res.json({ token });
 });
 
 // Wake-up endpoint - Click to wake Render service

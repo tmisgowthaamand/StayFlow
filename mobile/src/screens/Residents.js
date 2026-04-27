@@ -183,12 +183,15 @@ const Residents = ({ route }) => {
                     // Use POST since GET failed (undefined ID)
                     console.log("Requesting invoice (POST) for:", selectedTenant.Phone);
 
+                    // Get JWT token for authentication
+                    const token = await AsyncStorage.getItem('stayflow_jwt');
+                    
                     const response = await fetch('https://stayflow-x8is.onrender.com/api/generate-invoice', {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',
                             'Accept': 'application/json',
-                            'x-api-key': 'stayflow_dev_key_123'
+                            'Authorization': `Bearer ${token}`
                         },
                         body: JSON.stringify({ phone: selectedTenant.Phone, name: selectedTenant.Name })
                     });
@@ -208,12 +211,11 @@ const Residents = ({ route }) => {
                         const json = await response.json();
                         console.log("Invoice JSON keys:", Object.keys(json));
 
-                        const apiKey = 'stayflow_dev_key_123';
                         const base64data = json.pdfBase64 || json.base64 || json.data || json.pdf;
                         if (base64data) {
                             navigation.navigate('PDFViewer', {
                                 base64Data: base64data,
-                                uri: json.url ? `https://stayflow-x8is.onrender.com${json.url}${json.url.includes('?') ? '&' : '?'}key=${apiKey}&refresh=1` : `https://stayflow-x8is.onrender.com/api/generate-invoice?phone=${selectedTenant.Phone}&key=${apiKey}&refresh=1`,
+                                uri: json.url ? `https://stayflow-x8is.onrender.com${json.url}` : `https://stayflow-x8is.onrender.com/api/generate-invoice?phone=${selectedTenant.Phone}`,
                                 title: `${t('invoice')} - ${selectedTenant.Name}`,
                                 shareEnabled: true
                             });
@@ -228,16 +230,13 @@ const Residents = ({ route }) => {
                                 pdfUrl = `https://stayflow-x8is.onrender.com${pdfUrl}`;
                             }
 
-                            // Append API key and force refresh
-                            pdfUrl += (pdfUrl.includes('?') ? '&' : '?') + `key=${apiKey}&refresh=1`;
-
                             // Ensure URL is encoded (e.g. spaces in filenames)
                             const encodedUrl = encodeURI(pdfUrl);
                             console.log("Fetching PDF data from:", encodedUrl);
 
                             try {
                                 const fileResp = await fetch(encodedUrl, {
-                                    headers: { 'x-api-key': 'stayflow_dev_key_123' }
+                                    headers: { 'Authorization': `Bearer ${token}` }
                                 });
                                 const fileBlob = await fileResp.blob();
                                 const reader = new FileReader();

@@ -1,14 +1,28 @@
 import axios from 'axios';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const API_BASE_URL = 'https://stayflow-tkto.onrender.com/api/';
 
 const api = axios.create({
     baseURL: API_BASE_URL,
     timeout: 30000,
-    headers: {
-        'x-api-key': 'stayflow_dev_key_123'
-    }
 });
+
+// Request interceptor to attach JWT
+api.interceptors.request.use(async (config) => {
+    const token = await AsyncStorage.getItem('stayflow_jwt');
+    if (token) {
+        config.headers.Authorization = `Bearer ${token}`;
+    }
+    return config;
+});
+
+// Add login function
+export const login = async (username, password) => {
+    const response = await api.post('/login', { username, password });
+    await AsyncStorage.setItem('stayflow_jwt', response.data.token);
+    return response.data;
+};
 
 export const getTenants = async () => {
     try {

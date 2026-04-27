@@ -6,38 +6,30 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useNavigation } from '@react-navigation/native';
 import { Lock, User, ArrowRight, Zap } from 'lucide-react-native';
 import { useLanguage } from '../context/LanguageContext';
+import { login } from '../api/api';
 
 const Login = () => {
     const navigation = useNavigation();
     const { t } = useLanguage();
-    const [username, setUsername] = useState('admin');
-    const [password, setPassword] = useState('admin');
+    const [username, setUsername] = useState('');
+    const [password, setPassword] = useState('');
     const [loading, setLoading] = useState(false);
 
-    const handleLogin = () => {
+    const handleLogin = async () => {
         if (!username || !password) {
             Alert.alert(t('error'), t('invalid_credentials'));
             return;
         }
 
         setLoading(true);
-        // Check for stored password, default to 'admin'
-        setTimeout(async () => {
+        try {
+            await login(username, password);
+            navigation.replace('Main');
+        } catch (error) {
+            Alert.alert(t('login_failed'), t('invalid_credentials'));
+        } finally {
             setLoading(false);
-            try {
-                const storedPassword = await AsyncStorage.getItem('userPassword') || 'admin';
-                const storedUsername = await AsyncStorage.getItem('userLoginName') || 'admin';
-
-                if (username.trim() === storedUsername && password.trim() === storedPassword) {
-                    await AsyncStorage.setItem('userToken', 'dummy-auth-token');
-                    navigation.replace('Main');
-                } else {
-                    Alert.alert(t('login_failed'), t('invalid_credentials'));
-                }
-            } catch (e) {
-                Alert.alert("Error", "Failed to access login data");
-            }
-        }, 1500);
+        }
     };
 
     return (

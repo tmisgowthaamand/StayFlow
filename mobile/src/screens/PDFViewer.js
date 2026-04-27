@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { StyleSheet, View, ActivityIndicator, Platform, Linking, TouchableOpacity, Text, Alert } from 'react-native';
 import { WebView } from 'react-native-webview';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Colors } from '../theme/theme';
 import Header from '../components/Header';
 import { useLanguage } from '../context/LanguageContext';
@@ -19,8 +20,9 @@ const PDFViewer = ({ route, navigation }) => {
             const fetchPdf = async () => {
                 try {
                     console.log("Fetching PDF from:", targetUrl);
+                    const token = await AsyncStorage.getItem('stayflow_jwt');
                     const response = await fetch(targetUrl, {
-                        headers: { 'x-api-key': 'stayflow_dev_key_123' }
+                        headers: { 'Authorization': `Bearer ${token}` }
                     });
 
                     const contentType = response.headers.get('content-type');
@@ -130,8 +132,12 @@ const PDFViewer = ({ route, navigation }) => {
 
     // Decision Logic
     const useDirectUrl = Platform.OS === 'ios';
+    const getAuthHeaders = async () => {
+        const token = await AsyncStorage.getItem('stayflow_jwt');
+        return { 'Authorization': `Bearer ${token}` };
+    };
     const source = useDirectUrl
-        ? { uri: targetUrl, headers: { 'x-api-key': 'stayflow_dev_key_123' } }
+        ? { uri: targetUrl, headers: getAuthHeaders() }
         : { html: getViewerHtml() };
 
     // Fallback if Android fetch fails is handled by error state logic above (not shown here to keep diff clean, but logic exists)

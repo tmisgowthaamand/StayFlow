@@ -116,8 +116,6 @@ const API_BASE_URL = import.meta.env.VITE_API_URL ||
     : '');
 
 axios.defaults.baseURL = API_BASE_URL;
-const ADMIN_API_KEY = import.meta.env.VITE_ADMIN_API_KEY || 'stayflow_dev_key_123';
-axios.defaults.headers.common['X-API-Key'] = ADMIN_API_KEY;
 
 const getFullUrl = (path) => {
   if (!path) return '';
@@ -126,30 +124,48 @@ const getFullUrl = (path) => {
 };
 
 const App = () => {
-  const [isAuthenticated, setIsAuthenticated] = useState(() => sessionStorage.getItem('stayflow_auth') === 'true' || localStorage.getItem('stayflow_auth') === 'true');
-  const [loginForm, setLoginForm] = useState({ username: 'admin', password: 'admin' });
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [loginForm, setLoginForm] = useState({ username: '', password: '' });
   const [loginError, setLoginError] = useState('');
   const [rememberMe, setRememberMe] = useState(true);
 
-  const handleLogin = (e) => {
-    e.preventDefault();
-    if (loginForm.username === 'admin' && loginForm.password === 'admin') {
-      setIsAuthenticated(true);
-      if (rememberMe) {
-        localStorage.setItem('stayflow_auth', 'true');
-      } else {
-        sessionStorage.setItem('stayflow_auth', 'true');
+  // Restore token on mount
+  useEffect(() => {
+    const token = localStorage.getItem('stayflow_token');
+    if (token) {
+      try {
+        // Verify token hasn't expired (decode without verification for expiry check)
+        const payload = JSON.parse(atob(token.split('.')[1]));
+        if (payload.exp * 1000 > Date.now()) {
+          axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+          setIsAuthenticated(true);
+        } else {
+          localStorage.removeItem('stayflow_token');
+        }
+      } catch { 
+        localStorage.removeItem('stayflow_token'); 
       }
+    }
+  }, []);
+
+  const handleLogin = async (e) => {
+    e.preventDefault();
+    try {
+      const res = await axios.post('/api/login', loginForm);
+      const token = res.data.token;
+      localStorage.setItem('stayflow_token', token);
+      axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+      setIsAuthenticated(true);
       setLoginError('');
-    } else {
+    } catch (err) {
       setLoginError('Invalid username or password');
     }
   };
 
   const handleLogout = () => {
     setIsAuthenticated(false);
-    sessionStorage.removeItem('stayflow_auth');
-    localStorage.removeItem('stayflow_auth');
+    localStorage.removeItem('stayflow_token');
+    delete axios.defaults.headers.common['Authorization'];
     setLoginForm({ username: '', password: '' });
   };
 
