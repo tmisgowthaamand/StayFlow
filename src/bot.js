@@ -574,8 +574,9 @@ async function saveWhatsAppAadhaarToCloudinary(image, phone) {
 
 const logFile = path.join(__dirname, '../bot.log');
 function logToFile(msg) {
-    fs.appendFileSync(logFile, `[${new Date().toISOString()}] ${msg}\n`);
-    console.log(msg);
+    if (process.env.NODE_ENV !== 'production') {
+        console.log(`[BOT] ${msg}`);
+    }
 }
 
 const userLocks = new Map();
@@ -1856,9 +1857,9 @@ async function handleTenantVacateRequest(phone) {
 
 async function processVacateRequest(phone, reason) {
     const session = await getSession(phone);
-    if (!session?.state?.vacateData) return;
+    if (!session?.vacateData) return;
 
-    const data = session.state.vacateData;
+    const data = session.vacateData;
     const requestDate = new Date().toLocaleDateString('en-IN');
     const vacateDate = data.vacateDateInput || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toLocaleDateString('en-IN');
     const feedback = data.feedback || 'No feedback';

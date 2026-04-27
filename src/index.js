@@ -8,6 +8,7 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import multer from 'multer';
+import helmet from 'helmet';
 
 import config from './config.js';
 import { handleIncomingMessage, sendMessage, sendMedia, setTenantContext, handleUpdateEB, createRazorpayLink, handleRazorpaySuccess } from './bot.js';
@@ -34,11 +35,17 @@ import cloudinaryService from './cloudinaryService.js';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+// Regex escape utility to prevent NoSQL injection
+const escapeRegex = (str) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
 // NOTE: MongoDB sync is now handled automatically inside sheets.js
 // Every call to sheetsService.updateTenant(), addTenant(), verifyPayment(), rejectPayment()
 // auto-syncs to MongoDB. No need for separate sync calls.
 
 const app = express();
+
+// Security headers (must be first)
+app.use(helmet());
 
 app.use(cors({
     origin: (origin, callback) => {
@@ -62,11 +69,13 @@ const apiLimiter = rateLimit({
     max: 1000,
     standardHeaders: true,
     legacyHeaders: false,
-    skip: (req) => {
-        const apiKey = req.headers['x-api-key'] || req.query.key;
-        return apiKey && apiKey === config.adminApiKey;
-    },
     message: { error: 'Too many requests from this IP' }
+});
+
+const publicEndpointLimiter = rateLimit({
+    windowMs: 60 * 60 * 1000,
+    max: 10,
+    message: { error: 'Too many submissions. Try again later.' }
 });
 
 const paymentLimiter = rateLimit({
@@ -78,7 +87,7 @@ const paymentLimiter = rateLimit({
 app.use('/api/', apiLimiter);
 app.use('/api/verify-transaction', paymentLimiter);
 app.use('/api/mark-paid', paymentLimiter);
-app.use('/api/razorpay-webhook', (req, res, next) => next()); // No limit on webhooks
+app.use('/api/razorpay-webhook', express.raw({ type: 'application/json' })); // Raw body for signature verification
 app.use(bodyParser.json());
 
 // Ensure uploads directory exists
@@ -89,7 +98,7 @@ if (!fs.existsSync(uploadsDir)) {
 
 // Authentication Middleware
 const authenticate = (req, res, next) => {
-    const apiKey = req.headers['x-api-key'] || req.query.key;
+    const apiKey = req.headers['x-api-key'];
     if (!apiKey || apiKey !== config.adminApiKey) {
         return res.status(401).json({ error: 'Unauthorized: Invalid or missing API Key' });
     }
@@ -108,8 +117,15 @@ if (fs.existsSync(dashboardDist)) {
     console.warn('⚠️ Dashboard not found! Falling back to legacy UI.');
     console.log(`Contents of ../dashboard: ${fs.existsSync(path.join(__dirname, '../dashboard')) ? fs.readdirSync(path.join(__dirname, '../dashboard')).join(', ') : 'Not Found'}`);
 }
-// 2. Serve uploads as public for direct file access (hashed filenames provide security by obscurity)
-app.use('/api/uploads', express.static(uploadsDir));
+// 2. Serve uploads with authentication (no static middleware)
+app.get('/api/uploads/:filename', authenticate, (req, res) => {
+    const filename = path.basename(req.params.filename); // prevent path traversal
+    const filePath = path.join(uploadsDir, filename);
+    if (!fs.existsSync(filePath)) {
+        return res.status(404).json({ error: 'File not found' });
+    }
+    res.sendFile(filePath);
+});
 
 // 3. Serve public folder (registration, rules, etc)
 app.use(express.static(path.join(__dirname, '../public')));
@@ -187,10 +203,10 @@ app.get('/api/payment-info', async (req, res) => {
         // OPTIMIZATION 2: Try MongoDB SECOND for faster response (Sheets is slow)
         const cleanPhone = phone.replace(/\D/g, '');
         const mongoQuery = name 
-            ? { phone: cleanPhone, name: { $regex: new RegExp(`^${name}$`, 'i') } }
+            ? { phone: cleanPhone, name: name }
             : { phone: cleanPhone };
         
-        const mongoTenant = await Tenant.findOne(mongoQuery);
+        const mongoTenant = await Tenant.findOne(mongoQuery).collation({ locale: 'en', strength: 2 });
         
         if (mongoTenant) {
             console.log(`[PAYMENT-INFO] ⚡ Fast path: MongoDB hit for ${phone}`);
@@ -423,19 +439,25 @@ app.get('/webhook', (req, res) => {
 app.post('/webhook', async (req, res) => {
     // P1: WhatsApp Webhook Signature Verification
     const signature = req.headers['x-hub-signature-256'];
-    if (config.whatsapp.appSecret && signature) {
-        const expectedSignature = 'sha256=' + crypto
-            .createHmac('sha256', config.whatsapp.appSecret)
-            .update(JSON.stringify(req.body))
-            .digest('hex');
-        if (signature !== expectedSignature) {
-            console.warn('❌ WhatsApp Webhook signature verification failed');
-            return res.sendStatus(403);
-        }
+    if (!signature) {
+        console.warn('❌ WhatsApp Webhook: Missing signature header');
+        return res.sendStatus(403);
+    }
+    
+    const expectedSignature = 'sha256=' + crypto
+        .createHmac('sha256', config.whatsapp.appSecret)
+        .update(JSON.stringify(req.body))
+        .digest('hex');
+    
+    if (signature !== expectedSignature) {
+        console.warn('❌ WhatsApp Webhook: Signature verification failed');
+        return res.sendStatus(403);
     }
 
     const body = req.body;
-    fs.appendFileSync('debug.log', `[${new Date().toISOString()}] Webhook received: ${JSON.stringify(body)}\n`);
+    if (process.env.NODE_ENV !== 'production') {
+        console.log(`[WEBHOOK] Received: ${JSON.stringify(body)}`);
+    }
 
     if (body.object === 'whatsapp_business_account') {
         if (
@@ -445,7 +467,9 @@ app.post('/webhook', async (req, res) => {
             body.entry[0].changes[0].value.messages[0]
         ) {
             const msg = body.entry[0].changes[0].value.messages[0];
-            fs.appendFileSync('debug.log', `[${new Date().toISOString()}] Formatted Msg: ${JSON.stringify(msg)}\n`);
+            if (process.env.NODE_ENV !== 'production') {
+                console.log(`[WEBHOOK] Message from ${msg.from}, type: ${msg.type || 'text'}`);
+            }
             const phone = msg.from;
             let text = msg.text ? msg.text.body : '';
             const image = msg.image ? msg.image : null;
@@ -479,7 +503,8 @@ app.post('/webhook', async (req, res) => {
 // Receives payment confirmation from Razorpay — Auto-verifies payment
 app.post('/webhook/razorpay', async (req, res) => {
     try {
-        const payload = req.body;
+        const rawBody = req.body; // Buffer when using express.raw()
+        const payload = JSON.parse(rawBody);
         console.log('Razorpay Webhook Received:', JSON.stringify(payload));
 
         // Log the webhook payload for verification later
@@ -497,8 +522,8 @@ app.post('/webhook/razorpay', async (req, res) => {
         }
 
         const expectedSignature = crypto
-            .createHmac('sha256', config.razorpay.key_secret || '')
-            .update(JSON.stringify(payload))
+            .createHmac('sha256', config.razorpay.webhook_secret)
+            .update(rawBody)
             .digest('hex');
 
         if (signature !== expectedSignature) {
@@ -614,8 +639,8 @@ app.post('/api/verify-transaction', async (req, res) => {
                 },
                 {
                     $or: [
-                        { 'details.payload.payment.entity.id': { $regex: trxId, $options: 'i' } },
-                        { 'details.payload.payment_link.entity.id': { $regex: trxId, $options: 'i' } },
+                        { 'details.payload.payment.entity.id': { $regex: escapeRegex(trxId), $options: 'i' } },
+                        { 'details.payload.payment_link.entity.id': { $regex: escapeRegex(trxId), $options: 'i' } },
                         { 'details.payload.payment.entity.acquirer_data.rrn': trxId },
                         { 'details.payload.payment.entity.acquirer_data.upi_transaction_id': trxId },
                         { 'details.payload.payment.entity.vpa': trxId }
@@ -1088,7 +1113,7 @@ app.get('/queries', (req, res) => {
 });
 
 // API to submit a query from the queries form
-app.post('/api/submit-query', async (req, res) => {
+app.post('/api/submit-query', publicEndpointLimiter, async (req, res) => {
     try {
         const { name, phone, room, category, description } = req.body;
         if (!name || !phone || !description) {
@@ -1177,7 +1202,7 @@ app.get('/api/tenant-info', async (req, res) => {
 });
 
 // API to submit vacate request (from vacate.html form)
-app.post('/api/submit-vacate', async (req, res) => {
+app.post('/api/submit-vacate', publicEndpointLimiter, async (req, res) => {
     try {
         const { phone, reason, vacateDate, feedback } = req.body;
         if (!phone || !reason || !vacateDate) {
@@ -1377,7 +1402,7 @@ app.post('/api/web-register', upload.single('aadhaar'), async (req, res) => {
  * Public AJAX Registration Endpoint
  * Used by the modern registration form in dashboard/public/register.html
  */
-app.post('/api/public/register', upload.single('aadhaar'), async (req, res) => {
+app.post('/api/public/register', publicEndpointLimiter, upload.single('aadhaar'), async (req, res) => {
     try {
         const { name, phone, location, sharingType, room, rent, advance } = req.body;
         const file = req.file;
@@ -1732,7 +1757,7 @@ app.post('/api/trigger-notifications', authenticate, async (req, res) => {
     }
 });
 
-app.post('/api/generate-invoice', async (req, res) => {
+app.post('/api/generate-invoice', authenticate, async (req, res) => {
     try {
         const { phone, name } = req.body;
         const tenant = await sheetsService.getTenantByPhone(phone, name);

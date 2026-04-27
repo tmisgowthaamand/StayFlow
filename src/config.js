@@ -14,7 +14,8 @@ const config = {
         token: process.env.WHATSAPP_TOKEN,
         phoneNumberId: process.env.WHATSAPP_PHONE_NUMBER_ID,
         verifyToken: process.env.WHATSAPP_VERIFY_TOKEN,
-        callbackUrl: process.env.WHATSAPP_CALLBACK_URL
+        callbackUrl: process.env.WHATSAPP_CALLBACK_URL,
+        appSecret: process.env.WHATSAPP_APP_SECRET
     },
     sheets: {
         id: process.env.GOOGLE_SHEET_ID,
@@ -42,7 +43,8 @@ const config = {
     googleMapsApiKey: process.env.GOOGLE_MAPS_API_KEY,
     razorpay: {
         key_id: process.env.RAZORPAY_KEY_ID,
-        key_secret: process.env.RAZORPAY_KEY_SECRET
+        key_secret: process.env.RAZORPAY_KEY_SECRET,
+        webhook_secret: process.env.RAZORPAY_WEBHOOK_SECRET
     },
     cloudinary: {
         cloudName: process.env.CLOUDINARY_CLOUD_NAME,
@@ -70,7 +72,9 @@ const requiredEnv = [
     'GOOGLE_PRIVATE_KEY',
     'OWNER_PHONE',
     'RAZORPAY_KEY_ID',
-    'RAZORPAY_KEY_SECRET'
+    'RAZORPAY_KEY_SECRET',
+    'RAZORPAY_WEBHOOK_SECRET',
+    'WHATSAPP_APP_SECRET'
 ];
 
 const missing = requiredEnv.filter(key => !process.env[key]);
