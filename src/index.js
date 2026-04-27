@@ -272,7 +272,7 @@ app.get('/api/payment-info', async (req, res) => {
         res.json(responseData);
     } catch (err) {
         console.error('Payment Info Error:', err.message);
-        res.status(500).json({ error: err.message });
+        res.status(500).json({ error: 'Internal server error' });
     }
 });
 
@@ -354,7 +354,7 @@ app.post('/api/create-order', async (req, res) => {
         });
     } catch (err) {
         console.error('[CREATE-ORDER] ❌ Error:', err.message);
-        res.status(500).json({ error: 'Failed to create payment order: ' + err.message });
+        res.status(500).json({ error: 'Internal server error' });
     }
 });
 
@@ -422,7 +422,7 @@ app.post('/api/verify-razorpay-payment', async (req, res) => {
         });
     } catch (err) {
         console.error('Verify Payment Error:', err.message);
-        res.status(500).json({ error: err.message });
+        res.status(500).json({ error: 'Internal server error' });
     }
 });
 
@@ -565,7 +565,7 @@ app.post('/webhook/razorpay', async (req, res) => {
         res.status(200).json({ status: 'ok' });
     } catch (err) {
         console.error('Razorpay Webhook Error:', err.message);
-        res.status(500).json({ error: err.message });
+        res.status(500).json({ error: 'Internal server error' });
     }
 });
 
@@ -826,7 +826,7 @@ app.post('/api/verify-transaction', async (req, res) => {
         });
     } catch (err) {
         console.error('Verify Transaction Error:', err.message);
-        res.status(500).json({ error: err.message });
+        res.status(500).json({ error: 'Internal server error' });
     }
 });
 
@@ -983,7 +983,7 @@ app.post('/api/update-eb', authenticate, async (req, res) => {
         await handleUpdateEB(config.ownerPhone, room, totalEB);
         res.json({ success: true });
     } catch (err) {
-        res.status(500).json({ error: err.message });
+        res.status(500).json({ error: 'Internal server error' });
     }
 });
 
@@ -1035,7 +1035,7 @@ app.post('/api/bulk-update-eb', authenticate, async (req, res) => {
         });
     } catch (err) {
         console.error('Bulk EB Update Error:', err.message);
-        res.status(500).json({ error: err.message });
+        res.status(500).json({ error: 'Internal server error' });
     }
 });
 
@@ -1106,7 +1106,7 @@ app.post('/api/upload-aadhaar', authenticate, upload.single('aadhaar'), async (r
         res.json({ success: true, filename: mediaDoc._id.toString() });
     } catch (err) {
         console.error('File Upload Error:', err);
-        res.status(500).json({ error: err.message });
+        res.status(500).json({ error: 'Internal server error' });
     }
 });
 
@@ -1179,7 +1179,7 @@ app.post('/api/submit-query', publicEndpointLimiter, validate(querySchema), asyn
         res.json({ success: true, queryId });
     } catch (err) {
         console.error('Query submit error:', err);
-        res.status(500).json({ error: err.message });
+        res.status(500).json({ error: 'Internal server error' });
     }
 });
 
@@ -1205,7 +1205,7 @@ app.get('/api/tenant-info', async (req, res) => {
             }
         });
     } catch (err) {
-        res.status(500).json({ error: err.message });
+        res.status(500).json({ error: 'Internal server error' });
     }
 });
 
@@ -1282,7 +1282,7 @@ app.post('/api/submit-vacate', publicEndpointLimiter, validate(vacateSchema), as
         res.json({ success: true, requestId });
     } catch (err) {
         console.error('Vacate submit error:', err);
-        res.status(500).json({ error: err.message });
+        res.status(500).json({ error: 'Internal server error' });
     }
 });
 
@@ -1295,7 +1295,7 @@ app.get('/api/queries', authenticate, async (req, res) => {
         res.json(queries);
     } catch (err) {
         console.error('Fetch queries error:', err);
-        res.status(500).json({ error: err.message });
+        res.status(500).json({ error: 'Internal server error' });
     }
 });
 
@@ -1328,7 +1328,7 @@ app.post('/api/queries/:queryId/reply', authenticate, async (req, res) => {
         res.json({ success: true, query });
     } catch (err) {
         console.error('Reply query error:', err);
-        res.status(500).json({ error: err.message });
+        res.status(500).json({ error: 'Internal server error' });
     }
 });
 
@@ -1347,7 +1347,7 @@ app.patch('/api/queries/:queryId/resolve', authenticate, async (req, res) => {
         res.json({ success: true, query });
     } catch (err) {
         console.error('Resolve query error:', err);
-        res.status(500).json({ error: err.message });
+        res.status(500).json({ error: 'Internal server error' });
     }
 });
 
@@ -1491,7 +1491,7 @@ app.post('/api/public/register', publicEndpointLimiter, upload.single('aadhaar')
         res.json({ success: true, message: 'Registration complete!' });
     } catch (err) {
         console.error('Public Registration Error:', err);
-        res.status(500).json({ error: err.message });
+        res.status(500).json({ error: 'Internal server error' });
     }
 });
 
@@ -1529,7 +1529,7 @@ app.post('/webhook/google-form', async (req, res) => {
         res.json({ success: true });
     } catch (err) {
         console.error('Form Webhook Error:', err);
-        res.status(500).json({ error: err.message });
+        res.status(500).json({ error: 'Internal server error' });
     }
 });
 
@@ -1544,7 +1544,7 @@ app.get('/api/tenants', authenticate, async (req, res) => {
         res.json(tenants);
     } catch (err) {
         console.error('API Tenants Error:', err.message);
-        res.status(500).json({ error: 'Failed to fetch tenants: ' + err.message });
+        res.status(500).json({ error: 'Internal server error' });
     }
 });
 
@@ -1592,7 +1592,7 @@ app.post('/api/add-tenant', authenticate, async (req, res) => {
 
         res.json({ success: true });
     } catch (err) {
-        res.status(500).json({ error: err.message });
+        res.status(500).json({ error: 'Internal server error' });
     }
 });
 
@@ -1761,7 +1761,7 @@ app.post('/api/trigger-notifications', authenticate, async (req, res) => {
             }
         })();
     } catch (err) {
-        res.status(500).json({ error: err.message });
+        res.status(500).json({ error: 'Internal server error' });
     }
 });
 
@@ -1785,7 +1785,7 @@ app.post('/api/generate-invoice', authenticate, async (req, res) => {
         const { fileName } = await pdfService.generateInvoice(tenantData);
         res.json({ success: true, url: `/api/uploads/${fileName}` });
     } catch (err) {
-        res.status(500).json({ error: err.message });
+        res.status(500).json({ error: 'Internal server error' });
     }
 });
 
@@ -1837,7 +1837,7 @@ app.post('/api/notify-tenant', authenticate, async (req, res) => {
 
         res.json({ success: true });
     } catch (err) {
-        res.status(500).json({ error: err.message });
+        res.status(500).json({ error: 'Internal server error' });
     }
 });
 
@@ -1853,7 +1853,7 @@ app.post('/api/update-bill', authenticate, async (req, res) => {
 
         res.json({ success: true });
     } catch (err) {
-        res.status(500).json({ error: err.message });
+        res.status(500).json({ error: 'Internal server error' });
     }
 });
 
@@ -1885,7 +1885,7 @@ app.post('/api/update-and-notify', authenticate, async (req, res) => {
 
         res.json({ success: true });
     } catch (err) {
-        res.status(500).json({ error: err.message });
+        res.status(500).json({ error: 'Internal server error' });
     }
 });
 
@@ -1944,7 +1944,7 @@ app.post('/api/mark-paid', authenticate, validate(paymentSchema), async (req, re
 
         res.json({ success: true });
     } catch (err) {
-        res.status(500).json({ error: err.message });
+        res.status(500).json({ error: 'Internal server error' });
     }
 });
 
@@ -1994,7 +1994,7 @@ app.post('/api/send-reminder', authenticate, async (req, res) => {
         })();
     } catch (err) {
         console.error('Send Reminder Error:', err.message);
-        res.status(500).json({ error: err.message });
+        res.status(500).json({ error: 'Internal server error' });
     }
 });
 
@@ -2025,7 +2025,7 @@ app.post('/api/delete-tenant', authenticate, async (req, res) => {
         if (success) res.json({ success: true });
         else res.status(404).json({ error: 'Tenant not found' });
     } catch (err) {
-        res.status(500).json({ error: err.message });
+        res.status(500).json({ error: 'Internal server error' });
     }
 });
 
@@ -2077,7 +2077,7 @@ app.post('/api/vacate-tenant', authenticate, async (req, res) => {
             res.status(404).json({ error: 'Failed to update tenant status' });
         }
     } catch (err) {
-        res.status(500).json({ error: err.message });
+        res.status(500).json({ error: 'Internal server error' });
     }
 });
 
@@ -2086,7 +2086,7 @@ app.post('/api/sync-to-mongo', authenticate, async (req, res) => {
         const count = await sheetsService.syncAllToMongo();
         res.json({ success: true, count });
     } catch (err) {
-        res.status(500).json({ error: err.message });
+        res.status(500).json({ error: 'Internal server error' });
     }
 });
 
@@ -2095,7 +2095,7 @@ app.get('/api/archived-tenants', authenticate, async (req, res) => {
         const tenants = await Tenant.find().sort({ archivedAt: -1 });
         res.json(tenants);
     } catch (err) {
-        res.status(500).json({ error: err.message });
+        res.status(500).json({ error: 'Internal server error' });
     }
 });
 
@@ -2163,7 +2163,7 @@ app.post(['/api/announcement', '/api/broadcast'], authenticate, upload.single('f
         })();
     } catch (err) {
         console.error('Announcement API Error:', err.message);
-        res.status(500).json({ error: err.message });
+        res.status(500).json({ error: 'Internal server error' });
     }
 });
 
@@ -2172,7 +2172,7 @@ app.get('/api/notifications', authenticate, async (req, res) => {
         const notifications = await Notification.find().sort({ timestamp: -1 }).limit(100);
         res.json(notifications);
     } catch (err) {
-        res.status(500).json({ error: err.message });
+        res.status(500).json({ error: 'Internal server error' });
     }
 });
 
@@ -2181,7 +2181,7 @@ app.get('/api/notifications/unread-count', authenticate, async (req, res) => {
         const count = await Notification.countDocuments({ read: false });
         res.json({ count });
     } catch (err) {
-        res.status(500).json({ error: err.message });
+        res.status(500).json({ error: 'Internal server error' });
     }
 });
 
@@ -2195,7 +2195,7 @@ app.post('/api/notifications/mark-read', authenticate, async (req, res) => {
         }
         res.json({ success: true });
     } catch (err) {
-        res.status(500).json({ error: err.message });
+        res.status(500).json({ error: 'Internal server error' });
     }
 });
 
@@ -2204,7 +2204,7 @@ app.delete('/api/notifications', authenticate, async (req, res) => {
         await Notification.deleteMany({});
         res.json({ success: true });
     } catch (err) {
-        res.status(500).json({ error: err.message });
+        res.status(500).json({ error: 'Internal server error' });
     }
 });
 
@@ -2213,13 +2213,13 @@ app.delete('/api/notifications/:id', authenticate, async (req, res) => {
         await Notification.findByIdAndDelete(req.params.id);
         res.json({ success: true });
     } catch (err) {
-        res.status(500).json({ error: err.message });
+        res.status(500).json({ error: 'Internal server error' });
     }
 });
 
 app.get('/api/locations', authenticate, async (req, res) => {
     try { res.json(await sheetsService.getAllLocations()); }
-    catch (err) { res.status(500).json({ error: err.message }); }
+    catch (err) { res.status(500).json({ error: 'Internal server error' }); }
 });
 
 app.post('/api/locations', authenticate, async (req, res) => {
@@ -2227,14 +2227,14 @@ app.post('/api/locations', authenticate, async (req, res) => {
         const { name, address, totalRooms, floors, totalBeds, notes } = req.body;
         await sheetsService.addLocation({ name, address, totalRooms, floors, totalBeds, notes });
         res.json({ success: true });
-    } catch (err) { res.status(500).json({ error: err.message }); }
+    } catch (err) { res.status(500).json({ error: 'Internal server error' }); }
 });
 
 app.get('/api/eb-bills', authenticate, async (req, res) => {
     try {
         const { location } = req.query;
         res.json(await sheetsService.getEBBillsByLocation(location || 'Main Branch'));
-    } catch (err) { res.status(500).json({ error: err.message }); }
+    } catch (err) { res.status(500).json({ error: 'Internal server error' }); }
 });
 
 app.post('/api/eb-bills', authenticate, async (req, res) => {
@@ -2254,14 +2254,14 @@ app.post('/api/eb-bills', authenticate, async (req, res) => {
             }
         }
         res.json({ success: true, totalEB: result.totalEB });
-    } catch (err) { res.status(500).json({ error: err.message }); }
+    } catch (err) { res.status(500).json({ error: 'Internal server error' }); }
 });
 
 app.get('/api/dashboard-stats', authenticate, async (req, res) => {
     try { res.json(await sheetsService.getDashboardStats()); }
     catch (err) {
         console.error('Dashboard Stats Error:', err.message);
-        res.status(500).json({ error: 'Failed to fetch stats: ' + err.message });
+        res.status(500).json({ error: 'Internal server error' });
     }
 });
 
@@ -2283,7 +2283,7 @@ app.post('/api/register-push-token', authenticate, async (req, res) => {
 
         res.json({ success: true, message: 'Push token registered' });
     } catch (err) {
-        res.status(500).json({ error: err.message });
+        res.status(500).json({ error: 'Internal server error' });
     }
 });
 
@@ -2467,3 +2467,4 @@ sheetsService.init().then(() => {
     process.on('SIGTERM', () => shutdown('SIGTERM'));
     process.on('SIGINT', () => shutdown('SIGINT'));
 });
+
