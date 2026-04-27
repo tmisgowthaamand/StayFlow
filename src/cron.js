@@ -6,6 +6,7 @@ import * as bot from './bot.js';
 import config from './config.js';
 import { exportAllData, Query } from './db.js';
 import { fileURLToPath } from 'url';
+import { uploadBackup } from './backupStorage.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -204,12 +205,9 @@ function setupCron() {
         console.log('Running Daily Database Backup...');
         try {
             const backupData = await exportAllData();
-            const backupDir = path.join(__dirname, '../backups');
-            if (!fs.existsSync(backupDir)) fs.mkdirSync(backupDir);
-
             const fileName = `backup-${new Date().toISOString().split('T')[0]}.json`;
-            fs.writeFileSync(path.join(backupDir, fileName), JSON.stringify(backupData, null, 2));
-            console.log(`[BACKUP] Successfully saved to ${fileName}`);
+            await uploadBackup(fileName, backupData);
+            console.log(`[BACKUP] Successfully uploaded to Google Drive: ${fileName}`);
         } catch (err) {
             console.error('Cron Error (Backup):', err.message);
         }
