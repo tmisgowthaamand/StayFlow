@@ -12,6 +12,7 @@ import helmet from 'helmet';
 
 import config from './config.js';
 import { generateToken, validatePassword, verifyToken } from './auth.js';
+import { validate, registerSchema, querySchema, vacateSchema, paymentSchema } from './validators.js';
 import { handleIncomingMessage, sendMessage, sendMedia, setTenantContext, handleUpdateEB, createRazorpayLink, handleRazorpaySuccess } from './bot.js';
 import crypto from 'crypto';
 import Razorpay from 'razorpay';
@@ -1120,7 +1121,7 @@ app.get('/queries', (req, res) => {
 });
 
 // API to submit a query from the queries form
-app.post('/api/submit-query', publicEndpointLimiter, async (req, res) => {
+app.post('/api/submit-query', publicEndpointLimiter, validate(querySchema), async (req, res) => {
     try {
         const { name, phone, room, category, description } = req.body;
         if (!name || !phone || !description) {
@@ -1209,7 +1210,7 @@ app.get('/api/tenant-info', async (req, res) => {
 });
 
 // API to submit vacate request (from vacate.html form)
-app.post('/api/submit-vacate', publicEndpointLimiter, async (req, res) => {
+app.post('/api/submit-vacate', publicEndpointLimiter, validate(vacateSchema), async (req, res) => {
     try {
         const { phone, reason, vacateDate, feedback } = req.body;
         if (!phone || !reason || !vacateDate) {
@@ -1409,7 +1410,7 @@ app.post('/api/web-register', upload.single('aadhaar'), async (req, res) => {
  * Public AJAX Registration Endpoint
  * Used by the modern registration form in dashboard/public/register.html
  */
-app.post('/api/public/register', publicEndpointLimiter, upload.single('aadhaar'), async (req, res) => {
+app.post('/api/public/register', publicEndpointLimiter, upload.single('aadhaar'), validate(registerSchema), async (req, res) => {
     try {
         const { name, phone, location, sharingType, room, rent, advance } = req.body;
         const file = req.file;
@@ -1888,7 +1889,7 @@ app.post('/api/update-and-notify', authenticate, async (req, res) => {
     }
 });
 
-app.post('/api/mark-paid', authenticate, async (req, res) => {
+app.post('/api/mark-paid', authenticate, validate(paymentSchema), async (req, res) => {
     try {
         const { phone, name, amount, mode } = req.body;
         // 1. Update Google Sheets (Auto-syncs to MongoDB)
