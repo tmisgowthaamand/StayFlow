@@ -37,7 +37,6 @@ const config = {
         })(),
     },
     mongoUri: process.env.MONGODB_URI || 'mongodb://localhost:27017/stayflow',
-    adminApiKey: process.env.ADMIN_API_KEY || 'stayflow_dev_key_123',
     jwtSecret: process.env.JWT_SECRET || 'INSECURE_DEFAULT_JWT_SECRET_CHANGE_IMMEDIATELY',
     adminPassword: process.env.ADMIN_PASSWORD || 'admin',
     encryptionKey: process.env.ENCRYPTION_KEY || 'a'.repeat(64),

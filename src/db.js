@@ -22,6 +22,9 @@ const mediaSchema = new mongoose.Schema({
     filename: String,
     mimeType: String,
     data: Buffer,
+    encrypted: { type: Boolean, default: false },
+    encryptionIV: String,
+    encryptionTag: String,
     timestamp: { type: Date, default: Date.now }
 });
 

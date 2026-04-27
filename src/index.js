@@ -13,6 +13,7 @@ import helmet from 'helmet';
 import config from './config.js';
 import { generateToken, validatePassword, verifyToken } from './auth.js';
 import { validate, registerSchema, querySchema, vacateSchema, paymentSchema } from './validators.js';
+import { encrypt, decrypt } from './encryption.js';
 import { handleIncomingMessage, sendMessage, sendMedia, setTenantContext, handleUpdateEB, createRazorpayLink, handleRazorpaySuccess } from './bot.js';
 import crypto from 'crypto';
 import Razorpay from 'razorpay';
@@ -877,11 +878,44 @@ app.get('/api/media/:id', authenticate, async (req, res) => {
 
                 if (mediaDoc?.url) {
                     console.log(`Redirecting Cloudinary media: ${safeMediaId}`);
+                    // If encrypted, fetch from Cloudinary and decrypt
+                    if (mediaDoc.encrypted && mediaDoc.encryptionIV && mediaDoc.encryptionTag) {
+                        try {
+                            const cloudinaryRes = await axios.get(mediaDoc.url, { responseType: 'arraybuffer' });
+                            const decrypted = decrypt({
+                                encrypted: Buffer.from(cloudinaryRes.data),
+                                iv: Buffer.from(mediaDoc.encryptionIV, 'hex'),
+                                tag: Buffer.from(mediaDoc.encryptionTag, 'hex')
+                            });
+                            res.setHeader('Content-Type', mediaDoc.mimeType || 'application/octet-stream');
+                            res.setHeader('Content-Disposition', `inline; filename="${mediaDoc.filename || mediaDoc.mediaId || safeMediaId}"`);
+                            return res.send(decrypted);
+                        } catch (decryptErr) {
+                            console.error(`Decryption failed for ${safeMediaId}:`, decryptErr.message);
+                            return res.status(500).send('Error decrypting media');
+                        }
+                    }
                     return res.redirect(mediaDoc.url);
                 }
 
                 if (mediaDoc?.data) {
                     console.log(`Serving Mongo media: ${safeMediaId}`);
+                    // If encrypted, decrypt before serving
+                    if (mediaDoc.encrypted && mediaDoc.encryptionIV && mediaDoc.encryptionTag) {
+                        try {
+                            const decrypted = decrypt({
+                                encrypted: mediaDoc.data,
+                                iv: Buffer.from(mediaDoc.encryptionIV, 'hex'),
+                                tag: Buffer.from(mediaDoc.encryptionTag, 'hex')
+                            });
+                            res.setHeader('Content-Type', mediaDoc.mimeType || 'application/octet-stream');
+                            res.setHeader('Content-Disposition', `inline; filename="${mediaDoc.filename || mediaDoc.mediaId || safeMediaId}"`);
+                            return res.send(decrypted);
+                        } catch (decryptErr) {
+                            console.error(`Decryption failed for ${safeMediaId}:`, decryptErr.message);
+                            return res.status(500).send('Error decrypting media');
+                        }
+                    }
                     res.setHeader('Content-Type', mediaDoc.mimeType || 'application/octet-stream');
                     res.setHeader('Content-Disposition', `inline; filename="${mediaDoc.filename || mediaDoc.mediaId || safeMediaId}"`);
                     return res.send(mediaDoc.data);
@@ -983,7 +1017,7 @@ app.get('/api/media/:id', authenticate, async (req, res) => {
         res.status(404).send(`Media document [${safeMediaId}] not found on server. If this was a web upload, it may have been cleared by a server restart/redeploy. Please re-upload it via the resident edit profile.`);
     } catch (err) {
         console.error(`Media proxy error for ${req.params.id}:`, err.message);
-        res.status(500).send('Error loading media: ' + err.message);
+        res.status(500).send('Error loading media');
     }
 });
 
@@ -1071,13 +1105,25 @@ const upload = multer({
 });
 
 async function saveUploadToCloudinary(file, phone, type = 'AADHAAR') {
-    const uploadResult = await cloudinaryService.uploadLocalFile(file.path, {
+    // Read file buffer
+    const fileBuffer = fs.readFileSync(file.path);
+    
+    // Encrypt the file before upload
+    const { encrypted, iv, tag } = encrypt(fileBuffer);
+    
+    // Write encrypted buffer to temp file
+    const encryptedPath = file.path + '.enc';
+    fs.writeFileSync(encryptedPath, encrypted);
+    
+    // Upload encrypted file to Cloudinary
+    const uploadResult = await cloudinaryService.uploadLocalFile(encryptedPath, {
         folder: `stayflow/${type.toLowerCase()}`,
         filename: file.originalname || file.filename,
         mimeType: file.mimetype,
         publicId: `${type.toLowerCase()}_${phone}_${Date.now()}`
     });
 
+    // Store encryption metadata in MongoDB
     const mediaDoc = await Media.create({
         phone,
         type,
@@ -1089,10 +1135,15 @@ async function saveUploadToCloudinary(file, phone, type = 'AADHAAR') {
         url: uploadResult.url,
         resourceType: uploadResult.resourceType,
         format: uploadResult.format,
-        bytes: uploadResult.bytes
+        bytes: uploadResult.bytes,
+        encrypted: true,
+        encryptionIV: iv.toString('hex'),
+        encryptionTag: tag.toString('hex')
     });
 
+    // Cleanup temp files
     try {
+        if (fs.existsSync(encryptedPath)) fs.unlinkSync(encryptedPath);
         if (file.path && fs.existsSync(file.path)) fs.unlinkSync(file.path);
     } catch (cleanupErr) {
         console.warn('Temp upload cleanup failed:', cleanupErr.message);
@@ -1412,7 +1463,7 @@ app.post('/api/web-register', upload.single('aadhaar'), async (req, res) => {
         res.redirect('/rules.html');
     } catch (err) {
         console.error('Web Reg Error:', err);
-        res.status(500).send('Registration Failed: ' + err.message);
+        res.status(500).send('Registration failed. Please try again or contact admin.');
     }
 });
 
@@ -2354,7 +2405,7 @@ app.get('/api/health', async (req, res) => {
             wwebReady: wweb.ready
         });
     } catch (err) {
-        res.status(500).json({ status: 'error', message: err.message });
+        res.status(500).json({ status: 'error', message: 'Internal server error' });
     }
 });
 
@@ -2435,7 +2486,7 @@ app.use((err, req, res, next) => {
         return res.status(400).json({ error: 'File too large! Max limit is 2MB.' });
     }
     res.status(err.status || 500).json({
-        error: err.message || 'Internal Server Error'
+        error: 'Internal server error'
     });
 });
 
