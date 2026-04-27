@@ -102,12 +102,7 @@ class SheetsService {
             authConfig.key = authConfig.key.trim();
         }
 
-        console.log('Auth Email:', authConfig.email);
-        console.log('Key length:', authConfig.key?.length);
-        if (authConfig.key) {
-            console.log('Key start:', authConfig.key.substring(0, 30));
-            console.log('Key end:', authConfig.key.substring(authConfig.key.length - 30));
-        }
+        console.log('Google Sheets auth configured:', !!authConfig.email && !!authConfig.key);
 
         const serviceAccountAuth = new JWT({
             email: authConfig.email,

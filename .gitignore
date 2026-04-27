@@ -1,9 +1,13 @@
 node_modules/
 dashboard/node_modules/
 .env
+service-account.json
+*.pem
+*.key
 *.log
 debug.log
 bot.log
 uploads/
 .wwebjs_auth/
 .wwebjs_cache/
+dashboard/dist/

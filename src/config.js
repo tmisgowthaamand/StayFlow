@@ -32,7 +32,6 @@ const config = {
             // Trim whitespace
             key = key.trim();
 
-            console.log('Private key loaded. Len:', key.length, 'Lines:', key.split('\n').length);
             return key;
         })(),
     },
