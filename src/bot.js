@@ -633,7 +633,7 @@ async function handleIncomingMessage(phone, body, messageId = null, image = null
                 const joinBanner = path.join(__dirname, '../assets/JOIN.png');
                 if (fs.existsSync(joinBanner)) await sendImage(phone, joinBanner);
                 const formUrl = config.googleFormUrl || 'https://forms.gle/YOUR_FORM_ID';
-                await sendMessage(phone, `Welcome 👋\nTo join StayFlow, please fill out this quick registration form:\n\n👉 ${formUrl}\n\nOnce submitted, you will receive a confirmation here!`);
+                await sendMessage(phone, `Welcome to ${config.businessName}! 👋\n\nTo join, please fill out this quick registration form:\n\n👉 ${formUrl}\n\nOnce submitted, you will receive a confirmation here!`);
                 break;
             case 'RULES': {
                 const rulesMsg = `🏢 *PG House Rules & Regulations*\n━━━━━━━━━━━━━━━━━━━━\n⚖️ *DO's:*\n1. Keep your room and shared areas clean and hygienic.\n2. Maintain silence after 10:00 PM for everyone's comfort.\n3. Pay rent by the 5th and EB bills by the 10th of each month.\n4. Inform the admin 30 days before vacating.\n5. Cooperate with police verification and security checks.\n\n🚫 *DON'Ts:*\n1. Strictly NO smoking, alcohol, or illegal substances.\n2. No overnight visitors allowed without prior permission.\n3. Do not use heavy appliances (Heaters/AC/Iron) without approval.\n4. No loud music, parties, or disturbances in rooms.\n5. Do not damage PG property or furniture.\n\n📜 *Note:* Rules are for the safety and comfort of all residents. Violations may lead to penalties or eviction.\n━━━━━━━━━━━━━━━━━━━━`;
@@ -781,7 +781,7 @@ async function handleIncomingMessage(phone, body, messageId = null, image = null
                     const statusEmoji = status === 'PAID' ? '✅' : (status === 'PENDING' ? '⏳' : '🔔');
                     welcomeBody = `Welcome back, *${name}*! 👋\n\n🚪 Room: ${room}\n${statusEmoji} Status: *${status}*\n\n💰 *Current Bill:*\n🏠 Rent: ₹${rent} | ⚡ EB: ₹${eb}\n💵 *Total: ₹${total}*\n\nPlease select an option below 👇`;
                 } else {
-                    welcomeBody = `Hello! 👋 Welcome to *${config.businessName}*.\n\nWe're happy to have you here! Please select an option below to get started 👇`;
+                    welcomeBody = `Hello! 👋 Welcome to ${config.businessName}.\n\nWe're happy to have you here! Please select an option below to get started 👇`;
                 }
 
                 // Build menu rows — dynamically swap "New Register" ↔ "Vacate" based on registration
