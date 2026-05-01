@@ -13,8 +13,9 @@
             background: linear-gradient(135deg, #1a0a0a 0%, #4a1c1c 50%, #2d1515 100%);
             min-height: 100vh;
             display: flex;
+            flex-direction: column;
             align-items: center;
-            justify-content: center;
+            justify-content: flex-start;
             padding: 20px;
             color: #e0e0e0;
         }
@@ -27,6 +28,7 @@
             border-radius: 24px;
             padding: 32px 28px;
             box-shadow: 0 20px 60px rgba(0,0,0,0.4);
+            margin-top: 20px;
         }
         .logo {
             text-align: center;
@@ -288,6 +290,10 @@
         const params = new URLSearchParams(window.location.search);
         const phoneParam = params.get('phone');
 
+        // Immediately hide loading and show form
+        document.getElementById('loadingState').style.display = 'none';
+        document.getElementById('vacateForm').style.display = 'block';
+
         // Set minimum date to 30 days from today
         const dateInput = document.getElementById('vacateDate');
         const minDate = new Date();
@@ -300,40 +306,26 @@
             document.getElementById('otherReasonGroup').style.display = e.target.value === 'Other' ? 'block' : 'none';
         });
 
-        // Fetch tenant info on load
-        async function loadTenantInfo() {
-            try {
-                if (!phoneParam) {
-                    document.getElementById('loadingState').style.display = 'none';
-                    document.getElementById('vacateForm').style.display = 'block';
-                    return;
-                }
-
-                document.getElementById('loadingState').style.display = 'block';
-
-                const res = await fetch(`/api/tenant-info?phone=${encodeURIComponent(phoneParam)}`);
-                if (res.ok) {
-                    const data = await res.json();
-                    if (data.success && data.tenant) {
-                        document.getElementById('tenantName').textContent = data.tenant.name || '—';
-                        document.getElementById('tenantRoom').textContent = data.tenant.room || '—';
-                        document.getElementById('tenantRent').textContent = '₹' + (data.tenant.rent || '0');
-                        document.getElementById('tenantAdvance').textContent = '₹' + (data.tenant.advance || '0');
-                        document.getElementById('tenantInfo').style.display = 'block';
+        // Load tenant info if phone parameter exists
+        if (phoneParam) {
+            (async () => {
+                try {
+                    const res = await fetch(`/api/tenant-info?phone=${encodeURIComponent(phoneParam)}`);
+                    if (res.ok) {
+                        const data = await res.json();
+                        if (data.success && data.tenant) {
+                            document.getElementById('tenantName').textContent = data.tenant.name || '—';
+                            document.getElementById('tenantRoom').textContent = data.tenant.room || '—';
+                            document.getElementById('tenantRent').textContent = '₹' + (data.tenant.rent || '0');
+                            document.getElementById('tenantAdvance').textContent = '₹' + (data.tenant.advance || '0');
+                            document.getElementById('tenantInfo').style.display = 'block';
+                        }
                     }
+                } catch (e) {
+                    console.warn('Could not load tenant info:', e);
                 }
-            } catch (e) {
-                console.warn('Could not load tenant info:', e);
-            } finally {
-                document.getElementById('loadingState').style.display = 'none';
-                document.getElementById('vacateForm').style.display = 'block';
-            }
+            })();
         }
-
-        // Ensure form displays on load
-        window.addEventListener('load', loadTenantInfo);
-        // Also try immediately in case load event already fired
-        setTimeout(loadTenantInfo, 100);
 
         document.getElementById('vacateForm').addEventListener('submit', async (e) => {
             e.preventDefault();
