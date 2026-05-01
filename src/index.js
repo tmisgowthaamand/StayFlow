@@ -126,8 +126,6 @@ const authenticate = (req, res, next) => {
 
     return res.status(401).json({ error: 'Missing or invalid authorization header' });
 };
-    }
-};
 
 // Serve dashboard, uploads, and public files statically
 const dashboardDist = path.join(__dirname, '../dashboard/dist');
