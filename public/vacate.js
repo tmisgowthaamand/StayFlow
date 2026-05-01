@@ -96,17 +96,18 @@ document.getElementById('vacateForm').addEventListener('submit', async (e) => {
 
         const result = await res.json();
         if (res.ok && result.success) {
+            // Get the actual submitted data for display
             const requestId = result.requestId || 'Submitted';
-            const tenantName = document.getElementById('tenantName').textContent || 'Unknown';
-            const tenantRoom = document.getElementById('tenantRoom').textContent || '—';
+            const tenantName = document.getElementById('tenantName')?.textContent?.trim() || phoneParam || 'Tenant';
+            const tenantRoom = document.getElementById('tenantRoom')?.textContent?.trim() || 'N/A';
+            const vacateDateFormatted = new Date(vacateDateValue).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
             const today = new Date().toLocaleDateString('en-IN');
-            const vacateDateFormatted = new Date(data.vacateDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
 
             document.getElementById('vacateForm').style.display = 'none';
             document.getElementById('tenantInfo').style.display = 'none';
             document.getElementById('successMsg').style.display = 'block';
 
-            // Populate success screen
+            // Populate success screen with actual form data
             document.getElementById('requestId').textContent = '🆔 Request ID: ' + requestId;
             document.getElementById('successReqId').textContent = requestId;
             document.getElementById('successName').textContent = tenantName;
@@ -115,7 +116,8 @@ document.getElementById('vacateForm').addEventListener('submit', async (e) => {
             document.getElementById('successRequested').textContent = today;
             document.getElementById('successVacateBy').textContent = vacateDateFormatted;
 
-            window.scrollTo(0, 0);
+            // Scroll to show success message
+            setTimeout(() => window.scrollTo(0, 0), 100);
         } else {
             throw new Error(result.error || 'Failed to submit');
         }
