@@ -1477,8 +1477,18 @@ app.post('/api/web-register', upload.single('aadhaar'), async (req, res) => {
 
         res.redirect('/rules.html');
     } catch (err) {
-        console.error('Web Reg Error:', err);
-        res.status(500).send('Registration failed. Please try again or contact admin.');
+        console.error('Web Reg Error:', err.message, err.stack);
+        let errorMsg = 'Registration failed. Please try again or contact admin.';
+
+        if (err.message?.includes('Sheet')) {
+            errorMsg = 'Database error - Please try again';
+        } else if (err.message?.includes('PDF')) {
+            errorMsg = 'Failed to generate document - Please try again';
+        } else if (err.message?.includes('phone')) {
+            errorMsg = 'Invalid phone number';
+        }
+
+        res.status(500).send(`<h2>Registration Error</h2><p>${errorMsg}</p><p>Error ID: ${Date.now()}</p><a href="/register.html">Go Back</a>`);
     }
 });
 
@@ -1566,8 +1576,24 @@ app.post('/api/public/register', publicEndpointLimiter, upload.single('aadhaar')
 
         res.json({ success: true, message: 'Registration complete!' });
     } catch (err) {
-        console.error('Public Registration Error:', err);
-        res.status(500).json({ error: 'Internal server error' });
+        console.error('Public Registration Error:', err.message, err.stack);
+
+        // Provide specific error messages for common issues
+        let errorMsg = 'Internal server error';
+
+        if (err.message?.includes('Sheet')) {
+            errorMsg = 'Database error - Please try again';
+        } else if (err.message?.includes('PDF')) {
+            errorMsg = 'Failed to generate document - Please try again';
+        } else if (err.message?.includes('phone')) {
+            errorMsg = 'Invalid phone number - Please check and try again';
+        } else if (err.message?.includes('validation')) {
+            errorMsg = 'Invalid form data - Please check all fields';
+        } else if (err.message?.includes('file')) {
+            errorMsg = 'File upload failed - Please check file and try again';
+        }
+
+        res.status(500).json({ error: errorMsg, details: process.env.NODE_ENV === 'development' ? err.message : undefined });
     }
 });
 
