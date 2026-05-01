@@ -1575,9 +1575,19 @@ app.post('/api/public/register', publicEndpointLimiter, upload.single('aadhaar')
 
         res.json({ success: true, message: 'Registration complete!' });
     } catch (err) {
-        console.error('Public Registration Error:', err.message, err.stack);
+        console.error('Public Registration Error:', err.message);
+
+        // Check for duplicate phone number registration
+        if (err.message?.includes('already registered')) {
+            const match = err.message.match(/(\d+)/);
+            const phone = match ? match[1] : 'provided';
+            return res.status(409).json({
+                error: `This phone number (${phone}) is already registered. Please use a different number or contact support.`
+            });
+        }
 
         // Provide specific error messages for common issues
+        let statusCode = 500;
         let errorMsg = 'Internal server error';
 
         if (err.message?.includes('Sheet')) {
@@ -1592,7 +1602,7 @@ app.post('/api/public/register', publicEndpointLimiter, upload.single('aadhaar')
             errorMsg = 'File upload failed - Please check file and try again';
         }
 
-        res.status(500).json({ error: errorMsg, details: process.env.NODE_ENV === 'development' ? err.message : undefined });
+        res.status(statusCode).json({ error: errorMsg, details: process.env.NODE_ENV === 'development' ? err.message : undefined });
     }
 });
 
