@@ -1023,6 +1023,7 @@ const App = () => {
                 <th>Status</th>
                 <th>Paid Date</th>
                 <th>Aadhaar</th>
+                <th>Reg Form</th>
                 <th>Action</th>
               </tr>
             </thead>
@@ -1063,6 +1064,13 @@ const App = () => {
                     {t['Aadhaar Image'] ? (
                       <button className="btn btn-glass btn-small" onClick={() => window.open(getFullUrl(`/api/media/${t['Aadhaar Image']}`), '_blank')} title="View Document">
                         <Camera size={12} /> View
+                      </button>
+                    ) : <span style={{ color: 'var(--text-faint)', fontSize: '0.78rem' }}>N/A</span>}
+                  </td>
+                  <td>
+                    {t['Registration Form'] ? (
+                      <button className="btn btn-glass btn-small" onClick={() => window.open(getFullUrl(`/api/media/${t['Registration Form']}`), '_blank')} title="View Registration Form">
+                        <FileText size={12} /> View
                       </button>
                     ) : <span style={{ color: 'var(--text-faint)', fontSize: '0.78rem' }}>N/A</span>}
                   </td>
