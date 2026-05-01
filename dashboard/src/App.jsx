@@ -796,26 +796,26 @@ const App = () => {
         {/* Stats Grid - 5 cards aligned */}
         <div className="stats-grid">
           {stats.map((stat, idx) => (
-            <SpotlightCard key={idx} style={stat.label === 'Unpaid' && isOverduePeriod && unpaidTenants.length > 0 ? { border: '1px solid rgba(244, 63, 94, 0.4)' } : {}}>
+            <SpotlightCard key={idx} style={stat.label === 'Unpaid' && unpaidTenants.length > 0 ? { border: '1px solid rgba(244, 63, 94, 0.4)' } : {}}>
               <div className="stat-icon-wrap" style={{ backgroundColor: stat.bg, color: stat.color }}>
                 <stat.icon size={20} />
               </div>
-              <p className="stat-label">{stat.label}{stat.label === 'Unpaid' && isOverduePeriod && unpaidTenants.length > 0 ? ' 🔴' : ''}</p>
+              <p className="stat-label">{stat.label}{stat.label === 'Unpaid' && unpaidTenants.length > 0 ? ' 🔴' : ''}</p>
               <p className="stat-value">{stat.value}</p>
             </SpotlightCard>
           ))}
         </div>
 
-        {/* Overdue Payments Section - shows after 10th of month */}
-        {isOverduePeriod && unpaidTenants.length > 0 && (
+        {/* Unpaid/Overdue Payments Section - Always show if there are unpaid tenants */}
+        {unpaidTenants.length > 0 && (
           <div className="panel" style={{ marginBottom: 20, border: '1px solid rgba(244, 63, 94, 0.25)', background: 'rgba(244, 63, 94, 0.03)' }}>
             <div className="panel-header">
               <h3 className="panel-title" style={{ color: '#f43f5e' }}>
                 <AlertCircle size={16} style={{ marginRight: 6 }} />
-                Overdue Payments ({unpaidTenants.length})
+                Pending Payments ({unpaidTenants.length}){isOverduePeriod ? ' - OVERDUE ⚠️' : ''}
               </h3>
               <ShinyButton className="btn-small" onClick={handleRemindAllOverdue} style={{ background: 'rgba(244, 63, 94, 0.1)', color: '#f43f5e', border: '1px solid rgba(244, 63, 94, 0.3)' }}>
-                <Bell size={14} /> Remind All Overdue
+                <Bell size={14} /> Send Reminders
               </ShinyButton>
             </div>
             <div className="table-scroll">
@@ -825,14 +825,12 @@ const App = () => {
                     <th>Resident</th>
                     <th>Room</th>
                     <th>Amount Due</th>
-                    <th>Days Overdue</th>
                     <th>Status</th>
                     <th>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
                   {unpaidTenants.map((t, i) => {
-                    const daysOverdue = today - (configData?.rentDueDate || 5);
                     return (
                       <tr key={i} className="table-row">
                         <td>
@@ -848,8 +846,7 @@ const App = () => {
                         </td>
                         <td><span style={{ background: 'var(--primary-soft)', color: 'var(--primary)', padding: '3px 8px', borderRadius: 6, fontSize: '0.78rem', fontWeight: 600 }}>{t.Room}</span></td>
                         <td style={{ fontSize: '0.85rem', fontWeight: 700, color: '#f43f5e' }}>₹{t['Total Amount'] || (parseFloat(t['Monthly Rent'] || 0) + parseFloat(t['EB Amount'] || 0))}</td>
-                        <td><span style={{ background: 'rgba(244, 63, 94, 0.1)', color: '#f43f5e', padding: '3px 10px', borderRadius: 6, fontSize: '0.78rem', fontWeight: 700 }}>{daysOverdue > 0 ? `${daysOverdue} days` : 'Due today'}</span></td>
-                        <td><span className="status-badge" style={{ background: 'rgba(244, 63, 94, 0.12)', color: '#f43f5e' }}>🔴 OVERDUE</span></td>
+                        <td><span className="status-badge" style={{ background: 'rgba(244, 63, 94, 0.12)', color: '#f43f5e' }}>🔴 {t.Status || 'PENDING'}</span></td>
                         <td>
                           <div style={{ display: 'flex', gap: 4 }}>
                             <button className="btn btn-glass btn-small" onClick={() => handleSendReminder(t)} title="Send Reminder" style={{ padding: '5px 8px', color: '#f43f5e' }}><Bell size={13} /></button>
