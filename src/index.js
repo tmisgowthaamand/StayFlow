@@ -140,6 +140,11 @@ app.get('/api/uploads/:filename', authenticate, (req, res) => {
 // 3. Serve public folder (registration, rules, etc)
 app.use(express.static(path.join(__dirname, '../public')));
 
+// Favicon endpoint - prevents 404 errors
+app.get('/favicon.ico', (req, res) => {
+    res.status(204).send();
+});
+
 const port = process.env.PORT || 3000;
 
 // Initialize Razorpay instance for order creation
@@ -1085,17 +1090,9 @@ app.post('/api/bulk-update-eb', authenticate, async (req, res) => {
     }
 });
 
-// PHASE 2 REQ 5: Secure File Uploads
-const storage = multer.diskStorage({
-    destination: 'uploads/',
-    filename: (req, file, cb) => {
-        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-        cb(null, file.fieldname + '-' + uniqueSuffix + path.extname(file.originalname));
-    }
-});
-
+// PHASE 2 REQ 5: Secure File Uploads (Memory storage for serverless)
 const upload = multer({
-    storage: storage,
+    storage: multer.memoryStorage(),
     limits: { fileSize: 2 * 1024 * 1024 }, // 2MB Limit
     fileFilter: (req, file, cb) => {
         const allowedTypes = /jpeg|jpg|png|pdf/;
@@ -1107,21 +1104,18 @@ const upload = multer({
 });
 
 async function saveUploadToCloudinary(file, phone, type = 'AADHAAR') {
-    // Read file buffer
-    const fileBuffer = fs.readFileSync(file.path);
-    
+    // Get file buffer (from memory storage, no disk access)
+    const fileBuffer = file.buffer;
+    if (!fileBuffer) throw new Error('File buffer not available');
+
     // Encrypt the file before upload
     const { encrypted, iv, tag } = encrypt(fileBuffer);
-    
-    // Write encrypted buffer to temp file
-    const encryptedPath = file.path + '.enc';
-    fs.writeFileSync(encryptedPath, encrypted);
-    
-    // Upload encrypted file to Cloudinary
-    const uploadResult = await cloudinaryService.uploadLocalFile(encryptedPath, {
+
+    // Upload encrypted buffer directly to Cloudinary without disk access
+    const uploadResult = await cloudinaryService.uploadBuffer(encrypted, {
         folder: `stayflow/${type.toLowerCase()}`,
-        filename: file.originalname || file.filename,
-        mimeType: file.mimetype,
+        filename: file.originalname || file.fieldname,
+        resourceType: 'raw',
         publicId: `${type.toLowerCase()}_${phone}_${Date.now()}`
     });
 
@@ -1129,8 +1123,8 @@ async function saveUploadToCloudinary(file, phone, type = 'AADHAAR') {
     const mediaDoc = await Media.create({
         phone,
         type,
-        mediaId: file.filename,
-        filename: file.originalname || file.filename,
+        mediaId: uploadResult.publicId,
+        filename: file.originalname || file.fieldname,
         mimeType: file.mimetype,
         provider: uploadResult.provider,
         publicId: uploadResult.publicId,
@@ -1142,14 +1136,6 @@ async function saveUploadToCloudinary(file, phone, type = 'AADHAAR') {
         encryptionIV: iv.toString('hex'),
         encryptionTag: tag.toString('hex')
     });
-
-    // Cleanup temp files
-    try {
-        if (fs.existsSync(encryptedPath)) fs.unlinkSync(encryptedPath);
-        if (file.path && fs.existsSync(file.path)) fs.unlinkSync(file.path);
-    } catch (cleanupErr) {
-        console.warn('Temp upload cleanup failed:', cleanupErr.message);
-    }
 
     return mediaDoc;
 }
