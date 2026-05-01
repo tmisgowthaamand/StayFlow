@@ -96,10 +96,26 @@ document.getElementById('vacateForm').addEventListener('submit', async (e) => {
 
         const result = await res.json();
         if (res.ok && result.success) {
+            const requestId = result.requestId || 'Submitted';
+            const tenantName = document.getElementById('tenantName').textContent || 'Unknown';
+            const tenantRoom = document.getElementById('tenantRoom').textContent || '—';
+            const today = new Date().toLocaleDateString('en-IN');
+            const vacateDateFormatted = new Date(data.vacateDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+
             document.getElementById('vacateForm').style.display = 'none';
             document.getElementById('tenantInfo').style.display = 'none';
             document.getElementById('successMsg').style.display = 'block';
-            document.getElementById('requestId').textContent = '🆔 ' + (result.requestId || 'Submitted');
+
+            // Populate success screen
+            document.getElementById('requestId').textContent = '🆔 Request ID: ' + requestId;
+            document.getElementById('successReqId').textContent = requestId;
+            document.getElementById('successName').textContent = tenantName;
+            document.getElementById('successRoom').textContent = tenantRoom;
+            document.getElementById('successReason').textContent = reason;
+            document.getElementById('successRequested').textContent = today;
+            document.getElementById('successVacateBy').textContent = vacateDateFormatted;
+
+            window.scrollTo(0, 0);
         } else {
             throw new Error(result.error || 'Failed to submit');
         }

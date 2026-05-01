@@ -276,11 +276,55 @@
         </form>
 
         <div class="success-msg" id="successMsg" style="display: none;">
-            <div class="icon">✅</div>
-            <h2>Vacate Request Submitted!</h2>
-            <p>Your request has been sent to the admin. You will receive a confirmation PDF on WhatsApp shortly.</p>
-            <div class="req-id" id="requestId"></div>
-            <p style="margin-top: 16px; font-size: 13px;">The admin will review and confirm your request. You'll be notified via WhatsApp.</p>
+            <div style="padding: 24px;">
+                <div class="icon">✅</div>
+                <h2>Vacate Request Submitted!</h2>
+                <p style="color: #c0a0a0; margin-bottom: 20px;">Your request has been sent to the admin for review.</p>
+
+                <div class="req-id" id="requestId" style="margin-bottom: 20px;"></div>
+
+                <div style="background: rgba(255,255,255,0.05); border-radius: 12px; padding: 16px; margin-bottom: 20px; text-align: left;">
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; font-size: 13px;">
+                        <div>
+                            <div style="color: #c0a0a0; font-size: 11px; text-transform: uppercase; margin-bottom: 4px;">Name</div>
+                            <div style="color: #fff; font-weight: 600;" id="successName">—</div>
+                        </div>
+                        <div>
+                            <div style="color: #c0a0a0; font-size: 11px; text-transform: uppercase; margin-bottom: 4px;">Room</div>
+                            <div style="color: #fff; font-weight: 600;" id="successRoom">—</div>
+                        </div>
+                        <div>
+                            <div style="color: #c0a0a0; font-size: 11px; text-transform: uppercase; margin-bottom: 4px;">Reason</div>
+                            <div style="color: #fff; font-weight: 600;" id="successReason">—</div>
+                        </div>
+                        <div>
+                            <div style="color: #c0a0a0; font-size: 11px; text-transform: uppercase; margin-bottom: 4px;">Requested</div>
+                            <div style="color: #fff; font-weight: 600;" id="successRequested">—</div>
+                        </div>
+                        <div>
+                            <div style="color: #c0a0a0; font-size: 11px; text-transform: uppercase; margin-bottom: 4px;">Vacate By</div>
+                            <div style="color: #4ade80; font-weight: 600;" id="successVacateBy">—</div>
+                        </div>
+                        <div>
+                            <div style="color: #c0a0a0; font-size: 11px; text-transform: uppercase; margin-bottom: 4px;">Status</div>
+                            <div style="color: #f59e0b; font-weight: 600;">⏳ Pending</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div style="background: rgba(245,158,11,0.1); border: 1px solid rgba(245,158,11,0.25); border-radius: 10px; padding: 12px; margin-bottom: 20px; font-size: 13px; color: #fbbf24;">
+                    <strong>📄 What Happens Next:</strong>
+                    <ul style="margin-top: 8px; margin-left: 16px;">
+                        <li>Admin will review your request</li>
+                        <li>You'll receive confirmation on WhatsApp</li>
+                        <li>PDF copy will be sent to you</li>
+                    </ul>
+                </div>
+
+                <p style="font-size: 12px; color: #c0a0a0; line-height: 1.6;">
+                    Your request ID is <strong id="successReqId">—</strong>. Keep it for reference. The admin will review and confirm your request. You'll be notified via WhatsApp with the status.
+                </p>
+            </div>
         </div>
     </div>
 
