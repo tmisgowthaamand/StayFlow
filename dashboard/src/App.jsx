@@ -123,38 +123,51 @@ const getFullUrl = (path) => {
   return `${API_BASE_URL.replace(/\/$/, '')}${path.startsWith('/') ? '' : '/'}${path}`;
 };
 
+const TOKEN_STORAGE_KEY = 'stayflow_token';
+
+const getValidStoredToken = () => {
+  if (typeof window === 'undefined') return null;
+
+  const token = localStorage.getItem(TOKEN_STORAGE_KEY);
+  if (!token) return null;
+
+  try {
+    const payload = JSON.parse(atob(token.split('.')[1]));
+    if (payload.exp * 1000 > Date.now()) return token;
+  } catch {
+    // Invalid token shape; clear below.
+  }
+
+  localStorage.removeItem(TOKEN_STORAGE_KEY);
+  return null;
+};
+
+const applyAuthToken = (token) => {
+  if (token) {
+    axios.defaults.headers.common.Authorization = `Bearer ${token}`;
+  } else {
+    delete axios.defaults.headers.common.Authorization;
+  }
+};
+
+const initialAuthToken = getValidStoredToken();
+applyAuthToken(initialAuthToken);
+
+const isAuthError = (error) => error.response?.status === 401;
+
 const App = () => {
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isAuthenticated, setIsAuthenticated] = useState(Boolean(initialAuthToken));
   const [loginForm, setLoginForm] = useState({ username: '', password: '' });
   const [loginError, setLoginError] = useState('');
   const [rememberMe, setRememberMe] = useState(true);
-
-  // Restore token on mount
-  useEffect(() => {
-    const token = localStorage.getItem('stayflow_token');
-    if (token) {
-      try {
-        // Verify token hasn't expired (decode without verification for expiry check)
-        const payload = JSON.parse(atob(token.split('.')[1]));
-        if (payload.exp * 1000 > Date.now()) {
-          axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
-          setIsAuthenticated(true);
-        } else {
-          localStorage.removeItem('stayflow_token');
-        }
-      } catch { 
-        localStorage.removeItem('stayflow_token'); 
-      }
-    }
-  }, []);
 
   const handleLogin = async (e) => {
     e.preventDefault();
     try {
       const res = await axios.post('/api/login', loginForm);
       const token = res.data.token;
-      localStorage.setItem('stayflow_token', token);
-      axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+      localStorage.setItem(TOKEN_STORAGE_KEY, token);
+      applyAuthToken(token);
       setIsAuthenticated(true);
       setLoginError('');
     } catch (err) {
@@ -164,8 +177,8 @@ const App = () => {
 
   const handleLogout = () => {
     setIsAuthenticated(false);
-    localStorage.removeItem('stayflow_token');
-    delete axios.defaults.headers.common['Authorization'];
+    localStorage.removeItem(TOKEN_STORAGE_KEY);
+    applyAuthToken(null);
     setLoginForm({ username: '', password: '' });
   };
 
@@ -202,18 +215,51 @@ const App = () => {
     setTimeout(() => setToast(null), 3000);
   };
 
+  const handleAuthExpired = () => {
+    localStorage.removeItem(TOKEN_STORAGE_KEY);
+    applyAuthToken(null);
+    setIsAuthenticated(false);
+    setLoading(false);
+    setNotifications([]);
+    setQueries([]);
+    setTenants([]);
+    setArchivedTenants([]);
+    setLocationsData([]);
+    setConfigData(null);
+    showToast('Session expired. Please log in again.', 'error');
+  };
+
+  useEffect(() => {
+    const interceptorId = axios.interceptors.response.use(
+      response => response,
+      error => {
+        const isLoginRequest = error.config?.url?.includes('/api/login');
+        if (error.response?.status === 401 && !isLoginRequest) {
+          handleAuthExpired();
+        }
+        return Promise.reject(error);
+      }
+    );
+
+    return () => axios.interceptors.response.eject(interceptorId);
+  }, []);
+
   const fetchNotifications = async () => {
     try {
       const res = await axios.get('/api/notifications');
       setNotifications(Array.isArray(res.data) ? res.data : []);
-    } catch (e) { console.error('Notif fetch error:', e); }
+    } catch (e) {
+      if (!isAuthError(e)) console.error('Notif fetch error:', e);
+    }
   };
 
   const fetchQueries = async () => {
     try {
       const res = await axios.get('/api/queries');
       setQueries(Array.isArray(res.data) ? res.data : []);
-    } catch (e) { console.error('Queries fetch error:', e); }
+    } catch (e) {
+      if (!isAuthError(e)) console.error('Queries fetch error:', e);
+    }
   };
 
   const handleQueryReply = async (queryId) => {
@@ -237,22 +283,41 @@ const App = () => {
 
 
   useEffect(() => {
-    fetchData();
-    fetchArchivedData();
-    fetchConfig();
-    fetchLocations();
-    fetchNotifications();
-    fetchQueries();
-    const notifInterval = setInterval(fetchNotifications, 30000);
-    return () => clearInterval(notifInterval);
-  }, []);
+    if (!isAuthenticated) {
+      setLoading(false);
+      return undefined;
+    }
+
+    let cancelled = false;
+    let notifInterval = null;
+
+    const loadProtectedData = async () => {
+      setLoading(true);
+      const loadedTenants = await fetchData();
+      if (cancelled || !loadedTenants) return;
+
+      fetchArchivedData();
+      fetchConfig();
+      fetchLocations();
+      fetchNotifications();
+      fetchQueries();
+      notifInterval = setInterval(fetchNotifications, 30000);
+    };
+
+    loadProtectedData();
+
+    return () => {
+      cancelled = true;
+      if (notifInterval) clearInterval(notifInterval);
+    };
+  }, [isAuthenticated]);
 
   const fetchLocations = async () => {
     try {
       const res = await axios.get('/api/locations');
       setLocationsData(res.data);
     } catch (err) {
-      console.error('Error fetching locations:', err);
+      if (!isAuthError(err)) console.error('Error fetching locations:', err);
     }
   };
 
@@ -261,7 +326,7 @@ const App = () => {
       const res = await axios.get('/api/config');
       setConfigData(res.data);
     } catch (err) {
-      console.error('Error fetching config:', err);
+      if (!isAuthError(err)) console.error('Error fetching config:', err);
     }
   };
 
@@ -488,10 +553,14 @@ const App = () => {
         setTenants([]);
       }
       setLoading(false);
+      return true;
     } catch (err) {
-      console.error('Error fetching tenants:', err);
+      if (!isAuthError(err)) console.error('Error fetching tenants:', err);
       setLoading(false);
-      showToast('Connection failed: ' + (err.response?.statusText || err.message), 'error');
+      if (err.response?.status !== 401) {
+        showToast('Connection failed: ' + (err.response?.statusText || err.message), 'error');
+      }
+      return false;
     }
   };
 
@@ -500,7 +569,7 @@ const App = () => {
       const res = await axios.get('/api/archived-tenants');
       setArchivedTenants(res.data);
     } catch (err) {
-      console.error('Error fetching archived tenants:', err);
+      if (!isAuthError(err)) console.error('Error fetching archived tenants:', err);
     }
   };
 

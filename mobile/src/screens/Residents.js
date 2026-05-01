@@ -186,7 +186,7 @@ const Residents = ({ route }) => {
                     // Get JWT token for authentication
                     const token = await AsyncStorage.getItem('stayflow_jwt');
                     
-                    const response = await fetch('https://stayflow-x8is.onrender.com/api/generate-invoice', {
+                    const response = await fetch('https://stayflow-tkto.onrender.com/api/generate-invoice', {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',
@@ -215,7 +215,7 @@ const Residents = ({ route }) => {
                         if (base64data) {
                             navigation.navigate('PDFViewer', {
                                 base64Data: base64data,
-                                uri: json.url ? `https://stayflow-x8is.onrender.com${json.url}` : `https://stayflow-x8is.onrender.com/api/generate-invoice?phone=${selectedTenant.Phone}`,
+                                uri: json.url ? `https://stayflow-tkto.onrender.com${json.url}` : `https://stayflow-tkto.onrender.com/api/generate-invoice?phone=${selectedTenant.Phone}`,
                                 title: `${t('invoice')} - ${selectedTenant.Name}`,
                                 shareEnabled: true
                             });
@@ -227,7 +227,7 @@ const Residents = ({ route }) => {
                             // Construct absolute URL if relative
                             let pdfUrl = json.url;
                             if (pdfUrl.startsWith('/')) {
-                                pdfUrl = `https://stayflow-x8is.onrender.com${pdfUrl}`;
+                                pdfUrl = `https://stayflow-tkto.onrender.com${pdfUrl}`;
                             }
 
                             // Ensure URL is encoded (e.g. spaces in filenames)

@@ -110,7 +110,7 @@ const Registrations = () => {
     const openDocument = useCallback(async (filename) => {
         if (!filename) { Alert.alert('No Document', 'No registration form attached.'); return; }
         const token = await AsyncStorage.getItem('stayflow_jwt');
-        Linking.openURL(`https://stayflow-x8is.onrender.com/api/media/${filename}`).catch(() => Alert.alert('Error', 'Could not open document.'));
+        Linking.openURL(`https://stayflow-tkto.onrender.com/api/media/${filename}`).catch(() => Alert.alert('Error', 'Could not open document.'));
     }, []);
 
     const renderItem = useCallback(({ item, index }) => <RegistrationCard item={item} index={index} openDocument={openDocument} />, [openDocument]);

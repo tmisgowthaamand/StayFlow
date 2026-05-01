@@ -63,7 +63,7 @@ async function createRazorpayLink(phone, name, amount, room = 'N/A') {
 
         // Fallback: Create external Razorpay link
         try {
-            const baseUrl = config.whatsapp.callbackUrl ? config.whatsapp.callbackUrl.replace('/webhook', '') : 'https://stayflow-x8is.onrender.com';
+            const baseUrl = config.whatsapp.callbackUrl ? config.whatsapp.callbackUrl.replace('/webhook', '') : 'https://stayflow-tkto.onrender.com';
             const confirmationUrl = `${baseUrl}/confirmation.html?phone=${encodeURIComponent(phone)}`;
 
             const paymentLink = await razorpay.paymentLink.create({
@@ -854,8 +854,8 @@ async function handleIncomingMessage(phone, body, messageId = null, image = null
             case 'MENU_VACATE':
             case '🚪 VACATE': {
                 const vacateBanner = path.join(__dirname, '../assets/Vacate.png');
-                const vBaseUrl = config.whatsapp.callbackUrl ? config.whatsapp.callbackUrl.replace('/webhook', '') : 'https://stayflow.onrender.com';
-                const vacateUrl = `${vBaseUrl}/vacate.html?phone=${encodeURIComponent(phone)}`;
+                const vBaseUrl = config.whatsapp.callbackUrl ? config.whatsapp.callbackUrl.replace('/webhook', '') : 'https://stayflow-tkto.onrender.com';
+                const vacateUrl = `${vBaseUrl}/vacate?phone=${encodeURIComponent(phone)}`;
                 const vacateCaption = `🚪 *Vacate Room*\n━━━━━━━━━━━━━━━━━━━━\n\nFill the vacate request form to initiate your checkout process.\n\n⚠️ 30 days notice required.\n📄 PDF will be sent to you & admin on WhatsApp.`;
                 if (fs.existsSync(vacateBanner)) await sendImage(phone, vacateBanner, vacateCaption);
                 await sendCTAButton(
@@ -955,7 +955,7 @@ async function handleIncomingMessage(phone, body, messageId = null, image = null
             case 'MENU_QUERIES':
             case '❓ QUERIES': {
                 const queryBanner = path.join(__dirname, '../assets/Queries.png');
-                const baseUrl = config.whatsapp.callbackUrl ? config.whatsapp.callbackUrl.replace('/webhook', '') : 'https://stayflow.onrender.com';
+                const baseUrl = config.whatsapp.callbackUrl ? config.whatsapp.callbackUrl.replace('/webhook', '') : 'https://stayflow-tkto.onrender.com';
                 const queriesUrl = `${baseUrl}/queries.html?phone=${encodeURIComponent(phone)}`;
                 const queryCaption = `❓ *Queries & Support*\n━━━━━━━━━━━━━━━━━━━━\n\nHave a question or concern? Use the form below to send us your queries.\n\nOur team will review and get back to you shortly! 🙏`;
                 if (fs.existsSync(queryBanner)) await sendImage(phone, queryBanner, queryCaption);
@@ -1727,12 +1727,26 @@ async function handleMenuVacancy(phone) {
             vacancyMsg += `📍 *${config.businessName}*\n   🏠 Active Tenants: ${totalActive}\n   🟢 Rooms maybe available — Contact admin for details\n\n`;
         }
 
-        vacancyMsg += `━━━━━━━━━━━━━━━━━━━━\n📞 Contact admin for booking!`;
-        await sendButtons(phone, vacancyMsg, ['📞 Contact']);
+        const regUrl = config.googleFormUrl || 'https://stay-flow-kohl.vercel.app/register.html';
+        vacancyMsg += `━━━━━━━━━━━━━━━━━━━━\nFill the registration form to apply for an available bed.`;
+        await sendMessage(phone, vacancyMsg);
+        await sendCTAButton(
+            phone,
+            'Tap below to open the registration form and fill your details.',
+            'Register Now',
+            regUrl,
+            'Available Rooms'
+        );
     } catch (err) {
         console.error('Vacancy check error:', err.message);
-        await sendMessage(phone, `🛏️ *Vacancy Rooms*\n\nPlease contact the admin to check room availability.`);
-        await sendButtons(phone, 'Contact admin for room availability:', ['📞 Contact']);
+        const regUrl = config.googleFormUrl || 'https://stay-flow-kohl.vercel.app/register.html';
+        await sendCTAButton(
+            phone,
+            `🛏️ *Vacancy Rooms*\n\nPlease fill the registration form and admin will confirm availability.`,
+            'Register Now',
+            regUrl,
+            'Available Rooms'
+        );
     }
 }
 

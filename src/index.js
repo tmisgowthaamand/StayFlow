@@ -1181,6 +1181,11 @@ app.get('/queries', (req, res) => {
     res.sendFile(path.join(__dirname, '../public/queries.html'));
 });
 
+// Serve vacate form
+app.get('/vacate', (req, res) => {
+    res.sendFile(path.join(__dirname, '../public/vacate.html'));
+});
+
 // API to submit a query from the queries form
 app.post('/api/submit-query', publicEndpointLimiter, validate(querySchema), async (req, res) => {
     try {
@@ -1245,7 +1250,7 @@ app.post('/api/submit-query', publicEndpointLimiter, validate(querySchema), asyn
 });
 
 // API to get tenant info (for vacate form auto-fill)
-app.get('/api/tenant-info', async (req, res) => {
+app.get('/api/tenant-info', publicEndpointLimiter, async (req, res) => {
     try {
         const { phone } = req.query;
         if (!phone) return res.status(400).json({ error: 'Phone required' });
