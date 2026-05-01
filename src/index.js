@@ -1475,7 +1475,7 @@ app.post('/api/web-register', upload.single('aadhaar'), async (req, res) => {
         });
 
         await sendMessage(phone, `✅ *Registration Successful!* 🎉\n\nWelcome ${name} to Room ${room}. We are happy to have you! 🏠\n\n${detailedRules}\n\n🤖 *How to Use:* Type *HI* anytime to see your dashboard!`);
-        await sendMedia(phone, regPath, '📄 Your registration copy', null, 'StayFlow_Registration.pdf');
+        // Registration PDF only sent to admin, not to user
 
         if (config.ownerPhone) {
             await sendMessage(config.ownerPhone, `📝 *New Web Registration*\n${name} - ${room}\nPhone: ${phone}\nAdvance: ₹${advance}`);
@@ -1555,7 +1555,7 @@ app.post('/api/public/register', publicEndpointLimiter, upload.single('aadhaar')
 
         try {
             await sendMessage(phone, `✅ *Registration Successful!*\n\nWelcome ${name}! 🏠 We are excited to have you stay with us.\n\n${detailedRules}`);
-            await sendMedia(phone, regPath, '📄 Your registration copy', null, 'StayFlow_Registration.pdf');
+            // Registration PDF only sent to admin, not to user
         } catch (wsErr) {
             console.warn('WhatsApp notification failed, but registration succeeded:', wsErr.message);
         }
@@ -1642,7 +1642,7 @@ app.post('/webhook/google-form', async (req, res) => {
         await sheetsService.addTenant(tenantData);
 
         await sendMessage(tenantData.phone, `🎉 Hello ${tenantData.name}! Your registration is successful. ✅\n\nWelcome to *${config.businessName}*! 🏠\n\n${detailedRules}\n\n🤖 *Smart Bot:* Type *HI* to see your dashboard and bills!`);
-        await sendMedia(tenantData.phone, regPath, '📄 Your registration copy', null, 'StayFlow_Registration.pdf');
+        // Registration PDF only sent to admin, not to user
 
         if (config.ownerPhone) {
             await sendMessage(config.ownerPhone, `📝 *New Form Registration*\n━━━━━━━━━━━━━━━━━━━━\n\n👤 *Name*          :  ${tenantData.name}\n📞 *Phone*         :  ${tenantData.phone}\n🚪 *Room*          :  ${tenantData.room}\n\n━━━━━━━━━━━━━━━━━━━━\n_Please verify in the dashboard._`);
@@ -1688,7 +1688,7 @@ app.post('/api/add-tenant', authenticate, async (req, res) => {
         await sheetsService.addTenant(tenantData);
 
         await sendMessage(tenantData.phone, `✅ *Registration Successful!*\n\nWelcome ${tenantData.name}! 🏠\n\n${detailedRules}`);
-        await sendMedia(tenantData.phone, regPath, '📄 Your registration copy', null, 'StayFlow_Registration.pdf');
+        // Registration PDF only sent to admin, not to user
 
         if (config.ownerPhone) {
             await sendMessage(config.ownerPhone, `📝 *Admin Added Resident*\nName: ${tenantData.name}\nPhone: ${tenantData.phone}`);
