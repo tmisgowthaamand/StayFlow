@@ -231,7 +231,7 @@
             <div class="row"><span class="label">💵 Advance</span><span class="value" id="tenantAdvance">—</span></div>
         </div>
 
-        <form id="vacateForm" style="display:none;">
+        <form id="vacateForm">
             <div class="notice-box">
                 ⚠️ <strong>Important:</strong> A minimum 30-day notice period is required. Admin will review your request and confirm via WhatsApp.
             </div>
@@ -273,7 +273,7 @@
             <button type="submit" class="submit-btn" id="submitBtn">🚪 Submit Vacate Request</button>
         </form>
 
-        <div class="success-msg" id="successMsg">
+        <div class="success-msg" id="successMsg" style="display: none;">
             <div class="icon">✅</div>
             <h2>Vacate Request Submitted!</h2>
             <p>Your request has been sent to the admin. You will receive a confirmation PDF on WhatsApp shortly.</p>
@@ -302,15 +302,15 @@
 
         // Fetch tenant info on load
         async function loadTenantInfo() {
-            if (!phoneParam) {
-                document.getElementById('loadingState').style.display = 'none';
-                document.getElementById('vacateForm').style.display = 'block';
-                return;
-            }
-
-            document.getElementById('loadingState').style.display = 'block';
-
             try {
+                if (!phoneParam) {
+                    document.getElementById('loadingState').style.display = 'none';
+                    document.getElementById('vacateForm').style.display = 'block';
+                    return;
+                }
+
+                document.getElementById('loadingState').style.display = 'block';
+
                 const res = await fetch(`/api/tenant-info?phone=${encodeURIComponent(phoneParam)}`);
                 if (res.ok) {
                     const data = await res.json();
@@ -324,13 +324,16 @@
                 }
             } catch (e) {
                 console.warn('Could not load tenant info:', e);
+            } finally {
+                document.getElementById('loadingState').style.display = 'none';
+                document.getElementById('vacateForm').style.display = 'block';
             }
-
-            document.getElementById('loadingState').style.display = 'none';
-            document.getElementById('vacateForm').style.display = 'block';
         }
 
-        loadTenantInfo();
+        // Ensure form displays on load
+        window.addEventListener('load', loadTenantInfo);
+        // Also try immediately in case load event already fired
+        setTimeout(loadTenantInfo, 100);
 
         document.getElementById('vacateForm').addEventListener('submit', async (e) => {
             e.preventDefault();
