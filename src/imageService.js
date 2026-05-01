@@ -53,12 +53,12 @@ export function generateVacateApprovalCard(data) {
     ctx.fillRect(0, 0, W, 6);
 
     // === STAYFLOW BRANDING (top-left) ===
-    ctx.font = 'bold 20px Arial, sans-serif';
+    ctx.font = 'bold 20px "DejaVu Sans", "Liberation Sans", sans-serif';
     ctx.fillStyle = '#4f46e5';
     ctx.fillText('Stay', 40, 45);
     ctx.fillStyle = '#06b6d4';
     ctx.fillText('Flow', 82, 45);
-    ctx.font = '11px Arial, sans-serif';
+    ctx.font = '11px "DejaVu Sans", "Liberation Sans", sans-serif';
     ctx.fillStyle = '#64748b';
     ctx.fillText('PREMIUM PG MANAGEMENT', 40, 60);
 
@@ -66,12 +66,12 @@ export function generateVacateApprovalCard(data) {
     roundRect(ctx, W - 200, 25, 160, 40, 20);
     ctx.fillStyle = '#10b981';
     ctx.fill();
-    ctx.font = 'bold 16px Arial, sans-serif';
+    ctx.font = 'bold 16px "DejaVu Sans", "Liberation Sans", sans-serif';
     ctx.fillStyle = '#ffffff';
-    ctx.fillText('✅ APPROVED', W - 175, 51);
+    ctx.fillText('[OK] APPROVED', W - 170, 51);
 
     // === TITLE ===
-    ctx.font = 'bold 32px Arial, sans-serif';
+    ctx.font = 'bold 32px "DejaVu Sans", "Liberation Sans", sans-serif';
     ctx.fillStyle = '#ffffff';
     ctx.fillText('Vacate Request Approved', 40, 110);
 
@@ -93,22 +93,22 @@ export function generateVacateApprovalCard(data) {
 
     // Detail rows
     const details = [
-        { icon: '👤', label: 'Name', value: name || 'N/A' },
-        { icon: '🚪', label: 'Room', value: room || 'N/A' },
-        { icon: '📋', label: 'Reason', value: reason || 'N/A' },
-        { icon: '📅', label: 'Vacate By', value: vacateDate || 'N/A' },
-        { icon: '📌', label: 'Status', value: `APPROVED (${approvedBy || 'Admin'})` },
+        { icon: '[*]', label: 'Name', value: name || 'N/A' },
+        { icon: '[ ]', label: 'Room', value: room || 'N/A' },
+        { icon: '[?]', label: 'Reason', value: reason || 'N/A' },
+        { icon: '[D]', label: 'Vacate By', value: vacateDate || 'N/A' },
+        { icon: '[v]', label: 'Status', value: `APPROVED (${approvedBy || 'Admin'})` },
     ];
 
     let yPos = 195;
     details.forEach((d) => {
         // Icon
-        ctx.font = '22px Arial, sans-serif';
+        ctx.font = '22px "DejaVu Sans", "Liberation Sans", monospace';
         ctx.fillStyle = '#ffffff';
         ctx.fillText(d.icon, 70, yPos);
 
         // Label
-        ctx.font = 'bold 18px Arial, sans-serif';
+        ctx.font = 'bold 18px "DejaVu Sans", "Liberation Sans", sans-serif';
         ctx.fillStyle = '#94a3b8';
         ctx.fillText(d.label, 110, yPos);
 
@@ -117,7 +117,7 @@ export function generateVacateApprovalCard(data) {
         ctx.fillText(':', 260, yPos);
 
         // Value
-        ctx.font = '18px Arial, sans-serif';
+        ctx.font = '18px "DejaVu Sans", "Liberation Sans", sans-serif';
         ctx.fillStyle = '#f1f5f9';
         const val = String(d.value).length > 40 ? String(d.value).substring(0, 37) + '...' : String(d.value);
         ctx.fillText(val, 280, yPos);
@@ -126,7 +126,7 @@ export function generateVacateApprovalCard(data) {
     });
 
     // === BOTTOM MESSAGE ===
-    ctx.font = '16px Arial, sans-serif';
+    ctx.font = '16px "DejaVu Sans", "Liberation Sans", sans-serif';
     ctx.fillStyle = '#94a3b8';
     ctx.fillText('Your vacate request has been approved.', 40, 475);
     ctx.fillText('Please clear any pending dues and return your room key.', 40, 498);
@@ -187,12 +187,12 @@ export function generateVacateSubmittedCard(data) {
     ctx.fillRect(0, 0, W, 6);
 
     // === STAYFLOW BRANDING (top-left) ===
-    ctx.font = 'bold 20px Arial, sans-serif';
+    ctx.font = 'bold 20px "DejaVu Sans", "Liberation Sans", sans-serif';
     ctx.fillStyle = '#4f46e5';
     ctx.fillText('Stay', 40, 45);
     ctx.fillStyle = '#06b6d4';
     ctx.fillText('Flow', 82, 45);
-    ctx.font = '11px Arial, sans-serif';
+    ctx.font = '11px "DejaVu Sans", "Liberation Sans", sans-serif';
     ctx.fillStyle = '#64748b';
     ctx.fillText('PREMIUM PG MANAGEMENT', 40, 60);
 
@@ -200,12 +200,12 @@ export function generateVacateSubmittedCard(data) {
     roundRect(ctx, W - 220, 25, 180, 40, 20);
     ctx.fillStyle = '#f59e0b';
     ctx.fill();
-    ctx.font = 'bold 15px Arial, sans-serif';
+    ctx.font = 'bold 15px "DejaVu Sans", "Liberation Sans", sans-serif';
     ctx.fillStyle = '#000000';
-    ctx.fillText('⏳ PENDING REVIEW', W - 200, 51);
+    ctx.fillText('PENDING REVIEW', W - 180, 51);
 
     // === TITLE ===
-    ctx.font = 'bold 30px Arial, sans-serif';
+    ctx.font = 'bold 30px "DejaVu Sans", "Liberation Sans", sans-serif';
     ctx.fillStyle = '#ffffff';
     ctx.fillText('Vacate Request Submitted', 40, 110);
 
@@ -225,31 +225,31 @@ export function generateVacateSubmittedCard(data) {
     ctx.lineWidth = 1;
     ctx.stroke();
 
-    // Detail rows
+    // Detail rows - using ASCII-safe labels
     const details = [
-        { icon: '🆔', label: 'Request ID', value: requestId || 'N/A' },
-        { icon: '👤', label: 'Name', value: name || 'N/A' },
-        { icon: '🚪', label: 'Room', value: room || 'N/A' },
-        { icon: '📋', label: 'Reason', value: reason || 'N/A' },
-        { icon: '📅', label: 'Requested', value: requestDate || 'N/A' },
-        { icon: '📅', label: 'Vacate By', value: vacateDate || 'N/A' },
-        { icon: '💬', label: 'Feedback', value: feedback || 'No feedback' },
+        { icon: '[ID]', label: 'Request ID', value: requestId || 'N/A' },
+        { icon: '[*]', label: 'Name', value: name || 'N/A' },
+        { icon: '[ ]', label: 'Room', value: room || 'N/A' },
+        { icon: '[?]', label: 'Reason', value: reason || 'N/A' },
+        { icon: '[D]', label: 'Requested', value: requestDate || 'N/A' },
+        { icon: '[D]', label: 'Vacate By', value: vacateDate || 'N/A' },
+        { icon: '[C]', label: 'Feedback', value: feedback || 'No feedback' },
     ];
 
     let yPos = 185;
     details.forEach((d) => {
-        ctx.font = '20px Arial, sans-serif';
+        ctx.font = '18px "DejaVu Sans", "Liberation Sans", monospace';
         ctx.fillStyle = '#ffffff';
         ctx.fillText(d.icon, 70, yPos);
 
-        ctx.font = 'bold 17px Arial, sans-serif';
+        ctx.font = 'bold 16px "DejaVu Sans", "Liberation Sans", sans-serif';
         ctx.fillStyle = '#94a3b8';
         ctx.fillText(d.label, 110, yPos);
 
         ctx.fillStyle = '#64748b';
         ctx.fillText(':', 260, yPos);
 
-        ctx.font = '17px Arial, sans-serif';
+        ctx.font = '16px "DejaVu Sans", "Liberation Sans", sans-serif';
         ctx.fillStyle = '#f1f5f9';
         const val = String(d.value).length > 38 ? String(d.value).substring(0, 35) + '...' : String(d.value);
         ctx.fillText(val, 280, yPos);
@@ -258,7 +258,7 @@ export function generateVacateSubmittedCard(data) {
     });
 
     // === BOTTOM MESSAGE ===
-    ctx.font = 'italic 16px Arial, sans-serif';
+    ctx.font = 'italic 16px "DejaVu Sans", "Liberation Sans", sans-serif';
     ctx.fillStyle = '#f59e0b';
     ctx.fillText('Admin will review and confirm. You will be notified.', 40, 535);
 
