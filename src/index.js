@@ -1436,8 +1436,12 @@ app.post('/api/web-register', upload.single('aadhaar'), async (req, res) => {
 
         let aadhaarImage = '';
         if (file) {
-            const mediaDoc = await saveUploadToCloudinary(file, phone, 'AADHAAR');
-            aadhaarImage = mediaDoc._id.toString();
+            try {
+                const mediaDoc = await saveUploadToCloudinary(file, phone, 'AADHAAR');
+                aadhaarImage = mediaDoc._id.toString();
+            } catch (uploadErr) {
+                console.warn(`[WEB REG] File upload failed but continuing: ${uploadErr.message}`);
+            }
         }
 
         const detailedRules = `🏢 *PG House Rules & Regulations*\n━━━━━━━━━━━━━━━━━━━━\n⚖️ *DO's:*\n1. Keep your room and shared areas clean and hygienic.\n2. Maintain silence after 10:00 PM for everyone's comfort.\n3. Pay rent by the 5th and EB bills by the 10th of each month.\n4. Inform the admin 30 days before vacating.\n5. Cooperate with police verification and security checks.\n\n🚫 *DON'Ts:*\n1. Strictly NO smoking, alcohol, or illegal substances.\n2. No overnight visitors allowed without prior permission.\n3. Do not use heavy appliances (Heaters/AC/Iron) without approval.\n4. No loud music, parties, or disturbances in rooms.\n5. Do not damage PG property or furniture.\n\n📜 *Note:* Rules are for the safety and comfort of all residents.\n━━━━━━━━━━━━━━━━━━━━`;
@@ -1500,8 +1504,12 @@ app.post('/api/public/register', publicEndpointLimiter, upload.single('aadhaar')
 
         let aadhaarImage = '';
         if (file) {
-            const mediaDoc = await saveUploadToCloudinary(file, phone, 'AADHAAR');
-            aadhaarImage = mediaDoc._id.toString();
+            try {
+                const mediaDoc = await saveUploadToCloudinary(file, phone, 'AADHAAR');
+                aadhaarImage = mediaDoc._id.toString();
+            } catch (uploadErr) {
+                console.warn(`[PUBLIC REG] File upload failed but continuing: ${uploadErr.message}`);
+            }
         }
 
         // 1. Generate Registration Form PDF
