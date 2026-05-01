@@ -1305,16 +1305,24 @@ app.post('/api/submit-vacate', publicEndpointLimiter, validate(vacateSchema), as
             feedback: feedback || 'No feedback'
         });
 
-        // Send image card + caption to tenant via WhatsApp
-        const submittedCardPath = generateVacateSubmittedCard({ requestId, name, room, reason, requestDate, vacateDate: formattedVacateDate, feedback: feedback || 'No feedback' });
-        const tenantCaption = `🚪 *Vacate Request Submitted*\n━━━━━━━━━━━━━━━━━━━━\n\n🆔 *Request ID*  :  ${requestId}\n👤 *Name*          :  ${name}\n🚪 *Room*          :  ${room}\n📋 *Reason*        :  ${reason}\n📅 *Requested*  :  ${requestDate}\n📅 *Vacate By*    :  ${formattedVacateDate}\n💬 *Feedback*    :  ${feedback || 'No feedback'}\n━━━━━━━━━━━━━━━━━━━━\n_Admin will review and confirm. You will be notified._`;
-        await sendMedia(phone, submittedCardPath, tenantCaption);
-        await sendMedia(phone, filePath, `📄 Vacate Request — ${name}`, null, `Vacate_${name}.pdf`);
+        // Try to send WhatsApp messages (may fail if 24+ hours since customer reply)
+        try {
+            const submittedCardPath = generateVacateSubmittedCard({ requestId, name, room, reason, requestDate, vacateDate: formattedVacateDate, feedback: feedback || 'No feedback' });
+            const tenantCaption = `🚪 *Vacate Request Submitted*\n━━━━━━━━━━━━━━━━━━━━\n\n🆔 *Request ID*  :  ${requestId}\n👤 *Name*          :  ${name}\n🚪 *Room*          :  ${room}\n📋 *Reason*        :  ${reason}\n📅 *Requested*  :  ${requestDate}\n📅 *Vacate By*    :  ${formattedVacateDate}\n💬 *Feedback*    :  ${feedback || 'No feedback'}\n━━━━━━━━━━━━━━━━━━━━\n_Admin will review and confirm. You will be notified._`;
+            await sendMedia(phone, submittedCardPath, tenantCaption);
+            await sendMedia(phone, filePath, `📄 Vacate Request — ${name}`, null, `Vacate_${name}.pdf`);
+        } catch (e) {
+            console.warn(`⚠️ Could not send WhatsApp to ${phone}: ${e.message} (will notify via push)`);
+        }
 
         // Send to admin via WhatsApp
         if (config.ownerPhone) {
-            await sendMessage(config.ownerPhone, `🚪 *New Vacate Request*\n━━━━━━━━━━━━━━━━━━━━\n\n🆔 *ID*                :  ${requestId}\n👤 *Tenant*        :  ${name}\n📞 *Phone*         :  ${phone}\n🚪 *Room*          :  ${room}\n💰 *Rent*            :  ₹${monthlyRent}\n💵 *Advance*      :  ₹${advance}\n📋 *Reason*        :  ${reason}\n📅 *Vacate By*    :  ${formattedVacateDate}\n💬 *Feedback*    :  ${feedback || 'No feedback'}\n━━━━━━━━━━━━━━━━━━━━\n_Reply *VACATE ${room}* to confirm checkout._`);
-            await sendMedia(config.ownerPhone, filePath, `📄 Vacate Request — ${name}`, null, `Vacate_${name}.pdf`);
+            try {
+                await sendMessage(config.ownerPhone, `🚪 *New Vacate Request*\n━━━━━━━━━━━━━━━━━━━━\n\n🆔 *ID*                :  ${requestId}\n👤 *Tenant*        :  ${name}\n📞 *Phone*         :  ${phone}\n🚪 *Room*          :  ${room}\n💰 *Rent*            :  ₹${monthlyRent}\n💵 *Advance*      :  ₹${advance}\n📋 *Reason*        :  ${reason}\n📅 *Vacate By*    :  ${formattedVacateDate}\n💬 *Feedback*    :  ${feedback || 'No feedback'}\n━━━━━━━━━━━━━━━━━━━━\n_Reply *VACATE ${room}* to confirm checkout._`);
+                await sendMedia(config.ownerPhone, filePath, `📄 Vacate Request — ${name}`, null, `Vacate_${name}.pdf`);
+            } catch (e) {
+                console.warn(`⚠️ Could not send admin notification: ${e.message}`);
+            }
         }
 
         // 🔔 Create In-App Notification
