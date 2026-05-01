@@ -27,7 +27,17 @@ export const querySchema = Joi.object({
 export const vacateSchema = Joi.object({
     phone: phoneSchema,
     reason: Joi.string().min(5).max(500).required(),
-    vacateDate: Joi.date().iso().min('now').required(),
+    vacateDate: Joi.string().isoDate().required().custom((value, helpers) => {
+        const date = new Date(value);
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        if (date < today) {
+            return helpers.error('any.invalid');
+        }
+        return value;
+    }).messages({
+        'any.invalid': 'Vacate date must be in the future'
+    }),
     feedback: Joi.string().max(1000).optional(),
 });
 
