@@ -91,6 +91,7 @@ app.use('/api/', apiLimiter);
 app.use('/api/verify-transaction', paymentLimiter);
 app.use('/api/mark-paid', paymentLimiter);
 app.use('/api/razorpay-webhook', express.raw({ type: 'application/json' })); // Raw body for signature verification
+app.use('/webhook', express.raw({ type: 'application/json' })); // Raw body for WhatsApp signature verification
 app.use(bodyParser.json());
 
 // Ensure uploads directory exists
@@ -448,7 +449,8 @@ app.get('/webhook', (req, res) => {
 app.post('/webhook', async (req, res) => {
     // P1: WhatsApp Webhook Signature Verification
     const signature = req.headers['x-hub-signature-256'];
-    
+    const rawBody = req.body instanceof Buffer ? req.body.toString('utf-8') : JSON.stringify(req.body);
+
     if (!config.whatsapp.appSecret) {
         console.warn('⚠️  WHATSAPP_APP_SECRET not configured - signature verification DISABLED (INSECURE)');
     } else {
@@ -456,19 +458,19 @@ app.post('/webhook', async (req, res) => {
             console.warn('❌ WhatsApp Webhook: Missing signature header');
             return res.sendStatus(403);
         }
-        
+
         const expectedSignature = 'sha256=' + crypto
             .createHmac('sha256', config.whatsapp.appSecret)
-            .update(JSON.stringify(req.body))
+            .update(rawBody)
             .digest('hex');
-        
+
         if (signature !== expectedSignature) {
             console.warn('❌ WhatsApp Webhook: Signature verification failed');
             return res.sendStatus(403);
         }
     }
 
-    const body = req.body;
+    const body = JSON.parse(rawBody instanceof Buffer ? rawBody.toString('utf-8') : rawBody);
     if (process.env.NODE_ENV !== 'production') {
         console.log(`[WEBHOOK] Received: ${JSON.stringify(body)}`);
     }
