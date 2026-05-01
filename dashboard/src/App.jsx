@@ -123,6 +123,12 @@ const getFullUrl = (path) => {
   return `${API_BASE_URL.replace(/\/$/, '')}${path.startsWith('/') ? '' : '/'}${path}`;
 };
 
+const getMediaUrl = (mediaId) => {
+  const token = localStorage.getItem('stayflow_token');
+  const baseUrl = getFullUrl(`/api/media/${mediaId}`);
+  return token ? `${baseUrl}?token=${encodeURIComponent(token)}` : baseUrl;
+};
+
 const TOKEN_STORAGE_KEY = 'stayflow_token';
 
 const getValidStoredToken = () => {
@@ -1056,14 +1062,14 @@ const App = () => {
                   </td>
                   <td>
                     {t['Aadhaar Image'] ? (
-                      <button className="btn btn-glass btn-small" onClick={() => window.open(getFullUrl(`/api/media/${t['Aadhaar Image']}?key=${ADMIN_API_KEY}`), '_blank')} title="View Document">
+                      <button className="btn btn-glass btn-small" onClick={() => window.open(getFullUrl(`/api/media/${t['Aadhaar Image']}`), '_blank')} title="View Document">
                         <Camera size={12} /> View
                       </button>
                     ) : <span style={{ color: 'var(--text-faint)', fontSize: '0.78rem' }}>N/A</span>}
                   </td>
                   <td>
                     {t['Registration Form'] ? (
-                      <button className="btn btn-glass btn-small" onClick={() => window.open(getFullUrl(`/api/media/${t['Registration Form']}?key=${ADMIN_API_KEY}`), '_blank')} title="View Registration" style={{ color: 'var(--primary)' }}>
+                      <button className="btn btn-glass btn-small" onClick={() => window.open(getFullUrl(`/api/media/${t['Registration Form']}`), '_blank')} title="View Registration" style={{ color: 'var(--primary)' }}>
                         <FileText size={12} /> Reg
                       </button>
                     ) : <span style={{ color: 'var(--text-faint)', fontSize: '0.78rem' }}>N/A</span>}
@@ -2358,7 +2364,7 @@ const App = () => {
       </main>
 
       {showModal && (
-        <div className="modal-backdrop" onClick={() => { setShowModal(false); setEditData({}); setSelectedTenant(null); }}>
+        <div className="modal-backdrop" onClick={(e) => { if (e.target === e.currentTarget) { setShowModal(false); setEditData({}); setSelectedTenant(null); } }}>
           <motion.div
             initial={{ scale: 0.95, opacity: 0, y: 10 }}
             animate={{ scale: 1, opacity: 1, y: 0 }}
@@ -2426,21 +2432,35 @@ const App = () => {
 
             {/* Aadhaar Upload */}
             <div className="input-group">
-              <label>Aadhaar Card Upload</label>
-              <div style={{
-                position: 'relative', padding: '14px 16px', borderRadius: 'var(--radius-s)',
-                border: '1px dashed var(--glass-border)', background: 'rgba(255,255,255,0.02)',
-                display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer'
-              }}>
+              <label>Aadhaar Card Upload (Required)</label>
+              <div className={`aadhaar-upload-area ${editData.aadhaarFile ? 'has-file' : ''}`}>
                 <input
-                  type="file" accept="image/*"
-                  onChange={(e) => setEditData({ ...editData, aadhaarFile: e.target.files[0] })}
-                  style={{ position: 'absolute', inset: 0, opacity: 0, cursor: 'pointer' }}
+                  type="file"
+                  accept="image/*,application/pdf"
+                  onChange={(e) => {
+                    const file = e.target.files[0];
+                    if (file) {
+                      // Validate file size (max 5MB)
+                      if (file.size > 5 * 1024 * 1024) {
+                        alert('File size must be less than 5MB');
+                        e.target.value = '';
+                        return;
+                      }
+                      setEditData({ ...editData, aadhaarFile: file });
+                    }
+                  }}
                 />
-                <Camera size={16} style={{ color: editData.aadhaarFile ? 'var(--secondary)' : 'var(--text-muted)' }} />
-                <span style={{ fontSize: '0.82rem', color: editData.aadhaarFile ? 'var(--secondary)' : 'var(--text-muted)' }}>
-                  {editData.aadhaarFile ? editData.aadhaarFile.name : 'Click to upload Aadhaar image'}
-                </span>
+                <div className="aadhaar-upload-icon">
+                  <Camera size={18} style={{ color: editData.aadhaarFile ? 'var(--secondary)' : 'var(--primary)' }} />
+                </div>
+                <div className="aadhaar-upload-text">
+                  <span className="main-text">
+                    {editData.aadhaarFile ? editData.aadhaarFile.name : 'Click to upload Aadhaar'}
+                  </span>
+                  <span className="sub-text">
+                    {editData.aadhaarFile ? `${(editData.aadhaarFile.size / 1024).toFixed(1)} KB` : 'JPG, PNG or PDF (Max 5MB)'}
+                  </span>
+                </div>
               </div>
             </div>
 
@@ -2511,3 +2531,5 @@ const App = () => {
 };
 
 export default App;
+
+

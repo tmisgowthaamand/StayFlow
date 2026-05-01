@@ -260,6 +260,125 @@ header {
   color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.8px;
   margin-bottom: 6px;
 }
+
+/* ─── Aadhaar Upload ───────────────────────────────────── */
+.aadhaar-upload-area {
+  position: relative;
+  padding: 16px 18px;
+  border-radius: var(--radius-m);
+  border: 2px dashed var(--glass-border);
+  background: rgba(255,255,255,0.02);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  cursor: pointer;
+  transition: var(--transition);
+  min-height: 56px;
+}
+
+.aadhaar-upload-area:hover {
+  border-color: var(--primary);
+  background: rgba(99, 102, 241, 0.05);
+  transform: translateY(-1px);
+}
+
+.aadhaar-upload-area.has-file {
+  border-color: var(--secondary);
+  background: rgba(16, 185, 129, 0.05);
+  border-style: solid;
+}
+
+.aadhaar-upload-area input[type="file"] {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+  z-index: 2;
+}
+
+.aadhaar-upload-icon {
+  flex-shrink: 0;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-s);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(99, 102, 241, 0.1);
+  transition: var(--transition);
+}
+
+.aadhaar-upload-area:hover .aadhaar-upload-icon {
+  background: rgba(99, 102, 241, 0.15);
+  transform: scale(1.05);
+}
+
+.aadhaar-upload-area.has-file .aadhaar-upload-icon {
+  background: rgba(16, 185, 129, 0.15);
+}
+
+.aadhaar-upload-text {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.aadhaar-upload-text .main-text {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--text-main);
+}
+
+.aadhaar-upload-text .sub-text {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+}
+
+.aadhaar-upload-area.has-file .aadhaar-upload-text .main-text {
+  color: var(--secondary);
+}
+
+/* Mobile optimization for Aadhaar upload */
+@media (max-width: 768px) {
+  .aadhaar-upload-area {
+    padding: 14px 16px;
+    min-height: 52px;
+  }
+  
+  .aadhaar-upload-icon {
+    width: 32px;
+    height: 32px;
+  }
+  
+  .aadhaar-upload-text .main-text {
+    font-size: 0.82rem;
+  }
+  
+  .aadhaar-upload-text .sub-text {
+    font-size: 0.68rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .aadhaar-upload-area {
+    padding: 12px 14px;
+    gap: 10px;
+  }
+  
+  .aadhaar-upload-icon {
+    width: 28px;
+    height: 28px;
+  }
+  
+  .aadhaar-upload-text .main-text {
+    font-size: 0.78rem;
+  }
+  
+  .aadhaar-upload-text .sub-text {
+    font-size: 0.65rem;
+  }
+}
 .input-group input,
 .input-group textarea,
 .input-group select,
