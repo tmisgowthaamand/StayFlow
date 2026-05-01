@@ -51,6 +51,10 @@ class CloudinaryService {
     }
 
     async uploadStream(fileValue, options = {}) {
+        if (!this.isConfigured()) {
+            throw new Error('Cloudinary is not configured. Please set CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, and CLOUDINARY_API_SECRET environment variables.');
+        }
+
         const timestamp = Math.floor(Date.now() / 1000);
         const folder = options.folder || 'stayflow/aadhaar';
         const publicId = options.publicId || `stayflow_${Date.now()}_${crypto.randomBytes(6).toString('hex')}`;
@@ -73,11 +77,17 @@ class CloudinaryService {
         form.append('signature', this.signParams(signedParams));
 
         try {
+            console.log('[CLOUDINARY] Uploading to:', this.getUploadUrl());
+            console.log('[CLOUDINARY] Folder:', folder, 'PublicId:', publicId);
+            
             const response = await axios.post(this.getUploadUrl(), form, {
                 headers: form.getHeaders(),
                 maxBodyLength: Infinity,
                 maxContentLength: Infinity,
+                timeout: 60000, // 60 second timeout
             });
+
+            console.log('[CLOUDINARY] Upload successful:', response.data.public_id);
 
             return {
                 provider: 'cloudinary',
@@ -90,7 +100,9 @@ class CloudinaryService {
             };
         } catch (err) {
             const errorMsg = err.response?.data?.error?.message || err.message || 'Unknown Cloudinary error';
-            console.error('Cloudinary upload failed:', errorMsg, 'Status:', err.response?.status);
+            const statusCode = err.response?.status || 'N/A';
+            console.error('[CLOUDINARY] Upload failed:', errorMsg, 'Status:', statusCode);
+            console.error('[CLOUDINARY] Error details:', err.response?.data);
             throw new Error(`Cloudinary upload failed: ${errorMsg}`);
         }
     }

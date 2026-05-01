@@ -1116,63 +1116,105 @@ const upload = multer({
 });
 
 async function saveUploadToCloudinary(file, phone, type = 'AADHAAR') {
-    // Get file buffer (from memory storage, no disk access)
-    const fileBuffer = file.buffer;
-    if (!fileBuffer) throw new Error('File buffer not available');
+    try {
+        // Get file buffer (from memory storage, no disk access)
+        const fileBuffer = file.buffer;
+        if (!fileBuffer) {
+            throw new Error('File buffer not available - upload may have failed');
+        }
 
-    console.log(`[UPLOAD] Processing ${type} for ${phone}: buffer size=${fileBuffer.length}, mimetype=${file.mimetype}`);
+        console.log(`[UPLOAD] Processing ${type} for ${phone}: buffer size=${fileBuffer.length}, mimetype=${file.mimetype}`);
 
-    // Encrypt the file before upload
-    const { encrypted, iv, tag } = encrypt(fileBuffer);
-    console.log(`[UPLOAD] Encrypted size=${encrypted.length}, IV=${iv.toString('hex').substring(0, 8)}..., Tag=${tag.toString('hex').substring(0, 8)}...`);
+        // Encrypt the file before upload
+        const { encrypted, iv, tag } = encrypt(fileBuffer);
+        console.log(`[UPLOAD] Encrypted size=${encrypted.length}, IV=${iv.toString('hex').substring(0, 8)}..., Tag=${tag.toString('hex').substring(0, 8)}...`);
 
-    // Upload encrypted buffer directly to Cloudinary without disk access
-    const uploadResult = await cloudinaryService.uploadBuffer(encrypted, {
-        folder: `stayflow/${type.toLowerCase()}`,
-        filename: `${type.toLowerCase()}_${phone}_${Date.now()}.bin`,
-        mimeType: 'application/octet-stream',
-        publicId: `${type.toLowerCase()}_${phone}_${Date.now()}`
-    });
+        // Upload encrypted buffer directly to Cloudinary without disk access
+        const uploadResult = await cloudinaryService.uploadBuffer(encrypted, {
+            folder: `stayflow/${type.toLowerCase()}`,
+            filename: `${type.toLowerCase()}_${phone}_${Date.now()}.bin`,
+            mimeType: 'application/octet-stream',
+            publicId: `${type.toLowerCase()}_${phone}_${Date.now()}`
+        });
 
-    console.log(`[UPLOAD] Cloudinary success: publicId=${uploadResult.publicId}, url=${uploadResult.url?.substring(0, 50)}...`);
+        console.log(`[UPLOAD] Cloudinary success: publicId=${uploadResult.publicId}, url=${uploadResult.url?.substring(0, 50)}...`);
 
-    // Store encryption metadata in MongoDB
-    const mediaDoc = await Media.create({
-        phone,
-        type,
-        mediaId: uploadResult.publicId,
-        filename: file.originalname || file.fieldname,
-        mimeType: file.mimetype,
-        provider: uploadResult.provider,
-        publicId: uploadResult.publicId,
-        url: uploadResult.url,
-        resourceType: uploadResult.resourceType,
-        format: uploadResult.format,
-        bytes: uploadResult.bytes,
-        encrypted: true,
-        encryptionIV: iv.toString('hex'),
-        encryptionTag: tag.toString('hex')
-    });
+        // Store encryption metadata in MongoDB
+        const mediaDoc = await Media.create({
+            phone,
+            type,
+            mediaId: uploadResult.publicId,
+            filename: file.originalname || file.fieldname,
+            mimeType: file.mimetype,
+            provider: uploadResult.provider,
+            publicId: uploadResult.publicId,
+            url: uploadResult.url,
+            resourceType: uploadResult.resourceType,
+            format: uploadResult.format,
+            bytes: uploadResult.bytes,
+            encrypted: true,
+            encryptionIV: iv.toString('hex'),
+            encryptionTag: tag.toString('hex')
+        });
 
-    return mediaDoc;
+        console.log(`[UPLOAD] MongoDB document created: ${mediaDoc._id}`);
+        return mediaDoc;
+    } catch (error) {
+        console.error(`[UPLOAD] Failed to save ${type} for ${phone}:`, error.message);
+        throw new Error(`Upload failed: ${error.message}`);
+    }
 }
 
 app.post('/api/upload-aadhaar', authenticate, upload.single('aadhaar'), async (req, res) => {
     try {
         const { phone } = req.body;
         const file = req.file;
-        if (!file || !phone) return res.status(400).json({ error: 'File and phone required' });
+        
+        console.log('[UPLOAD-AADHAAR] Request received:', { phone, hasFile: !!file });
+        
+        if (!file) {
+            console.error('[UPLOAD-AADHAAR] No file provided');
+            return res.status(400).json({ error: 'File is required' });
+        }
+        
+        if (!phone) {
+            console.error('[UPLOAD-AADHAAR] No phone provided');
+            return res.status(400).json({ error: 'Phone number is required' });
+        }
 
+        // Check if Cloudinary is configured
+        if (!cloudinaryService.isConfigured()) {
+            console.error('[UPLOAD-AADHAAR] Cloudinary not configured');
+            return res.status(500).json({ error: 'File upload service not configured. Please contact admin.' });
+        }
+
+        console.log('[UPLOAD-AADHAAR] Starting upload to Cloudinary...');
         const mediaDoc = await saveUploadToCloudinary(file, phone, 'AADHAAR');
+        console.log('[UPLOAD-AADHAAR] Upload successful, mediaDoc ID:', mediaDoc._id);
 
+        console.log('[UPLOAD-AADHAAR] Updating tenant sheet...');
         await sheetsService.updateTenant(phone, {
             'Aadhaar Image': mediaDoc._id.toString()
         });
+        console.log('[UPLOAD-AADHAAR] Tenant updated successfully');
 
         res.json({ success: true, filename: mediaDoc._id.toString() });
     } catch (err) {
-        console.error('File Upload Error:', err);
-        res.status(500).json({ error: 'Internal server error' });
+        console.error('[UPLOAD-AADHAAR] Error:', err.message);
+        console.error('[UPLOAD-AADHAAR] Stack:', err.stack);
+        
+        // Send more specific error messages
+        if (err.message.includes('Cloudinary')) {
+            return res.status(500).json({ error: 'File upload service error. Please try again or contact admin.' });
+        }
+        if (err.message.includes('encrypt')) {
+            return res.status(500).json({ error: 'File encryption error. Please try again.' });
+        }
+        if (err.message.includes('MongoDB') || err.message.includes('database')) {
+            return res.status(500).json({ error: 'Database error. Please try again.' });
+        }
+        
+        res.status(500).json({ error: err.message || 'File upload failed. Please try again.' });
     }
 });
 
