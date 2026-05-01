@@ -1114,8 +1114,8 @@ async function saveUploadToCloudinary(file, phone, type = 'AADHAAR') {
     // Upload encrypted buffer directly to Cloudinary without disk access
     const uploadResult = await cloudinaryService.uploadBuffer(encrypted, {
         folder: `stayflow/${type.toLowerCase()}`,
-        filename: file.originalname || file.fieldname,
-        resourceType: 'raw',
+        filename: `${type.toLowerCase()}_${phone}_${Date.now()}.bin`,
+        mimeType: 'application/octet-stream',
         publicId: `${type.toLowerCase()}_${phone}_${Date.now()}`
     });
 

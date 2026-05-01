@@ -72,21 +72,27 @@ class CloudinaryService {
         form.append('public_id', publicId);
         form.append('signature', this.signParams(signedParams));
 
-        const response = await axios.post(this.getUploadUrl(), form, {
-            headers: form.getHeaders(),
-            maxBodyLength: Infinity,
-            maxContentLength: Infinity,
-        });
+        try {
+            const response = await axios.post(this.getUploadUrl(), form, {
+                headers: form.getHeaders(),
+                maxBodyLength: Infinity,
+                maxContentLength: Infinity,
+            });
 
-        return {
-            provider: 'cloudinary',
-            publicId: response.data.public_id,
-            url: response.data.secure_url,
-            resourceType: response.data.resource_type,
-            format: response.data.format,
-            bytes: response.data.bytes,
-            originalFilename: response.data.original_filename,
-        };
+            return {
+                provider: 'cloudinary',
+                publicId: response.data.public_id,
+                url: response.data.secure_url,
+                resourceType: response.data.resource_type,
+                format: response.data.format,
+                bytes: response.data.bytes,
+                originalFilename: response.data.original_filename,
+            };
+        } catch (err) {
+            const errorMsg = err.response?.data?.error?.message || err.message || 'Unknown Cloudinary error';
+            console.error('Cloudinary upload failed:', errorMsg, 'Status:', err.response?.status);
+            throw new Error(`Cloudinary upload failed: ${errorMsg}`);
+        }
     }
 
     async uploadWhatsAppMedia(mediaId, options = {}) {
