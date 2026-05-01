@@ -1108,8 +1108,11 @@ async function saveUploadToCloudinary(file, phone, type = 'AADHAAR') {
     const fileBuffer = file.buffer;
     if (!fileBuffer) throw new Error('File buffer not available');
 
+    console.log(`[UPLOAD] Processing ${type} for ${phone}: buffer size=${fileBuffer.length}, mimetype=${file.mimetype}`);
+
     // Encrypt the file before upload
     const { encrypted, iv, tag } = encrypt(fileBuffer);
+    console.log(`[UPLOAD] Encrypted size=${encrypted.length}, IV=${iv.toString('hex').substring(0, 8)}..., Tag=${tag.toString('hex').substring(0, 8)}...`);
 
     // Upload encrypted buffer directly to Cloudinary without disk access
     const uploadResult = await cloudinaryService.uploadBuffer(encrypted, {
@@ -1118,6 +1121,8 @@ async function saveUploadToCloudinary(file, phone, type = 'AADHAAR') {
         mimeType: 'application/octet-stream',
         publicId: `${type.toLowerCase()}_${phone}_${Date.now()}`
     });
+
+    console.log(`[UPLOAD] Cloudinary success: publicId=${uploadResult.publicId}, url=${uploadResult.url?.substring(0, 50)}...`);
 
     // Store encryption metadata in MongoDB
     const mediaDoc = await Media.create({
