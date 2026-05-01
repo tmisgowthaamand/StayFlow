@@ -102,16 +102,30 @@ if (!fs.existsSync(uploadsDir)) {
 
 // Authentication Middleware
 const authenticate = (req, res, next) => {
+    // Check Authorization header first
     const authHeader = req.headers['authorization'];
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-        return res.status(401).json({ error: 'Missing or invalid authorization header' });
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+        try {
+            const token = authHeader.split(' ')[1];
+            req.user = verifyToken(token);
+            return next();
+        } catch (err) {
+            return res.status(401).json({ error: 'Invalid or expired token' });
+        }
     }
-    try {
-        const token = authHeader.split(' ')[1];
-        req.user = verifyToken(token);
-        next();
-    } catch (err) {
-        return res.status(401).json({ error: 'Invalid or expired token' });
+
+    // Fallback: check token in query parameter (for media downloads in new tabs)
+    if (req.query.token) {
+        try {
+            req.user = verifyToken(req.query.token);
+            return next();
+        } catch (err) {
+            return res.status(401).json({ error: 'Invalid or expired token' });
+        }
+    }
+
+    return res.status(401).json({ error: 'Missing or invalid authorization header' });
+};
     }
 };
 
