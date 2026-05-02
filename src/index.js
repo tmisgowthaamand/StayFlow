@@ -909,15 +909,33 @@ app.get('/api/media/:id', authenticate, async (req, res) => {
                 const mediaDoc = await Media.findOne({ $or: mediaQuery });
 
                 if (mediaDoc?.url) {
-                    console.log(`Fetching Cloudinary media: ${safeMediaId}`);
+                    console.log(`Fetching Cloudinary media: ${safeMediaId}, URL: ${mediaDoc.url}`);
                     try {
-                        const cloudinaryRes = await axios.get(mediaDoc.url, { responseType: 'arraybuffer' });
+                        // Use Cloudinary's authenticated URL format for private resources
+                        // Add transformation to ensure proper delivery
+                        let fetchUrl = mediaDoc.url;
+                        if (!fetchUrl.includes('?')) {
+                            fetchUrl += '?dl=true';  // Force download/inline display
+                        }
+
+                        console.log(`[MEDIA] Fetching from: ${fetchUrl}`);
+                        const cloudinaryRes = await axios.get(fetchUrl, {
+                            responseType: 'arraybuffer',
+                            timeout: 30000
+                        });
+
+                        console.log(`[MEDIA] Successfully fetched ${cloudinaryRes.data.length} bytes`);
                         res.setHeader('Content-Type', mediaDoc.mimeType || 'application/octet-stream');
                         res.setHeader('Content-Disposition', `inline; filename="${mediaDoc.filename || mediaDoc.mediaId || safeMediaId}"`);
                         return res.send(cloudinaryRes.data);
                     } catch (cloudinaryErr) {
-                        console.error(`Failed to fetch Cloudinary media for ${safeMediaId}:`, cloudinaryErr.message);
-                        return res.status(500).send('Error fetching media from storage');
+                        console.error(`[MEDIA] Failed to fetch Cloudinary media for ${safeMediaId}:`, {
+                            message: cloudinaryErr.message,
+                            status: cloudinaryErr.response?.status,
+                            statusText: cloudinaryErr.response?.statusText,
+                            url: mediaDoc.url
+                        });
+                        return res.status(500).json({ error: 'Error fetching media from storage', details: cloudinaryErr.message });
                     }
                 }
 
@@ -1185,7 +1203,11 @@ async function saveUploadToCloudinary(file, phone, type = 'AADHAAR') {
             publicId: `${type.toLowerCase()}_${phone}_${Date.now()}`
         });
 
-        console.log(`[UPLOAD] Cloudinary success: publicId=${uploadResult.publicId}, url=${uploadResult.url?.substring(0, 50)}...`);
+        console.log(`[UPLOAD] Cloudinary success: publicId=${uploadResult.publicId}, url=${uploadResult.url?.substring(0, 50)}..., resourceType=${uploadResult.resourceType}`);
+
+        if (!uploadResult.url) {
+            throw new Error('Cloudinary upload returned no URL');
+        }
 
         // Store metadata in MongoDB
         const mediaDoc = await Media.create({
@@ -1201,9 +1223,10 @@ async function saveUploadToCloudinary(file, phone, type = 'AADHAAR') {
             format: uploadResult.format,
             bytes: uploadResult.bytes,
             encrypted: false,  // Original file stored unencrypted on Cloudinary
+            createdAt: new Date()
         });
 
-        console.log(`[UPLOAD] MongoDB document created: ${mediaDoc._id}`);
+        console.log(`[UPLOAD] MongoDB document created: ${mediaDoc._id} with URL: ${mediaDoc.url}`);
         return mediaDoc;
     } catch (error) {
         console.error(`[UPLOAD] Failed to save ${type} for ${phone}:`, error.message);
