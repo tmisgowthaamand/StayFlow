@@ -1159,10 +1159,10 @@ async function savePDFToCloudinary(filePath, phone, type = 'REGISTRATION') {
         const { encrypted, iv, tag } = encrypt(fileBuffer);
         const filename = path.basename(filePath);
 
-        const uploadResult = await cloudinaryService.uploadBuffer(encrypted, {
+        const uploadResult = await cloudinaryService.uploadBuffer(fileBuffer, {
             folder: `stayflow/${type.toLowerCase()}`,
             filename: filename,
-            mimeType: 'application/octet-stream',
+            mimeType: 'application/pdf',
             publicId: `${type.toLowerCase()}_${phone}_${Date.now()}`
         });
 

@@ -59,6 +59,8 @@ class CloudinaryService {
         const folder = options.folder || 'stayflow/aadhaar';
         const publicId = options.publicId || `stayflow_${Date.now()}_${crypto.randomBytes(6).toString('hex')}`;
         const mimeType = options.mimeType || 'application/octet-stream';
+        const filename = options.filename || publicId;
+        const ext = path.extname(filename).toLowerCase();
 
         // Determine resource type based on MIME type
         let resourceType = 'auto';  // Let Cloudinary auto-detect best resource type
@@ -66,8 +68,8 @@ class CloudinaryService {
             resourceType = 'image';
         } else if (mimeType.startsWith('video/')) {
             resourceType = 'video';
-        } else if (mimeType === 'application/pdf') {
-            resourceType = 'image';  // Upload PDF as image for preview generation
+        } else if (mimeType === 'application/pdf' || ext === '.pdf') {
+            resourceType = 'raw';
         }
 
         const signedParams = {
@@ -78,7 +80,7 @@ class CloudinaryService {
 
         const form = new FormData();
         form.append('file', fileValue, {
-            filename: options.filename || publicId,
+            filename,
             contentType: mimeType,
         });
         form.append('api_key', config.cloudinary.apiKey);
