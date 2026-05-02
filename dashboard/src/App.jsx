@@ -390,6 +390,7 @@ const App = () => {
           phone: editData.Phone,
           room: editData.Room || 'Unassigned',
           rent: editData['Monthly Rent'] || '0',
+          advance: editData.Advance || '0',
           eb: '0',
           sharingType: editData['Sharing Type'] || 'Unknown',
           location: editData.Location || 'Main Branch'
@@ -534,6 +535,24 @@ const App = () => {
         }
       }
     });
+  };
+
+  const handleSecureView = async (mediaId) => {
+    try {
+      showToast('Fetching document securely...', 'info');
+      const response = await axios.get(`/api/media/${mediaId}`, {
+        responseType: 'blob'
+      });
+      const blob = new Blob([response.data], { type: response.headers['content-type'] });
+      const url = URL.createObjectURL(blob);
+      window.open(url, '_blank');
+      
+      // Clean up memory after opening
+      setTimeout(() => URL.revokeObjectURL(url), 15000);
+    } catch (err) {
+      console.error('Secure view failed:', err);
+      showToast('Failed to load document securely', 'error');
+    }
   };
 
   const handleDownloadReceipt = async (tenant) => {
@@ -1031,12 +1050,12 @@ const App = () => {
                 <th>Status</th>
                 <th>Paid Date</th>
                 <th>Aadhaar</th>
-                <th>Reg Form</th>
+<th>Reg Form</th>
                 <th>Action</th>
               </tr>
             </thead>
             <tbody>
-              {membersList.map((t, i) => (
+              {membersList.slice(0, 500).map((t, i) => (
                 <tr key={i} className="table-row">
                   <td>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -1048,6 +1067,15 @@ const App = () => {
                         fontWeight: 700, fontSize: '0.7rem', flexShrink: 0,
                       }}>{t.Name?.[0] || '?'}</div>
                       <span style={{ fontWeight: 600, fontSize: '0.85rem' }}>{t.Name}</span>
+                      <a 
+                        href={`https://wa.me/${t.Phone?.toString().replace(/\D/g, '')}`} 
+                        target="_blank" 
+                        rel="noreferrer"
+                        style={{ color: '#25D366', display: 'flex', alignItems: 'center' }}
+                        title="Chat on WhatsApp"
+                      >
+                        <MessageSquare size={12} />
+                      </a>
                     </div>
                   </td>
                   <td style={{ fontSize: '0.82rem', color: 'var(--text-dim)' }}>{t.Phone}</td>
@@ -1070,14 +1098,14 @@ const App = () => {
                   </td>
                   <td>
                     {t['Aadhaar Image'] ? (
-                      <button className="btn btn-glass btn-small" onClick={() => window.open(getFullUrl(`/api/media/${t['Aadhaar Image']}`), '_blank')} title="View Document">
+                      <button className="btn btn-glass btn-small" onClick={() => handleSecureView(t['Aadhaar Image'])} title="View Secure Document">
                         <Camera size={12} /> View
                       </button>
                     ) : <span style={{ color: 'var(--text-faint)', fontSize: '0.78rem' }}>N/A</span>}
                   </td>
                   <td>
                     {t['Registration Form'] ? (
-                      <button className="btn btn-glass btn-small" onClick={() => window.open(getFullUrl(`/api/media/${t['Registration Form']}`), '_blank')} title="View Registration Form">
+                      <button className="btn btn-glass btn-small" onClick={() => handleSecureView(t['Registration Form'])} title="View Secure Registration Form">
                         <FileText size={12} /> View
                       </button>
                     ) : <span style={{ color: 'var(--text-faint)', fontSize: '0.78rem' }}>N/A</span>}
@@ -2263,24 +2291,28 @@ const App = () => {
                     <span style={{ fontWeight: 800, fontSize: '0.9rem' }}>Notifications</span>
                     <div style={{ display: 'flex', gap: 8 }}>
                       {notifications.length > 0 && (
-                        <button className="btn btn-glass btn-small" style={{ padding: '4px 8px', fontSize: '0.7rem', color: 'var(--accent)' }} onClick={() => {
-                          setActionPanel({
-                            type: 'confirm',
-                            title: 'Clear All Notifications',
-                            message: 'Are you sure you want to delete all recent notifications? This action cannot be undone.',
-                            onConfirm: async () => {
-                              try {
-                                await axios.delete('/api/notifications');
-                                setNotifications([]);
-                                setActionPanel(null);
-                                showToast('Notifications cleared', 'success');
-                              } catch (e) {
-                                showToast('Failed to clear notifications', 'error');
+                        <button 
+                          className="btn btn-glass btn-small" 
+                          style={{ padding: '4px 8px', fontSize: '0.7rem', color: 'var(--accent)', fontWeight: 700 }} 
+                          onClick={() => {
+                            setNotifOpen(false); // Close dropdown to show dialog
+                            setActionPanel({
+                              type: 'confirm',
+                              title: 'Clear Notifications?',
+                              message: 'This will permanently remove all notification logs. Continue?',
+                              onConfirm: async () => {
+                                try {
+                                  await axios.delete('/api/notifications');
+                                  setNotifications([]);
+                                  setActionPanel(null);
+                                  showToast('Notifications cleared');
+                                } catch (e) {
+                                  showToast('Failed to clear', 'error');
+                                }
                               }
-                            }
-                          });
-                        }}>
-                          <Trash2 size={14} /> Clear All
+                            });
+                          }}>
+                          <Trash2 size={12} /> Clear
                         </button>
                       )}
                       <button className="btn btn-glass btn-small" style={{ padding: '4px 8px', fontSize: '0.7rem' }} onClick={() => setNotifOpen(false)}>
@@ -2436,14 +2468,20 @@ const App = () => {
                 <input type="number" defaultValue={selectedTenant?.['Monthly Rent']} onChange={(e) => handleEditChange('Monthly Rent', e.target.value)} placeholder="Monthly rent" />
               </div>
               <div className="input-group">
-                <label>EB Bill (₹)</label>
-                <input type="number" defaultValue={selectedTenant?.['EB Amount']} onChange={(e) => handleEditChange('EB Amount', e.target.value)} placeholder="Electricity bill" />
+                <label>Advance Amount (₹)</label>
+                <input type="number" defaultValue={selectedTenant?.Advance} onChange={(e) => handleEditChange('Advance', e.target.value)} placeholder="Security deposit" />
               </div>
             </div>
 
-            <div className="input-group">
-              <label>PG Location</label>
-              <input type="text" defaultValue={selectedTenant?.Location} onChange={(e) => handleEditChange('Location', e.target.value)} placeholder="e.g. Main Branch" />
+            <div className="modal-form-grid">
+              <div className="input-group">
+                <label>Electricity Bill (₹)</label>
+                <input type="number" defaultValue={selectedTenant?.['EB Amount']} onChange={(e) => handleEditChange('EB Amount', e.target.value)} placeholder="Electricity bill" />
+              </div>
+              <div className="input-group">
+                <label>Location / Branch</label>
+                <input type="text" defaultValue={selectedTenant?.Location} onChange={(e) => handleEditChange('Location', e.target.value)} placeholder="e.g. Main Branch" />
+              </div>
             </div>
 
             {/* Aadhaar Upload */}

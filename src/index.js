@@ -1885,11 +1885,18 @@ app.post('/api/add-tenant', authenticate, async (req, res) => {
     try {
         const tenantData = req.body;
 
+        // --- SECONDARY DUPLICATE CHECK (MongoDB) ---
+        // Ensure we don't add a tenant that already exists in our database
+        const mongoDuplicate = await Tenant.findOne({ phone: tenantData.phone });
+        if (mongoDuplicate) {
+            return res.status(400).json({ error: 'Resident with this phone number already exists in Database.' });
+        }
+
         const detailedRules = `🏢 *PG House Rules & Regulations*\n━━━━━━━━━━━━━━━━━━━━\n⚖️ *DO's:*\n1. Keep your room and shared areas clean and hygienic.\n2. Maintain silence after 10:00 PM for everyone's comfort.\n3. Pay rent by the 5th and EB bills by the 10th of each month.\n4. Inform the admin 30 days before vacating.\n5. Cooperate with police verification and security checks.\n\n🚫 *DON'Ts:*\n1. Strictly NO smoking, alcohol, or illegal substances.\n2. No overnight visitors allowed without prior permission.\n\n🤖 *Tip:* Type *HI* to see your dashboard!`;
 
         const { fileName: regFile, filePath: regPath } = await pdfService.generateRegistrationForm({
             name: tenantData.name, phone: tenantData.phone, room: tenantData.room,
-            sharingType: tenantData.sharingType, advance: tenantData.advance,
+            sharingType: tenantData.sharingType, advance: tenantData.advance || '0',
             monthlyRent: tenantData.rent || '0'
         });
 

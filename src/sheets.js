@@ -424,7 +424,8 @@ class SheetsService {
 
     async getPaymentHistory(phone, limit = 3) {
         await this.init();
-        const rows = await this.paymentsSheet.getRows();
+        // Set high limit to find history across 5000+ records
+        const rows = await this.paymentsSheet.getRows({ offset: 0, limit: 5000 });
         const cleanTarget = phone.toString().replace(/\D/g, '');
 
         const matching = rows.filter(row => {
@@ -447,7 +448,8 @@ class SheetsService {
     async getTenantByPhone(phone, name = null) {
         if (!phone) return null;
         await this.init();
-        const rows = await this.sheet.getRows();
+        // Explicitly set high limit to ensure we find the tenant anywhere in the 200+ list
+        const rows = await this.sheet.getRows({ offset: 0, limit: 5000 });
         const cleanTarget = phone.toString().replace(/\D/g, '');
 
         return rows.find(row => {
@@ -495,7 +497,7 @@ class SheetsService {
             };
             try {
                 const row = await this.sheet.addRow(rowData);
-                console.log('Successfully added row for:', tenantData.name);
+                console.log(`[SHEETS] Successfully added resident ${tenantData.name} at row ${row.rowNumber}`);
 
                 // Update location occupancy
                 await this.updateLocationOccupancy(tenantData.location || 'Main Branch');
@@ -546,6 +548,7 @@ class SheetsService {
     // Full sync: ALL tenants from Sheets → MongoDB
     async syncAllToMongo() {
         try {
+            // getTenantsJSON already has the 5000 limit
             const tenants = await this.getTenantsJSON();
             let count = 0;
             for (const t of tenants) {
@@ -620,7 +623,8 @@ class SheetsService {
 
     async getTenantsByLocation(location) {
         await this.init();
-        const rows = await this.sheet.getRows();
+        // Explicitly set high limit to ensure we find history across the entire sheet
+        const rows = await this.sheet.getRows({ offset: 0, limit: 5000 });
         return rows.filter(row => {
             const rowLocation = row.get('Location') || 'Main Branch';
             return rowLocation.toLowerCase() === location.toLowerCase();
@@ -779,7 +783,8 @@ class SheetsService {
             throw new Error('Tenants sheet not found after initialization.');
         }
         console.log('[SHEETS] Getting dashboard stats from sheet:', this.sheet.title);
-        const tenants = await this.sheet.getRows();
+        // Explicitly fetch all rows for accurate stats (Residents count, revenue, etc.)
+        const tenants = await this.sheet.getRows({ offset: 0, limit: 5000 });
         const locations = await this.getAllLocations();
 
         const activeTenants = tenants.filter(t => t.get('Status') !== 'VACATED');
