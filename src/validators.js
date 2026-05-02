@@ -19,8 +19,8 @@ export const registerSchema = Joi.object({
 export const querySchema = Joi.object({
     name: nameSchema,
     phone: phoneSchema,
-    room: Joi.string().max(20).required(),
-    category: Joi.string().valid('maintenance', 'electrical', 'plumbing', 'cleaning', 'food', 'noise', 'other').required(),
+    room: Joi.string().trim().max(20).allow('').optional(),
+    category: Joi.string().trim().max(50).allow('').optional(),
     description: Joi.string().min(5).max(1000).required(),
 });
 

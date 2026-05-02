@@ -44,7 +44,10 @@ document.getElementById('queryForm').addEventListener('submit', async (e) => {
             body: JSON.stringify(data)
         });
 
-        const result = await res.json();
+        const contentType = res.headers.get('content-type') || '';
+        const result = contentType.includes('application/json')
+            ? await res.json()
+            : { error: await res.text() };
         console.log('Response:', result);
 
         if (res.ok) {
