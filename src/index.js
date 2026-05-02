@@ -57,7 +57,7 @@ app.use(helmet({
             "style-src": ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com", "https://cdnjs.cloudflare.com"],
             "font-src": ["'self'", "https://fonts.gstatic.com", "https://cdnjs.cloudflare.com", "data:"],
             "img-src": ["'self'", "data:", "https://res.cloudinary.com", "https://*.whatsapp.net", "https://*.razorpay.com"],
-            "connect-src": ["'self'", "https://stayflow-tkto.onrender.com", "https://*.razorpay.com"]
+            "connect-src": ["'self'", "https://stayflow-tkto.onrender.com", "https://*.razorpay.com", "https://cdn.jsdelivr.net"]
         },
     },
     crossOriginEmbedderPolicy: false,
