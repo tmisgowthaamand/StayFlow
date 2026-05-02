@@ -1185,21 +1185,18 @@ async function saveUploadToCloudinary(file, phone, type = 'AADHAAR') {
 
         console.log(`[UPLOAD] Processing ${type} for ${phone}: buffer size=${fileBuffer.length}, mimetype=${file.mimetype}`);
 
-        // Encrypt file FIRST before uploading to Cloudinary
-        const { encrypted, iv, tag } = encrypt(fileBuffer);
-        console.log(`[UPLOAD] Encrypted size=${encrypted.length}, IV=${iv.toString('hex').substring(0, 8)}..., Tag=${tag.toString('hex').substring(0, 8)}...`);
-
-        // Upload encrypted buffer to Cloudinary as raw data (don't process as image)
-        const uploadResult = await cloudinaryService.uploadBuffer(encrypted, {
+        // Upload original file to Cloudinary (Cloudinary validates file format)
+        const ext = path.extname(file.originalname).toLowerCase();
+        const uploadResult = await cloudinaryService.uploadBuffer(fileBuffer, {
             folder: `stayflow/${type.toLowerCase()}`,
-            filename: `${type.toLowerCase()}_${phone}_${Date.now()}.bin`,
-            mimeType: 'application/octet-stream',  // Keep as binary to prevent processing
+            filename: `${type.toLowerCase()}_${phone}_${Date.now()}${ext}`,
+            mimeType: file.mimetype,
             publicId: `${type.toLowerCase()}_${phone}_${Date.now()}`
         });
 
         console.log(`[UPLOAD] Cloudinary success: publicId=${uploadResult.publicId}, url=${uploadResult.url?.substring(0, 50)}...`);
 
-        // Store encryption metadata in MongoDB
+        // Store metadata in MongoDB
         const mediaDoc = await Media.create({
             phone,
             type,
@@ -1212,9 +1209,7 @@ async function saveUploadToCloudinary(file, phone, type = 'AADHAAR') {
             resourceType: uploadResult.resourceType,
             format: uploadResult.format,
             bytes: uploadResult.bytes,
-            encrypted: true,
-            encryptionIV: iv.toString('hex'),
-            encryptionTag: tag.toString('hex')
+            encrypted: false,  // Original file stored unencrypted on Cloudinary
         });
 
         console.log(`[UPLOAD] MongoDB document created: ${mediaDoc._id}`);
