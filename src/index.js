@@ -1009,7 +1009,13 @@ app.get('/api/media/:id', authenticate, async (req, res) => {
 
                         // Verify it was created and serve it
                         if (fs.existsSync(localPath)) {
-                            console.log(`Successfully regenerated and serving: ${safeMediaId}`);
+                            console.log(`Successfully regenerated: ${safeMediaId}. Now securing in cloud...`);
+                            // Also secure it in Cloudinary/Mongo for next time
+                            try {
+                                await savePDFToCloudinary(localPath, phone, parts[0].toUpperCase());
+                            } catch (e) {
+                                console.warn('Failed to secure regenerated PDF in cloud:', e.message);
+                            }
                             return res.sendFile(localPath);
                         }
                     }
@@ -1127,6 +1133,47 @@ const upload = multer({
         cb(new Error('Only JPEG, PNG and PDF files are allowed!'));
     }
 });
+
+async function savePDFToCloudinary(filePath, phone, type = 'REGISTRATION') {
+    try {
+        if (!fs.existsSync(filePath)) {
+            throw new Error(`PDF file not found at path: ${filePath}`);
+        }
+        const fileBuffer = fs.readFileSync(filePath);
+        const { encrypted, iv, tag } = encrypt(fileBuffer);
+        const filename = path.basename(filePath);
+
+        const uploadResult = await cloudinaryService.uploadBuffer(encrypted, {
+            folder: `stayflow/${type.toLowerCase()}`,
+            filename: filename,
+            mimeType: 'application/octet-stream',
+            publicId: `${type.toLowerCase()}_${phone}_${Date.now()}`
+        });
+
+        const mediaDoc = await Media.create({
+            phone,
+            type,
+            mediaId: uploadResult.publicId,
+            filename: filename,
+            mimeType: 'application/pdf',
+            provider: uploadResult.provider,
+            publicId: uploadResult.publicId,
+            url: uploadResult.url,
+            resourceType: uploadResult.resourceType,
+            format: uploadResult.format,
+            bytes: uploadResult.bytes,
+            encrypted: true,
+            encryptionIV: iv.toString('hex'),
+            encryptionTag: tag.toString('hex')
+        });
+
+        console.log(`[UPLOAD] PDF persistent success: ${mediaDoc._id} for ${phone}`);
+        return mediaDoc;
+    } catch (err) {
+        console.error(`[UPLOAD] PDF Cloudinary failed for ${phone}:`, err.message);
+        throw err;
+    }
+}
 
 async function saveUploadToCloudinary(file, phone, type = 'AADHAAR') {
     try {
@@ -1535,6 +1582,15 @@ app.post('/api/web-register', upload.single('aadhaar'), async (req, res) => {
             name, phone, room, sharingType: sharing, advance, monthlyRent: '0'
         });
 
+        // Persistent upload for Registration Form
+        let regMediaId = regFile;
+        try {
+            const regMedia = await savePDFToCloudinary(regPath, phone, 'REGISTRATION');
+            regMediaId = regMedia._id.toString();
+        } catch (e) {
+            console.warn('Failed to upload registration PDF to Cloudinary:', e.message);
+        }
+
         await sheetsService.init();
         await sheetsService.addTenant({
             name,
@@ -1544,7 +1600,7 @@ app.post('/api/web-register', upload.single('aadhaar'), async (req, res) => {
             advance,
             monthlyRent: '0',
             aadhaarImage,
-            registrationForm: regFile
+            registrationForm: regMediaId
         });
 
         const welcomeMsg = `✅ *Registration Successful!* 🎉\n\nWelcome ${name} to Room ${room}. We are happy to have you! 🏠\n\n${detailedRules}\n\n🤖 *How to Use:* Type *HI* anytime to see your dashboard!`;
@@ -1555,7 +1611,26 @@ app.post('/api/web-register', upload.single('aadhaar'), async (req, res) => {
         } else {
             await sendMessage(phone, welcomeMsg);
         }
-        // Registration PDF only sent to admin, not to user
+        
+        // Send registration PDF and Advance Receipt to tenant
+        await sendMedia(phone, regPath, `📝 Your Registration Copy`, null, 'StayFlow_Registration.pdf');
+        
+        try {
+            const { filePath: invPath } = await pdfService.generateInvoice({
+                Name: name,
+                Phone: phone,
+                Room: room,
+                Monthly_Rent: '0',
+                EB_Amount: '0',
+                Total_Amount: advance || '0',
+                Paid_Date: new Date().toLocaleDateString(),
+                Transaction_ID: 'WEB_ADVANCE',
+                Payment_Mode: 'Web Registration'
+            });
+            await sendMedia(phone, invPath, `🧾 Your Advance Payment Receipt`, null, 'Advance_Receipt.pdf');
+        } catch (invErr) {
+            console.warn('Failed to send advance receipt:', invErr.message);
+        }
 
         if (config.ownerPhone) {
             await sendMessage(config.ownerPhone, `📝 *New Web Registration*\n${name} - ${room}\nPhone: ${phone}\nAdvance: ₹${advance}`);
@@ -1614,6 +1689,15 @@ app.post('/api/public/register', publicEndpointLimiter, upload.single('aadhaar')
             monthlyRent: rent || '0'
         });
 
+        // Persistent upload for Registration Form
+        let regMediaId = regFile;
+        try {
+            const regMedia = await savePDFToCloudinary(regPath, phone, 'REGISTRATION');
+            regMediaId = regMedia._id.toString();
+        } catch (e) {
+            console.warn('Failed to upload registration PDF to Cloudinary:', e.message);
+        }
+
         // 2. Add to Google Sheets (and MongoDB via auto-sync)
         await sheetsService.init();
         const tenantData = {
@@ -1625,7 +1709,7 @@ app.post('/api/public/register', publicEndpointLimiter, upload.single('aadhaar')
             monthlyRent: rent || '0',
             advance: advance || '0',
             aadhaarImage,
-            registrationForm: regFile
+            registrationForm: regMediaId
         };
 
         await sheetsService.addTenant(tenantData);
@@ -1642,6 +1726,10 @@ app.post('/api/public/register', publicEndpointLimiter, upload.single('aadhaar')
             } else {
                 await sendMessage(phone, welcomeMsg);
             }
+
+            // Send registration PDF to tenant
+            const regPath = path.join(__dirname, '../uploads', regFile); // regFile is the filename from earlier
+            await sendMedia(phone, regPath, `📝 Your Registration Copy`, null, 'StayFlow_Registration.pdf');
         } catch (wsErr) {
             console.warn('WhatsApp notification failed, but registration succeeded:', wsErr.message);
         }
@@ -1724,7 +1812,17 @@ app.post('/webhook/google-form', async (req, res) => {
 
         await sheetsService.init();
         const { fileName: regFile, filePath: regPath } = await pdfService.generateRegistrationForm(tenantData);
-        tenantData.registrationForm = regFile;
+        
+        // Persistent upload for Registration Form
+        let regMediaId = regFile;
+        try {
+            const regMedia = await savePDFToCloudinary(regPath, tenantData.phone, 'REGISTRATION');
+            regMediaId = regMedia._id.toString();
+        } catch (e) {
+            console.warn('Failed to upload registration PDF to Cloudinary:', e.message);
+        }
+
+        tenantData.registrationForm = regMediaId;
         await sheetsService.addTenant(tenantData);
 
         const welcomeMsg = `🎉 Hello ${tenantData.name}! Your registration is successful. ✅\n\nWelcome to *${config.businessName}*! 🏠\n\n${detailedRules}\n\n🤖 *Smart Bot:* Type *HI* to see your dashboard and bills!`;
@@ -1735,7 +1833,26 @@ app.post('/webhook/google-form', async (req, res) => {
         } else {
             await sendMessage(tenantData.phone, welcomeMsg);
         }
-        // Registration PDF only sent to admin, not to user
+        
+        // Send registration PDF and Advance Receipt to tenant
+        await sendMedia(tenantData.phone, regPath, `📝 Your Registration Copy`, null, 'StayFlow_Registration.pdf');
+        
+        try {
+            const { filePath: invPath } = await pdfService.generateInvoice({
+                Name: tenantData.name,
+                Phone: tenantData.phone,
+                Room: tenantData.room,
+                Monthly_Rent: tenantData.monthlyRent || '0',
+                EB_Amount: '0',
+                Total_Amount: tenantData.advance || '0',
+                Paid_Date: new Date().toLocaleDateString(),
+                Transaction_ID: 'FORM_ADVANCE',
+                Payment_Mode: 'Google Form'
+            });
+            await sendMedia(tenantData.phone, invPath, `🧾 Your Advance Payment Receipt`, null, 'Advance_Receipt.pdf');
+        } catch (invErr) {
+            console.warn('Failed to send advance receipt:', invErr.message);
+        }
 
         if (config.ownerPhone) {
             await sendMessage(config.ownerPhone, `📝 *New Form Registration*\n━━━━━━━━━━━━━━━━━━━━\n\n👤 *Name*          :  ${tenantData.name}\n📞 *Phone*         :  ${tenantData.phone}\n🚪 *Room*          :  ${tenantData.room}\n\n━━━━━━━━━━━━━━━━━━━━\n_Please verify in the dashboard._`);
@@ -1776,11 +1893,20 @@ app.post('/api/add-tenant', authenticate, async (req, res) => {
             monthlyRent: tenantData.rent || '0'
         });
 
-        tenantData.registrationForm = regFile;
+        // Persistent upload for Registration Form
+        let regMediaId = regFile;
+        try {
+            const regMedia = await savePDFToCloudinary(regPath, tenantData.phone, 'REGISTRATION');
+            regMediaId = regMedia._id.toString();
+        } catch (e) {
+            console.warn('Failed to upload registration PDF to Cloudinary:', e.message);
+        }
+
+        tenantData.registrationForm = regMediaId;
         await sheetsService.init();
         await sheetsService.addTenant(tenantData);
 
-        const welcomeMsg = `✅ *Registration Successful!*\n\nWelcome ${tenantData.name}! 🏠\n\n${detailedRules}`;
+        const welcomeMsg = `✅ *Registration Successful!*\n\nWelcome ${tenantData.name}! 🏠\n\n${detailedRules}\n\n🤖 *Tip:* Type *HI* to see your dashboard!`;
         const welcomeHeader = path.join(__dirname, '../public/welcome_header.png');
         
         if (fs.existsSync(welcomeHeader)) {
@@ -1788,7 +1914,26 @@ app.post('/api/add-tenant', authenticate, async (req, res) => {
         } else {
             await sendMessage(tenantData.phone, welcomeMsg);
         }
-        // Registration PDF only sent to admin, not to user
+        
+        // Send registration PDF and Advance Receipt to tenant
+        await sendMedia(tenantData.phone, regPath, `📝 Your Registration Copy`, null, 'StayFlow_Registration.pdf');
+        
+        try {
+            const { filePath: invPath } = await pdfService.generateInvoice({
+                Name: tenantData.name,
+                Phone: tenantData.phone,
+                Room: tenantData.room,
+                Monthly_Rent: tenantData.rent || '0',
+                EB_Amount: '0',
+                Total_Amount: tenantData.advance || '0',
+                Paid_Date: new Date().toLocaleDateString(),
+                Transaction_ID: 'ADVANCE_PAID',
+                Payment_Mode: 'Registration Advance'
+            });
+            await sendMedia(tenantData.phone, invPath, `🧾 Your Advance Payment Receipt`, null, 'Advance_Receipt.pdf');
+        } catch (invErr) {
+            console.warn('Failed to send advance receipt:', invErr.message);
+        }
 
         if (config.ownerPhone) {
             await sendMessage(config.ownerPhone, `📝 *Admin Added Resident*\nName: ${tenantData.name}\nPhone: ${tenantData.phone}`);

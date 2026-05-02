@@ -2263,14 +2263,22 @@ const App = () => {
                     <span style={{ fontWeight: 800, fontSize: '0.9rem' }}>Notifications</span>
                     <div style={{ display: 'flex', gap: 8 }}>
                       {notifications.length > 0 && (
-                        <button className="btn btn-glass btn-small" style={{ padding: '4px 8px', fontSize: '0.7rem', color: 'var(--accent)' }} onClick={async () => {
-                          if (window.confirm('Clear all notifications?')) {
-                            try {
-                              await axios.delete('/api/notifications');
-                              setNotifications([]);
-                              showToast('Notifications cleared', 'success');
-                            } catch (e) {}
-                          }
+                        <button className="btn btn-glass btn-small" style={{ padding: '4px 8px', fontSize: '0.7rem', color: 'var(--accent)' }} onClick={() => {
+                          setActionPanel({
+                            type: 'confirm',
+                            title: 'Clear All Notifications',
+                            message: 'Are you sure you want to delete all recent notifications? This action cannot be undone.',
+                            onConfirm: async () => {
+                              try {
+                                await axios.delete('/api/notifications');
+                                setNotifications([]);
+                                setActionPanel(null);
+                                showToast('Notifications cleared', 'success');
+                              } catch (e) {
+                                showToast('Failed to clear notifications', 'error');
+                              }
+                            }
+                          });
                         }}>
                           <Trash2 size={14} /> Clear All
                         </button>
