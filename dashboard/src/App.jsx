@@ -637,10 +637,18 @@ const App = () => {
   const occupiedBeds = _targetLocations.reduce((sum, l) => sum + parseInt(l.occupiedBeds || 0), 0);
   const vacantBeds = Math.max(0, totalBeds - occupiedBeds);
 
-  const todayStr = new Date().toLocaleDateString();
+  const formatDateKey = (date = new Date()) => {
+    const value = date instanceof Date ? date : new Date(date);
+    const year = value.getFullYear();
+    const month = String(value.getMonth() + 1).padStart(2, '0');
+    const day = String(value.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
+  const todayStr = formatDateKey();
   const yesterday = new Date();
   yesterday.setDate(yesterday.getDate() - 1);
-  const yesterdayStr = yesterday.toLocaleDateString();
+  const yesterdayStr = formatDateKey(yesterday);
 
   const joinedToday = activeTenants.filter(t => t['Join Date'] === todayStr).length;
   const joinedYesterday = activeTenants.filter(t => t['Join Date'] === yesterdayStr).length;

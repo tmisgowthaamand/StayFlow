@@ -41,6 +41,54 @@ class SheetsService {
         return clean;
     }
 
+    formatSheetDate(date = new Date()) {
+        const value = date instanceof Date ? date : new Date(date);
+        if (Number.isNaN(value.getTime())) return '';
+        const year = value.getFullYear();
+        const month = String(value.getMonth() + 1).padStart(2, '0');
+        const day = String(value.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+    }
+
+    parseSheetDate(value) {
+        if (!value) return null;
+        const text = value.toString().trim();
+        if (!text) return null;
+        if (/^\d{4}-\d{2}-\d{2}$/.test(text)) {
+            const parsedIso = new Date(`${text}T00:00:00`);
+            return Number.isNaN(parsedIso.getTime()) ? null : parsedIso;
+        }
+        const parsed = new Date(text);
+        return Number.isNaN(parsed.getTime()) ? null : parsed;
+    }
+
+    normalizeSheetDateValue(value) {
+        const parsed = this.parseSheetDate(value);
+        return parsed ? this.formatSheetDate(parsed) : (value || '');
+    }
+
+    dedupeAndSortTenantRows(rows) {
+        const latestByPhone = new Map();
+
+        rows.forEach(row => {
+            const phoneKey = this.normalizePhone(row.get('Phone')) || `row-${row.rowNumber}`;
+            const joinDate = this.parseSheetDate(row.get('Join Date')) || new Date(0);
+            const existing = latestByPhone.get(phoneKey);
+
+            if (!existing || joinDate > existing.joinDate || row.rowNumber > existing.row.rowNumber) {
+                latestByPhone.set(phoneKey, { row, joinDate });
+            }
+        });
+
+        return [...latestByPhone.values()]
+            .sort((a, b) => {
+                const diff = b.joinDate - a.joinDate;
+                if (diff !== 0) return diff;
+                return b.row.rowNumber - a.row.rowNumber;
+            })
+            .map(entry => entry.row);
+    }
+
     async init() {
         // Always check if doc is properly initialized with loadInfo called
         if (this.doc && this.sheet && this.doc.title) {
@@ -297,7 +345,7 @@ class SheetsService {
                 'Amount': amount,
                 'Mode': mode,
                 'TRX_ID': trxId,
-                'Date': date.toLocaleDateString()
+                'Date': this.formatSheetDate(date)
             });
         }
 
@@ -313,7 +361,7 @@ class SheetsService {
             'Total Amount': amount,
             'Payment Mode': mode,
             'Transaction ID': trxId,
-            'Paid Date': date.toLocaleDateString(),
+            'Paid Date': this.formatSheetDate(),
             'Status': status,
             'Location': tenant.get('Location') || 'Main Branch'
         });
@@ -334,7 +382,7 @@ class SheetsService {
             let trxId = tenant.get('Transaction ID');
             let amount = tenant.get('Total Amount') || '0';
             let mode = tenant.get('Payment Mode') || 'UPI (Manual)';
-            let pDate = tenant.get('Paid Date') || new Date().toLocaleDateString();
+            let pDate = tenant.get('Paid Date') || this.formatSheetDate();
 
             if (pRow) {
                 trxId = pRow.get('Transaction ID') || trxId;
@@ -493,7 +541,7 @@ class SheetsService {
                 'EB Amount': '0',
                 'Total Amount': tenantData.monthlyRent,
                 'Status': 'ACTIVE',
-                'Join Date': new Date().toLocaleDateString(),
+                'Join Date': this.formatSheetDate(),
             };
             try {
                 const row = await this.sheet.addRow(rowData);
@@ -598,7 +646,8 @@ class SheetsService {
     async getAllTenants() {
         await this.init();
         // Explicitly set a high limit to ensure we fetch all data (supporting 200+ residents)
-        return await this.sheet.getRows({ offset: 0, limit: 5000 });
+        const rows = await this.sheet.getRows({ offset: 0, limit: 5000 });
+        return this.dedupeAndSortTenantRows(rows);
     }
 
     async getTenantsJSON() {
@@ -611,11 +660,12 @@ class SheetsService {
         }
         console.log('[SHEETS] Getting tenants from sheet:', this.sheet.title);
         // Explicitly fetch up to 5000 rows to avoid any default library limits
-        const rows = await this.sheet.getRows({ offset: 0, limit: 5000 });
+        const rows = this.dedupeAndSortTenantRows(await this.sheet.getRows({ offset: 0, limit: 5000 }));
         return rows.map(row => {
             const data = {};
             this.sheet.headerValues.forEach(header => {
-                data[header] = row.get(header) || '';
+                const value = row.get(header) || '';
+                data[header] = /date/i.test(header) ? this.normalizeSheetDateValue(value) : value;
             });
             return data;
         });
@@ -708,7 +758,7 @@ class SheetsService {
             'Total Units': ebData.totalUnits,
             'Rate Per Unit': ebData.ratePerUnit || config.ebUnitRate || '15',
             'Calculated Total EB': totalEB.toString(),
-            'Entry Date': new Date().toLocaleDateString(),
+            'Entry Date': this.formatSheetDate(),
             'Notes': ebData.notes || ''
         });
 
