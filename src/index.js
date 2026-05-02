@@ -909,34 +909,9 @@ app.get('/api/media/:id', authenticate, async (req, res) => {
                 const mediaDoc = await Media.findOne({ $or: mediaQuery });
 
                 if (mediaDoc?.url) {
-                    console.log(`Fetching Cloudinary media: ${safeMediaId}, URL: ${mediaDoc.url}`);
-                    try {
-                        // Use Cloudinary's authenticated URL format for private resources
-                        // Add transformation to ensure proper delivery
-                        let fetchUrl = mediaDoc.url;
-                        if (!fetchUrl.includes('?')) {
-                            fetchUrl += '?dl=true';  // Force download/inline display
-                        }
-
-                        console.log(`[MEDIA] Fetching from: ${fetchUrl}`);
-                        const cloudinaryRes = await axios.get(fetchUrl, {
-                            responseType: 'arraybuffer',
-                            timeout: 30000
-                        });
-
-                        console.log(`[MEDIA] Successfully fetched ${cloudinaryRes.data.length} bytes`);
-                        res.setHeader('Content-Type', mediaDoc.mimeType || 'application/octet-stream');
-                        res.setHeader('Content-Disposition', `inline; filename="${mediaDoc.filename || mediaDoc.mediaId || safeMediaId}"`);
-                        return res.send(cloudinaryRes.data);
-                    } catch (cloudinaryErr) {
-                        console.error(`[MEDIA] Failed to fetch Cloudinary media for ${safeMediaId}:`, {
-                            message: cloudinaryErr.message,
-                            status: cloudinaryErr.response?.status,
-                            statusText: cloudinaryErr.response?.statusText,
-                            url: mediaDoc.url
-                        });
-                        return res.status(500).json({ error: 'Error fetching media from storage', details: cloudinaryErr.message });
-                    }
+                    console.log(`Serving Cloudinary media: ${safeMediaId}, URL: ${mediaDoc.url}`);
+                    // Redirect to Cloudinary URL (already secure HTTPS)
+                    return res.redirect(mediaDoc.url);
                 }
 
                 if (mediaDoc?.data) {
