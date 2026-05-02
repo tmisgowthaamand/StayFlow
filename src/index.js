@@ -1600,10 +1600,10 @@ app.post('/api/web-register', upload.single('aadhaar'), async (req, res) => {
         });
 
         // Persistent upload for Registration Form
-        let regMediaId = regFile;
+        let regMediaUrl = regFile;
         try {
             const regMedia = await savePDFToCloudinary(regPath, phone, 'REGISTRATION');
-            regMediaId = regMedia._id.toString();
+            regMediaUrl = regMedia.url;
         } catch (e) {
             console.warn('Failed to upload registration PDF to Cloudinary:', e.message);
         }
@@ -1617,7 +1617,7 @@ app.post('/api/web-register', upload.single('aadhaar'), async (req, res) => {
             advance,
             monthlyRent: '0',
             aadhaarImage,
-            registrationForm: regMediaId
+            registrationForm: regMediaUrl
         });
 
         const welcomeMsg = `✅ *Registration Successful!* 🎉\n\nWelcome ${name} to Room ${room}. We are happy to have you! 🏠\n\n${detailedRules}\n\n🤖 *How to Use:* Type *HI* anytime to see your dashboard!`;
@@ -1707,10 +1707,10 @@ app.post('/api/public/register', publicEndpointLimiter, upload.single('aadhaar')
         });
 
         // Persistent upload for Registration Form
-        let regMediaId = regFile;
+        let regMediaUrl = regFile;
         try {
             const regMedia = await savePDFToCloudinary(regPath, phone, 'REGISTRATION');
-            regMediaId = regMedia._id.toString();
+            regMediaUrl = regMedia.url;
         } catch (e) {
             console.warn('Failed to upload registration PDF to Cloudinary:', e.message);
         }
@@ -1726,7 +1726,7 @@ app.post('/api/public/register', publicEndpointLimiter, upload.single('aadhaar')
             monthlyRent: rent || '0',
             advance: advance || '0',
             aadhaarImage,
-            registrationForm: regMediaId
+            registrationForm: regMediaUrl
         };
 
         await sheetsService.addTenant(tenantData);
@@ -1831,15 +1831,15 @@ app.post('/webhook/google-form', async (req, res) => {
         const { fileName: regFile, filePath: regPath } = await pdfService.generateRegistrationForm(tenantData);
         
         // Persistent upload for Registration Form
-        let regMediaId = regFile;
+        let regMediaUrl = regFile;
         try {
             const regMedia = await savePDFToCloudinary(regPath, tenantData.phone, 'REGISTRATION');
-            regMediaId = regMedia._id.toString();
+            regMediaUrl = regMedia.url;
         } catch (e) {
             console.warn('Failed to upload registration PDF to Cloudinary:', e.message);
         }
 
-        tenantData.registrationForm = regMediaId;
+        tenantData.registrationForm = regMediaUrl;
         await sheetsService.addTenant(tenantData);
 
         const welcomeMsg = `🎉 Hello ${tenantData.name}! Your registration is successful. ✅\n\nWelcome to *${config.businessName}*! 🏠\n\n${detailedRules}\n\n🤖 *Smart Bot:* Type *HI* to see your dashboard and bills!`;
@@ -1918,15 +1918,15 @@ app.post('/api/add-tenant', authenticate, async (req, res) => {
         });
 
         // Persistent upload for Registration Form
-        let regMediaId = regFile;
+        let regMediaUrl = regFile;
         try {
             const regMedia = await savePDFToCloudinary(regPath, tenantData.phone, 'REGISTRATION');
-            regMediaId = regMedia._id.toString();
+            regMediaUrl = regMedia.url;
         } catch (e) {
             console.warn('Failed to upload registration PDF to Cloudinary:', e.message);
         }
 
-        tenantData.registrationForm = regMediaId;
+        tenantData.registrationForm = regMediaUrl;
         await sheetsService.init();
         await sheetsService.addTenant(tenantData);
 
