@@ -617,6 +617,7 @@ const App = () => {
 
   const joinedToday = activeTenants.filter(t => t['Join Date'] === todayStr).length;
   const joinedYesterday = activeTenants.filter(t => t['Join Date'] === yesterdayStr).length;
+  const uniqueRooms = [...new Set(tenants.map(t => t.Room).filter(Boolean))];
 
   const stats = [
     { label: 'Residents', value: activeTenants.length, icon: Users, color: '#6366f1', bg: 'rgba(99, 102, 241, 0.08)' },
