@@ -67,7 +67,7 @@ class CloudinaryService {
         } else if (mimeType.startsWith('video/')) {
             resourceType = 'video';
         } else if (mimeType === 'application/pdf') {
-            resourceType = 'raw';
+            resourceType = 'raw';  // PDFs uploaded as raw files
         }
 
         const signedParams = {
