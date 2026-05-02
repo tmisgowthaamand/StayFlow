@@ -1233,70 +1233,7 @@ app.get('/vacate', (req, res) => {
     res.sendFile(path.join(__dirname, '../public/vacate.html'));
 });
 
-// Reliable public query submission. This route intentionally returns success after the
-// query is saved; WhatsApp/push notifications are best-effort follow-up work.
-app.post('/api/submit-query', publicEndpointLimiter, validate(querySchema), async (req, res) => {
-    try {
-        const { name, phone, room, category, description } = req.body;
-        if (!name || !phone || !description) {
-            return res.status(400).json({ error: 'Name, phone and description are required' });
-        }
 
-        const count = await Query.countDocuments();
-        const queryId = `Q${(count + 1001).toString()}`;
-        const normalizedCategory = category || 'General';
-        const normalizedRoom = room || 'N/A';
-
-        await Query.create({
-            queryId,
-            tenantName: name,
-            phone,
-            room: normalizedRoom,
-            category: normalizedCategory,
-            message: description,
-            status: 'PENDING'
-        });
-
-        await Log.create({
-            phone,
-            action: 'QUERY_SUBMITTED',
-            details: { queryId, name, room: normalizedRoom, category: normalizedCategory, description, timestamp: new Date().toISOString() }
-        });
-
-        res.json({ success: true, queryId });
-
-        try {
-            await sendMessage(phone, `Query Received!\n\nID: #${queryId}\nCategory: ${normalizedCategory}\nIssue: "${description}"\n\nOur team will review and get back to you shortly.`);
-        } catch (e) {
-            console.warn(`Query confirmation WhatsApp failed for ${phone}:`, e.message);
-        }
-
-        if (config.ownerPhone) {
-            try {
-                await sendMessage(config.ownerPhone, `New Query #${queryId}\n\nName: ${name}\nPhone: ${phone}\nRoom: ${normalizedRoom}\nCategory: ${normalizedCategory}\nQuery: ${description}`);
-            } catch (e) {
-                console.warn('Query admin WhatsApp notification failed:', e.message);
-            }
-        }
-
-        try {
-            const title = `New Issue: ${normalizedCategory}`;
-            const body = `${name} (Room ${normalizedRoom}): ${description.slice(0, 50)}${description.length > 50 ? '...' : ''}`;
-            await Notification.create({
-                type: 'issue_submitted',
-                title,
-                body,
-                meta: { queryId, tenantName: name, room: normalizedRoom, category: normalizedCategory, issue: description, phone }
-            });
-            await sendPushNotification(title, body, { type: 'issue_submitted', tenantName: name, room: normalizedRoom, category: normalizedCategory });
-        } catch (e) {
-            console.error('Failed to create query notification:', e.message);
-        }
-    } catch (err) {
-        console.error('Query submit error:', err);
-        res.status(500).json({ error: 'Internal server error' });
-    }
-});
 
 // API to submit a query from the queries form
 app.post('/api/submit-query', publicEndpointLimiter, validate(querySchema), async (req, res) => {
@@ -1537,22 +1474,16 @@ app.patch('/api/queries/:queryId/resolve', authenticate, async (req, res) => {
     }
 });
 
-// Serve modern dashboard at /admin and /
-app.get('/admin', (req, res) => {
-    if (fs.existsSync(path.join(dashboardDist, 'index.html'))) {
-        res.sendFile(path.join(dashboardDist, 'index.html'));
+// Serve modern dashboard at /admin and / (Priority Routes)
+app.get(['/', '/admin', '/residents', '/billing', '/settings', '/notifications', '/queries', '/archive'], (req, res) => {
+    const indexPath = path.join(dashboardDist, 'index.html');
+    if (fs.existsSync(indexPath)) {
+        res.sendFile(indexPath);
     } else {
         res.sendFile(path.join(__dirname, '../public/legacy.html'));
     }
 });
 
-app.get('/', (req, res) => {
-    if (fs.existsSync(path.join(dashboardDist, 'index.html'))) {
-        res.sendFile(path.join(dashboardDist, 'index.html'));
-    } else {
-        res.sendFile(path.join(__dirname, '../public/legacy.html'));
-    }
-});
 
 app.post('/api/web-register', upload.single('aadhaar'), async (req, res) => {
     try {
@@ -2586,49 +2517,7 @@ app.get('/api/health', async (req, res) => {
     }
 });
 
-app.get('/', (req, res) => {
-    if (fs.existsSync(dashboardDist)) {
-        res.sendFile(path.join(dashboardDist, 'index.html'));
-    } else {
-        res.send(`
-            <html>
-            <head>
-                <title>StayFlow - Running</title>
-                <style>
-                    body { font-family: Arial, sans-serif; text-align: center; padding: 50px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; }
-                    .container { background: white; color: #333; padding: 40px; border-radius: 20px; max-width: 600px; margin: 0 auto; box-shadow: 0 20px 60px rgba(0,0,0,0.3); }
-                    h1 { margin-bottom: 20px; }
-                    a { display: inline-block; margin: 10px; padding: 15px 30px; background: #667eea; color: white; text-decoration: none; border-radius: 25px; transition: all 0.3s; }
-                    a:hover { background: #764ba2; transform: translateY(-2px); }
-                </style>
-            </head>
-            <body>
-                <div class="container">
-                    <h1>🚀 StayFlow Cloud Bot</h1>
-                    <p>Service is running!</p>
-                    <div style="margin-top: 30px;">
-                        <a href="/wake.html">⚡ Wake Service</a>
-                        <a href="/api/wake">📡 Wake API</a>
-                        <a href="/health">💚 Health Check</a>
-                    </div>
-                    <p style="margin-top: 30px; color: #666;">
-                        Full Dashboard: <a href="https://stay-flow-kohl.vercel.app" target="_blank">Open Dashboard</a>
-                    </p>
-                </div>
-            </body>
-            </html>
-        `);
-    }
-});
 
-// Health check endpoint for keep-alive
-app.get('/health', (req, res) => {
-    res.status(200).json({ 
-        status: 'ok', 
-        timestamp: new Date().toISOString(),
-        uptime: process.uptime()
-    });
-});
 
 // Login endpoint - JWT authentication
 app.post('/api/login', (req, res) => {
