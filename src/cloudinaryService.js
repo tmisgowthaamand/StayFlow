@@ -61,13 +61,13 @@ class CloudinaryService {
         const mimeType = options.mimeType || 'application/octet-stream';
 
         // Determine resource type based on MIME type
-        let resourceType = 'raw';
+        let resourceType = 'auto';  // Let Cloudinary auto-detect best resource type
         if (mimeType.startsWith('image/')) {
             resourceType = 'image';
         } else if (mimeType.startsWith('video/')) {
             resourceType = 'video';
         } else if (mimeType === 'application/pdf') {
-            resourceType = 'raw';  // PDFs uploaded as raw files
+            resourceType = 'image';  // Upload PDF as image for preview generation
         }
 
         const signedParams = {
