@@ -932,7 +932,7 @@ app.get('/api/media/:id', authenticate, async (req, res) => {
                             status: cloudinaryErr.response?.status,
                             url: mediaDoc.url
                         });
-                        return res.status(500).json({ error: 'Error fetching media from storage', details: cloudinaryErr.message });
+                        // Fall through to Mongo/local fallback instead of failing hard.
                     }
                 }
 
@@ -1169,6 +1169,7 @@ async function savePDFToCloudinary(filePath, phone, type = 'REGISTRATION') {
             format: uploadResult.format,
             bytes: uploadResult.bytes,
             encrypted: true,
+            data: encrypted,
             encryptionIV: iv.toString('hex'),
             encryptionTag: tag.toString('hex')
         });
@@ -1206,6 +1207,8 @@ async function saveUploadToCloudinary(file, phone, type = 'AADHAAR') {
             throw new Error('Cloudinary upload returned no URL');
         }
 
+        const { encrypted, iv, tag } = encrypt(fileBuffer);
+
         // Store metadata in MongoDB
         const mediaDoc = await Media.create({
             phone,
@@ -1219,7 +1222,10 @@ async function saveUploadToCloudinary(file, phone, type = 'AADHAAR') {
             resourceType: uploadResult.resourceType,
             format: uploadResult.format,
             bytes: uploadResult.bytes,
-            encrypted: false,  // Original file stored unencrypted on Cloudinary
+            encrypted: true,
+            data: encrypted,
+            encryptionIV: iv.toString('hex'),
+            encryptionTag: tag.toString('hex'),
             createdAt: new Date()
         });
 
