@@ -48,7 +48,20 @@ const escapeRegex = (str) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 const app = express();
 
 // Security headers (must be first)
-app.use(helmet());
+app.use(helmet({
+    contentSecurityPolicy: {
+        directives: {
+            ...helmet.contentSecurityPolicy.getDefaultDirectives(),
+            "script-src": ["'self'", "'unsafe-inline'", "https://cdn.jsdelivr.net", "https://cdnjs.cloudflare.com"],
+            "script-src-attr": ["'unsafe-inline'"],
+            "style-src": ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com", "https://cdnjs.cloudflare.com"],
+            "font-src": ["'self'", "https://fonts.gstatic.com", "https://cdnjs.cloudflare.com", "data:"],
+            "img-src": ["'self'", "data:", "https://res.cloudinary.com", "https://*.whatsapp.net", "https://*.razorpay.com"],
+            "connect-src": ["'self'", "https://stayflow-tkto.onrender.com", "https://*.razorpay.com"]
+        },
+    },
+    crossOriginEmbedderPolicy: false,
+}));
 
 app.use(cors({
     origin: (origin, callback) => {
