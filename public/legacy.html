@@ -694,13 +694,26 @@
 
         async function fetchTenants() {
             try {
+                console.log('Fetching tenants from /api/tenants...');
                 const res = await apiFetch('/api/tenants');
                 if (!res.ok) {
+                    console.error(`API returned status ${res.status}`);
                     throw new Error(`Request failed with status ${res.status}`);
                 }
                 tenantData = await res.json();
+                console.log(`Successfully fetched ${tenantData.length} tenants:`, tenantData);
+                if (!Array.isArray(tenantData)) {
+                    console.error('Expected array but got:', typeof tenantData, tenantData);
+                    tenantData = [];
+                }
                 renderAllData();
-            } catch (e) { console.error(e); }
+                updateStats();
+                renderChart();
+            } catch (e) {
+                console.error('Error fetching tenants:', e);
+                tenantData = [];
+                renderAllData();
+            }
         }
 
         function switchView(id, el) {
@@ -712,7 +725,9 @@
         }
 
         function renderAllData() {
-            document.getElementById('dashboard-rows').innerHTML = tenantData.map(t => `
+            const activeTenants = tenantData.filter(t => t.Status !== 'VACATED');
+
+            document.getElementById('dashboard-rows').innerHTML = activeTenants.map(t => `
                 <tr class="tenant-row">
                     <td><div style="display:flex; align-items:center; gap:10px"><div class="avatar">${t.Name[0]}</div><b>${t.Name}</b></div></td>
                     <td>${t.Room}</td>
@@ -742,11 +757,11 @@
                 </tr>
             `).join('');
 
-            const rooms = [...new Set(tenantData.map(t => t.Room))].sort();
+            const rooms = [...new Set(activeTenants.map(t => t.Room))].sort();
             document.getElementById('room-grid').innerHTML = rooms.map(r => {
-                const roomTenants = tenantData.filter(t => t.Room === r && t.Status !== 'VACATED');
+                const roomTenants = activeTenants.filter(t => t.Room === r);
                 const count = roomTenants.length;
-                const full = count >= 2; // Assuming 2 sharing as standard for "full" indicator
+                const full = count >= 2;
                 const tenantList = roomTenants.map(t => `${t.Name} (${t.Status})`).join(', ');
 
                 return `<div class="room-card" onclick="alert('Tenants in ${r}:\\n${tenantList || 'None'}')" style="cursor:pointer; padding:20px; border-radius:20px; background:${full ? '#f43f5e11' : '#10b98111'}; border:1px solid ${full ? 'var(--accent)' : 'var(--secondary)'}; text-align:center">
@@ -760,17 +775,21 @@
         }
 
         function updateStats() {
-            const paid = tenantData.filter(t => t.Status === 'PAID' || t.Status === 'VALID');
+            const activeTenants = tenantData.filter(t => t.Status !== 'VACATED');
+            const paid = activeTenants.filter(t => t.Status === 'PAID' || t.Status === 'VALID');
             const totalRev = paid.reduce((s, t) => s + parseFloat(t['Total Amount'] || 0), 0);
-            document.getElementById('stat-tenants').innerText = tenantData.length;
+            const pendingCount = activeTenants.filter(t => t.Status === 'PENDING').length;
+            document.getElementById('stat-tenants').innerText = activeTenants.length;
             document.getElementById('stat-revenue').innerText = '₹' + totalRev.toLocaleString();
-            document.getElementById('stat-pending').innerText = tenantData.filter(t => t.Status === 'PENDING').length;
+            document.getElementById('stat-pending').innerText = pendingCount;
+            console.log(`Stats updated: ${activeTenants.length} active tenants, ₹${totalRev} revenue, ${pendingCount} pending`);
         }
 
         function renderChart() {
             const ctx = document.getElementById('revenueChart').getContext('2d');
-            const paid = tenantData.filter(t => t.Status === 'PAID' || t.Status === 'VALID').length;
-            const pend = tenantData.filter(t => t.Status === 'PENDING').length;
+            const activeTenants = tenantData.filter(t => t.Status !== 'VACATED');
+            const paid = activeTenants.filter(t => t.Status === 'PAID' || t.Status === 'VALID').length;
+            const pend = activeTenants.filter(t => t.Status === 'PENDING').length;
             if (chartInstance) chartInstance.destroy();
             chartInstance = new Chart(ctx, {
                 type: 'doughnut',
