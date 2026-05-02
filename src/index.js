@@ -909,6 +909,16 @@ app.get('/api/media/:id', authenticate, async (req, res) => {
                 const mediaDoc = await Media.findOne({ $or: mediaQuery });
 
                 if (mediaDoc?.url) {
+                    if (req.query.resolve === '1' || req.query.direct === '1') {
+                        return res.json({
+                            success: true,
+                            url: mediaDoc.url,
+                            mediaId: safeMediaId,
+                            filename: mediaDoc.filename || safeMediaId,
+                            mimeType: mediaDoc.mimeType || 'application/octet-stream'
+                        });
+                    }
+
                     console.log(`Serving Cloudinary media: ${safeMediaId}, URL: ${mediaDoc.url}`);
                     try {
                         // Fetch file from Cloudinary and serve through backend
@@ -1587,7 +1597,7 @@ app.post('/api/web-register', upload.single('aadhaar'), async (req, res) => {
         if (file) {
             try {
                 const mediaDoc = await saveUploadToCloudinary(file, phone, 'AADHAAR');
-                aadhaarImage = mediaDoc._id.toString();
+                aadhaarImage = mediaDoc.url;
             } catch (uploadErr) {
                 console.warn(`[WEB REG] File upload failed but continuing: ${uploadErr.message}`);
             }
@@ -1690,7 +1700,7 @@ app.post('/api/public/register', publicEndpointLimiter, upload.single('aadhaar')
         if (file) {
             try {
                 const mediaDoc = await saveUploadToCloudinary(file, phone, 'AADHAAR');
-                aadhaarImage = mediaDoc._id.toString();
+                aadhaarImage = mediaDoc.url;
             } catch (uploadErr) {
                 console.warn(`[PUBLIC REG] File upload failed but continuing: ${uploadErr.message}`);
             }

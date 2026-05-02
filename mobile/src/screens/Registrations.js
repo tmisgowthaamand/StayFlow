@@ -110,10 +110,29 @@ const Registrations = () => {
 
     const openDocument = useCallback(async (filename) => {
         if (!filename) { Alert.alert('No Document', 'No registration form attached.'); return; }
-        if (filename.startsWith('http')) {
+        if (filename.startsWith('http') && !filename.includes('/api/media/')) {
             Linking.openURL(filename).catch(() => Alert.alert('Error', 'Could not open document.'));
             return;
         }
+
+        if (filename.startsWith('http') && filename.includes('/api/media/')) {
+            try {
+                const token = await AsyncStorage.getItem('stayflow_jwt');
+                const parsedUrl = new URL(filename);
+                const legacyMediaId = decodeURIComponent(parsedUrl.pathname.split('/api/media/')[1] || '');
+                const response = await fetch(`${API_ORIGIN}/api/media/${encodeURIComponent(legacyMediaId)}?resolve=1`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                const json = await response.json();
+                if (json?.url) {
+                    Linking.openURL(json.url).catch(() => Alert.alert('Error', 'Could not open document.'));
+                    return;
+                }
+            } catch (error) {
+                console.error('Failed to resolve legacy media URL:', error);
+            }
+        }
+
         const token = await AsyncStorage.getItem('stayflow_jwt');
         Linking.openURL(`${API_ORIGIN}/api/media/${filename}?token=${token}`).catch(() => Alert.alert('Error', 'Could not open document.'));
     }, []);

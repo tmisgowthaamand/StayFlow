@@ -542,7 +542,20 @@ const App = () => {
   const handleSecureView = async (mediaId) => {
     try {
       showToast('Opening document securely...', 'info');
-      const url = getMediaUrl(mediaId);
+      let url = mediaId;
+
+      if (mediaId && mediaId.startsWith('http')) {
+        if (mediaId.includes('/api/media/')) {
+          const parsedUrl = new URL(mediaId);
+          const legacyMediaId = decodeURIComponent(parsedUrl.pathname.split('/api/media/')[1] || '');
+          const response = await axios.get(`/api/media/${encodeURIComponent(legacyMediaId)}?resolve=1`);
+          url = response.data?.url || mediaId;
+        }
+      } else {
+        const response = await axios.get(`/api/media/${encodeURIComponent(mediaId)}?resolve=1`);
+        url = response.data?.url || getMediaUrl(mediaId);
+      }
+
       window.open(url, '_blank', 'noopener,noreferrer');
     } catch (err) {
       console.error('Secure view failed:', err);
