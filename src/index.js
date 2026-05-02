@@ -1190,10 +1190,11 @@ async function saveUploadToCloudinary(file, phone, type = 'AADHAAR') {
         console.log(`[UPLOAD] Encrypted size=${encrypted.length}, IV=${iv.toString('hex').substring(0, 8)}..., Tag=${tag.toString('hex').substring(0, 8)}...`);
 
         // Upload encrypted buffer directly to Cloudinary without disk access
+        const ext = path.extname(file.originalname);
         const uploadResult = await cloudinaryService.uploadBuffer(encrypted, {
             folder: `stayflow/${type.toLowerCase()}`,
-            filename: `${type.toLowerCase()}_${phone}_${Date.now()}.bin`,
-            mimeType: 'application/octet-stream',
+            filename: `${type.toLowerCase()}_${phone}_${Date.now()}${ext}`,
+            mimeType: file.mimetype,
             publicId: `${type.toLowerCase()}_${phone}_${Date.now()}`
         });
 
