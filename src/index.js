@@ -1279,7 +1279,14 @@ app.post('/api/submit-query', publicEndpointLimiter, validate(querySchema), asyn
         });
 
         // Send confirmation to the user via WhatsApp
-        await sendMessage(phone, `✅ *Query Received!*\n━━━━━━━━━━━━━━━━━━━━\n\n🆔 *ID*            :  *#${queryId}*\n📋 *Category*  :  ${category || 'General'}\n📝 *Issue*        :  "${description}"\n\n━━━━━━━━━━━━━━━━━━━━\nOur team will review and get back to you shortly. Thank you for your patience! 🙏`);
+        const queryMsg = `✅ *Query Received!*\n━━━━━━━━━━━━━━━━━━━━\n\n🆔 *ID*            :  *#${queryId}*\n📋 *Category*  :  ${category || 'General'}\n📝 *Issue*        :  "${description}"\n\n━━━━━━━━━━━━━━━━━━━━\nOur team will review and get back to you shortly. Thank you for your patience! 🙏`;
+        
+        const headerPath = path.join(__dirname, '../public/queries_header.png');
+        if (fs.existsSync(headerPath)) {
+            await sendMedia(phone, headerPath, queryMsg);
+        } else {
+            await sendMessage(phone, queryMsg);
+        }
 
         // Notify admin
         if (config.ownerPhone) {
@@ -1533,7 +1540,14 @@ app.post('/api/web-register', upload.single('aadhaar'), async (req, res) => {
             registrationForm: regFile
         });
 
-        await sendMessage(phone, `✅ *Registration Successful!* 🎉\n\nWelcome ${name} to Room ${room}. We are happy to have you! 🏠\n\n${detailedRules}\n\n🤖 *How to Use:* Type *HI* anytime to see your dashboard!`);
+        const welcomeMsg = `✅ *Registration Successful!* 🎉\n\nWelcome ${name} to Room ${room}. We are happy to have you! 🏠\n\n${detailedRules}\n\n🤖 *How to Use:* Type *HI* anytime to see your dashboard!`;
+        const welcomeHeader = path.join(__dirname, '../public/welcome_header.png');
+        
+        if (fs.existsSync(welcomeHeader)) {
+            await sendMedia(phone, welcomeHeader, welcomeMsg);
+        } else {
+            await sendMessage(phone, welcomeMsg);
+        }
         // Registration PDF only sent to admin, not to user
 
         if (config.ownerPhone) {
@@ -1613,8 +1627,14 @@ app.post('/api/public/register', publicEndpointLimiter, upload.single('aadhaar')
         const detailedRules = `🏢 *PG House Rules & Regulations*\n━━━━━━━━━━━━━━━━━━━━\n⚖️ *DO's:*\n1. Keep your room and shared areas clean and hygienic.\n2. Maintain silence after 10:00 PM for everyone's comfort.\n3. Pay rent by the 5th and EB bills by the 10th of each month.\n\n🚫 *DON'Ts:*\n1. Strictly NO smoking, alcohol, or illegal substances.\n2. No overnight visitors allowed without prior permission.\n\n🤖 *Tip:* Type *HI* to see your dashboard!`;
 
         try {
-            await sendMessage(phone, `✅ *Registration Successful!*\n\nWelcome ${name}! 🏠 We are excited to have you stay with us.\n\n${detailedRules}`);
-            // Registration PDF only sent to admin, not to user
+            const welcomeMsg = `✅ *Registration Successful!*\n\nWelcome ${name}! 🏠 We are excited to have you stay with us.\n\n${detailedRules}`;
+            const welcomeHeader = path.join(__dirname, '../public/welcome_header.png');
+            
+            if (fs.existsSync(welcomeHeader)) {
+                await sendMedia(phone, welcomeHeader, welcomeMsg);
+            } else {
+                await sendMessage(phone, welcomeMsg);
+            }
         } catch (wsErr) {
             console.warn('WhatsApp notification failed, but registration succeeded:', wsErr.message);
         }
@@ -1700,7 +1720,14 @@ app.post('/webhook/google-form', async (req, res) => {
         tenantData.registrationForm = regFile;
         await sheetsService.addTenant(tenantData);
 
-        await sendMessage(tenantData.phone, `🎉 Hello ${tenantData.name}! Your registration is successful. ✅\n\nWelcome to *${config.businessName}*! 🏠\n\n${detailedRules}\n\n🤖 *Smart Bot:* Type *HI* to see your dashboard and bills!`);
+        const welcomeMsg = `🎉 Hello ${tenantData.name}! Your registration is successful. ✅\n\nWelcome to *${config.businessName}*! 🏠\n\n${detailedRules}\n\n🤖 *Smart Bot:* Type *HI* to see your dashboard and bills!`;
+        const welcomeHeader = path.join(__dirname, '../public/welcome_header.png');
+        
+        if (fs.existsSync(welcomeHeader)) {
+            await sendMedia(tenantData.phone, welcomeHeader, welcomeMsg);
+        } else {
+            await sendMessage(tenantData.phone, welcomeMsg);
+        }
         // Registration PDF only sent to admin, not to user
 
         if (config.ownerPhone) {
@@ -1746,7 +1773,14 @@ app.post('/api/add-tenant', authenticate, async (req, res) => {
         await sheetsService.init();
         await sheetsService.addTenant(tenantData);
 
-        await sendMessage(tenantData.phone, `✅ *Registration Successful!*\n\nWelcome ${tenantData.name}! 🏠\n\n${detailedRules}`);
+        const welcomeMsg = `✅ *Registration Successful!*\n\nWelcome ${tenantData.name}! 🏠\n\n${detailedRules}`;
+        const welcomeHeader = path.join(__dirname, '../public/welcome_header.png');
+        
+        if (fs.existsSync(welcomeHeader)) {
+            await sendMedia(tenantData.phone, welcomeHeader, welcomeMsg);
+        } else {
+            await sendMessage(tenantData.phone, welcomeMsg);
+        }
         // Registration PDF only sent to admin, not to user
 
         if (config.ownerPhone) {
