@@ -16,7 +16,7 @@ logSchema.index({ "details.id": 1 }, { unique: true, sparse: true });
 
 const mediaSchema = new mongoose.Schema({
     phone: String,
-    type: { type: String, enum: ['AADHAAR', 'PAYMENT_PROOF', 'OTHER'] },
+    type: { type: String, enum: ['AADHAAR', 'PAYMENT_PROOF', 'REGISTRATION', 'OTHER'] },
     mediaId: String,
     url: String,
     filename: String,

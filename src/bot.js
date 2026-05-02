@@ -8,6 +8,7 @@ import { fileURLToPath } from 'url';
 import config from './config.js';
 import sheetsService from './sheets.js';
 import pdfService from './pdfService.js';
+import cloudinaryService from './cloudinaryService.js';
 import { Log, Media, Notification, Session, Payment, Tenant } from './db.js';
 import { sendPushNotification } from './pushService.js';
 import { generateVacateSubmittedCard } from './imageService.js';
@@ -2565,11 +2566,26 @@ async function handleOnboarding(phone, input, image) {
                 monthlyRent: state.monthlyRent
             });
 
+            let registrationUrl = regFile;
+            try {
+                if (cloudinaryService.isConfigured()) {
+                    const uploadResult = await cloudinaryService.uploadLocalFile(regPath, {
+                        folder: 'stayflow/registration',
+                        filename: regFile,
+                        mimeType: 'application/pdf',
+                        publicId: `registration_${targetPhone}_${Date.now()}`
+                    });
+                    registrationUrl = uploadResult.url;
+                }
+            } catch (uploadErr) {
+                console.warn('[BOT] Failed to upload registration PDF to Cloudinary:', uploadErr.message);
+            }
+
             const tenantObj = {
                 name: state.name, phone: targetPhone, room: state.room,
                 advance: state.advance, sharingType: state.sharingType, monthlyRent: state.monthlyRent,
                 aadhaarImage: image.id,
-                registrationForm: regFile
+                registrationForm: registrationUrl
             };
 
             await sheetsService.init();
