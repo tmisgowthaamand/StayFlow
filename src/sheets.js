@@ -594,7 +594,8 @@ class SheetsService {
 
     async getAllTenants() {
         await this.init();
-        return await this.sheet.getRows();
+        // Explicitly set a high limit to ensure we fetch all data (supporting 200+ residents)
+        return await this.sheet.getRows({ offset: 0, limit: 5000 });
     }
 
     async getTenantsJSON() {
@@ -606,7 +607,8 @@ class SheetsService {
             throw new Error('Tenants sheet not found after initialization.');
         }
         console.log('[SHEETS] Getting tenants from sheet:', this.sheet.title);
-        const rows = await this.sheet.getRows();
+        // Explicitly fetch up to 5000 rows to avoid any default library limits
+        const rows = await this.sheet.getRows({ offset: 0, limit: 5000 });
         return rows.map(row => {
             const data = {};
             this.sheet.headerValues.forEach(header => {
@@ -813,12 +815,23 @@ class SheetsService {
             return sum + (isNaN(val) ? 0 : val);
         }, 0);
 
+        // Joined Today / Yesterday tracking
+        const todayStr = now.toLocaleDateString();
+        const yesterday = new Date(now);
+        yesterday.setDate(now.getDate() - 1);
+        const yesterdayStr = yesterday.toLocaleDateString();
+
+        const newToday = activeTenants.filter(t => t.get('Join Date') === todayStr).length;
+        const newYesterday = activeTenants.filter(t => t.get('Join Date') === yesterdayStr).length;
+
         return {
             totalTenants: activeTenants.length,
             paidCount: paidTenants.length,
             pendingCount: pendingTenants.length,
             unpaidCount: unpaidTenants.length,
             vacatedCount: tenants.filter(t => t.get('Status') === 'VACATED').length,
+            newToday,
+            newYesterday,
             totalRevenue,
             expectedRevenue,
             collectionPercentage: expectedRevenue > 0 ? Math.round((totalRevenue / expectedRevenue) * 100) : 0,

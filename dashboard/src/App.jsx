@@ -610,13 +610,20 @@ const App = () => {
   const occupiedBeds = _targetLocations.reduce((sum, l) => sum + parseInt(l.occupiedBeds || 0), 0);
   const vacantBeds = Math.max(0, totalBeds - occupiedBeds);
 
-  const uniqueRooms = [...new Set(tenants.map(t => t.Room).filter(Boolean))];
+  const todayStr = new Date().toLocaleDateString();
+  const yesterday = new Date();
+  yesterday.setDate(yesterday.getDate() - 1);
+  const yesterdayStr = yesterday.toLocaleDateString();
+
+  const joinedToday = activeTenants.filter(t => t['Join Date'] === todayStr).length;
+  const joinedYesterday = activeTenants.filter(t => t['Join Date'] === yesterdayStr).length;
+
   const stats = [
     { label: 'Residents', value: activeTenants.length, icon: Users, color: '#6366f1', bg: 'rgba(99, 102, 241, 0.08)' },
+    { label: 'New Today', value: joinedToday, icon: UserPlus, color: '#ec4899', bg: 'rgba(236, 72, 153, 0.08)' },
     { label: 'Collection', value: `₹${totalRevenue.toLocaleString()}`, icon: Wallet, color: '#10b981', bg: 'rgba(16, 185, 129, 0.08)' },
     { label: 'Pending Verif', value: pendingCount, icon: Clock, color: '#f59e0b', bg: 'rgba(245, 158, 11, 0.08)' },
     { label: 'Unpaid', value: unpaidCount, icon: AlertCircle, color: '#f43f5e', bg: 'rgba(244, 63, 94, 0.08)' },
-    { label: 'Vacant Beds', value: vacantBeds > 0 ? vacantBeds : 'Full', icon: MapPin, color: '#10b981', bg: 'rgba(16, 185, 129, 0.08)' },
   ];
 
   const chartData = [
@@ -891,7 +898,7 @@ const App = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {dashboardFiltered.slice(0, q ? 50 : 8).map((t, i) => (
+                  {dashboardFiltered.slice(0, q ? 100 : 50).map((t, i) => (
                     <tr key={i} className="table-row">
                       <td>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>

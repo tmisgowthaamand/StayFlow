@@ -1458,7 +1458,14 @@ app.post('/api/queries/:queryId/reply', authenticate, async (req, res) => {
         await query.save();
 
         // Send reply to tenant via WhatsApp
-        await sendMessage(query.phone, `💬 *Admin Reply — Query #${queryId}*\n━━━━━━━━━━━━━━━━━━━━\n\n📝 *Issue*           :  "${query.message}"\n✅ *Response*  :  ${reply}\n\n━━━━━━━━━━━━━━━━━━━━\n_If the issue persists, submit a new query._`);
+        const replyMsg = `💬 *Admin Reply — Query #${queryId}*\n━━━━━━━━━━━━━━━━━━━━\n\n📝 *Issue*           :  "${query.message}"\n✅ *Response*  :  ${reply}\n\n━━━━━━━━━━━━━━━━━━━━\n_If the issue persists, submit a new query._`;
+        
+        const headerPath = path.join(__dirname, '../public/admin_reply_header.png');
+        if (fs.existsSync(headerPath)) {
+            await sendMedia(query.phone, headerPath, replyMsg);
+        } else {
+            await sendMessage(query.phone, replyMsg);
+        }
 
         // Create notification
         await Notification.create({
