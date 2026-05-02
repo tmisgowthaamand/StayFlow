@@ -124,6 +124,8 @@ const getFullUrl = (path) => {
 };
 
 const getMediaUrl = (mediaId) => {
+  if (!mediaId) return '';
+  if (mediaId.startsWith('http')) return mediaId;
   const token = localStorage.getItem('stayflow_token');
   const baseUrl = getFullUrl(`/api/media/${mediaId}`);
   return token ? `${baseUrl}?token=${encodeURIComponent(token)}` : baseUrl;
