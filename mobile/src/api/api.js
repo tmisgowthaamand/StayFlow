@@ -2,6 +2,7 @@ import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const API_BASE_URL = 'https://stayflow-tkto.onrender.com/api/';
+const API_ORIGIN = API_BASE_URL.replace(/\/api\/?$/, '');
 
 const api = axios.create({
     baseURL: API_BASE_URL,
@@ -126,6 +127,8 @@ export const sendAnnouncement = async (data, isMultipart = false) => {
         throw error;
     }
 };
+
+export { API_BASE_URL, API_ORIGIN };
 
 export const notifyAll = async () => {
     try {

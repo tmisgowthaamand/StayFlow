@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, FlatList, TouchableOpacity, RefreshControl, Lin
 import { Colors, Spacing, Shadows, Typography, BorderRadius, Gradients } from '../theme/theme';
 import { LinearGradient } from 'expo-linear-gradient';
 import Header from '../components/Header';
-import { getTenants } from '../api/api';
+import { API_ORIGIN, getTenants } from '../api/api';
 import { FileText, Calendar, ExternalLink, Clock } from 'lucide-react-native';
 import { usePressAnimation, useFadeSlideIn, SkeletonCard } from '../utils/animations';
 import { useLanguage } from '../context/LanguageContext';
@@ -111,7 +111,7 @@ const Registrations = () => {
     const openDocument = useCallback(async (filename) => {
         if (!filename) { Alert.alert('No Document', 'No registration form attached.'); return; }
         const token = await AsyncStorage.getItem('stayflow_jwt');
-        Linking.openURL(`https://stayflow-tkto.onrender.com/api/media/${filename}?token=${token}`).catch(() => Alert.alert('Error', 'Could not open document.'));
+        Linking.openURL(`${API_ORIGIN}/api/media/${filename}?token=${token}`).catch(() => Alert.alert('Error', 'Could not open document.'));
     }, []);
 
     const renderItem = useCallback(({ item, index }) => <RegistrationCard item={item} index={index} openDocument={openDocument} />, [openDocument]);

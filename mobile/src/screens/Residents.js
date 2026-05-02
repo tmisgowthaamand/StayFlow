@@ -7,6 +7,8 @@ import BulkStatusModal from '../components/BulkStatusModal';
 import { useNavigation } from '@react-navigation/native';
 import { useLanguage } from '../context/LanguageContext';
 import { getTenants, notifyTenant, markPaidManual, deleteTenant, notifyAll, generateInvoice } from '../api/api';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { API_ORIGIN } from '../api/api';
 import { Search, Bell, Phone, CheckCircle, Trash2, Edit, FileText, Send, Zap, MoreVertical, MapPin, Star, Users } from 'lucide-react-native';
 import { usePressAnimation, SkeletonCard, AnimatedListItem } from '../utils/animations';
 import { notifyInvoiceSent, notifyPaymentReceived } from '../utils/notifications';
@@ -186,7 +188,7 @@ const Residents = ({ route }) => {
                     // Get JWT token for authentication
                     const token = await AsyncStorage.getItem('stayflow_jwt');
                     
-                    const response = await fetch('https://stayflow-tkto.onrender.com/api/generate-invoice', {
+                    const response = await fetch(`${API_ORIGIN}/api/generate-invoice`, {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',
@@ -215,7 +217,7 @@ const Residents = ({ route }) => {
                         if (base64data) {
                             navigation.navigate('PDFViewer', {
                                 base64Data: base64data,
-                                uri: json.url ? `https://stayflow-tkto.onrender.com${json.url}` : `https://stayflow-tkto.onrender.com/api/generate-invoice?phone=${selectedTenant.Phone}`,
+                                uri: json.url ? `${API_ORIGIN}${json.url}` : `${API_ORIGIN}/api/generate-invoice?phone=${selectedTenant.Phone}`,
                                 title: `${t('invoice')} - ${selectedTenant.Name}`,
                                 shareEnabled: true
                             });
@@ -227,7 +229,7 @@ const Residents = ({ route }) => {
                             // Construct absolute URL if relative
                             let pdfUrl = json.url;
                             if (pdfUrl.startsWith('/')) {
-                                pdfUrl = `https://stayflow-tkto.onrender.com${pdfUrl}`;
+                                pdfUrl = `${API_ORIGIN}${pdfUrl}`;
                             }
 
                             // Ensure URL is encoded (e.g. spaces in filenames)

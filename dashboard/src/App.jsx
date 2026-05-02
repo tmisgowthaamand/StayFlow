@@ -539,16 +539,9 @@ const App = () => {
 
   const handleSecureView = async (mediaId) => {
     try {
-      showToast('Fetching document securely...', 'info');
-      const response = await axios.get(`/api/media/${mediaId}`, {
-        responseType: 'blob'
-      });
-      const blob = new Blob([response.data], { type: response.headers['content-type'] });
-      const url = URL.createObjectURL(blob);
-      window.open(url, '_blank');
-      
-      // Clean up memory after opening
-      setTimeout(() => URL.revokeObjectURL(url), 15000);
+      showToast('Opening document securely...', 'info');
+      const url = getMediaUrl(mediaId);
+      window.open(url, '_blank', 'noopener,noreferrer');
     } catch (err) {
       console.error('Secure view failed:', err);
       showToast('Failed to load document securely', 'error');
