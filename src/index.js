@@ -1282,18 +1282,19 @@ app.post('/api/upload-aadhaar', authenticate, upload.single('aadhaar'), async (r
         console.error('[UPLOAD-AADHAAR] Error:', err.message);
         console.error('[UPLOAD-AADHAAR] Stack:', err.stack);
         
-        // Send more specific error messages
-        if (err.message.includes('Cloudinary')) {
+        // Send generic error messages (no internal details leaked)
+        if (err.message && err.message.includes('Cloudinary')) {
             return res.status(500).json({ error: 'File upload service error. Please try again or contact admin.' });
         }
-        if (err.message.includes('encrypt')) {
+        if (err.message && err.message.includes('encrypt')) {
             return res.status(500).json({ error: 'File encryption error. Please try again.' });
         }
-        if (err.message.includes('MongoDB') || err.message.includes('database')) {
+        if (err.message && (err.message.includes('MongoDB') || err.message.includes('database'))) {
             return res.status(500).json({ error: 'Database error. Please try again.' });
         }
         
-        res.status(500).json({ error: err.message || 'File upload failed. Please try again.' });
+        // Generic fallback - no error.message leaked
+        res.status(500).json({ error: 'Internal server error' });
     }
 });
 

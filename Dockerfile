@@ -1,18 +1,30 @@
-# Use Node.js LTS version
 FROM node:18-slim
+
+# Install only essential system dependencies
+RUN apt-get update && apt-get install -y \
+    ca-certificates \
+    fonts-liberation \
+    --no-install-recommends \
+    && rm -rf /var/lib/apt/lists/*
 
 # Create app directory
 WORKDIR /app
 
-# Copy package files and install dependencies
+# Install dependencies first (better layer caching)
 COPY package*.json ./
-RUN npm install
+RUN npm ci --omit=dev
 
-# Copy the rest of the application
+# Copy application source
 COPY . .
 
-# Expose backend port
+# Build dashboard
+RUN cd dashboard && npm install && npm run build
+
+# Don't run as root
+RUN groupadd -r stayflow && useradd -r -g stayflow stayflow
+RUN chown -R stayflow:stayflow /app
+USER stayflow
+
 EXPOSE 3000
 
-# Start the application
-CMD ["npm", "run", "start:prod"]
+CMD ["node", "src/index.js"]
