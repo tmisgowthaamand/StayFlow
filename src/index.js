@@ -910,8 +910,30 @@ app.get('/api/media/:id', authenticate, async (req, res) => {
 
                 if (mediaDoc?.url) {
                     console.log(`Serving Cloudinary media: ${safeMediaId}, URL: ${mediaDoc.url}`);
-                    // Redirect to Cloudinary URL (already secure HTTPS)
-                    return res.redirect(mediaDoc.url);
+                    try {
+                        // Fetch file from Cloudinary and serve through backend
+                        const response = await axios.get(mediaDoc.url, {
+                            responseType: 'stream',
+                            timeout: 30000,
+                            headers: {
+                                'User-Agent': 'StayFlow-Backend/1.0'
+                            }
+                        });
+
+                        // Set proper headers
+                        res.setHeader('Content-Type', mediaDoc.mimeType || response.headers['content-type'] || 'application/octet-stream');
+                        res.setHeader('Content-Disposition', `inline; filename="${mediaDoc.filename || safeMediaId}"`);
+
+                        // Pipe the stream to response
+                        response.data.pipe(res);
+                    } catch (cloudinaryErr) {
+                        console.error(`[MEDIA] Failed to fetch Cloudinary media for ${safeMediaId}:`, {
+                            message: cloudinaryErr.message,
+                            status: cloudinaryErr.response?.status,
+                            url: mediaDoc.url
+                        });
+                        return res.status(500).json({ error: 'Error fetching media from storage', details: cloudinaryErr.message });
+                    }
                 }
 
                 if (mediaDoc?.data) {

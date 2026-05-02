@@ -74,6 +74,7 @@ class CloudinaryService {
             folder,
             public_id: publicId,
             timestamp,
+            access_control: JSON.stringify([{ access_type: 'token' }]),  // Make publicly accessible
         };
 
         const form = new FormData();
@@ -85,6 +86,7 @@ class CloudinaryService {
         form.append('timestamp', timestamp);
         form.append('folder', folder);
         form.append('public_id', publicId);
+        form.append('access_control', JSON.stringify([{ access_type: 'token' }]));  // Make publicly accessible
         form.append('signature', this.signParams(signedParams));
 
         try {
