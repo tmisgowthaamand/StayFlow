@@ -1266,11 +1266,16 @@ app.post('/api/upload-aadhaar', authenticate, upload.single('aadhaar'), async (r
 
         console.log('[UPLOAD-AADHAAR] Updating tenant sheet...');
         await sheetsService.updateTenant(phone, {
-            'Aadhaar Image': mediaDoc._id.toString()
+            'Aadhaar Image': mediaDoc.url,
+            'Aadhaar Image Link': mediaDoc.url
         });
         console.log('[UPLOAD-AADHAAR] Tenant updated successfully');
 
-        res.json({ success: true, filename: mediaDoc._id.toString() });
+        res.json({
+            success: true,
+            mediaId: mediaDoc._id.toString(),
+            url: mediaDoc.url
+        });
     } catch (err) {
         console.error('[UPLOAD-AADHAAR] Error:', err.message);
         console.error('[UPLOAD-AADHAAR] Stack:', err.stack);

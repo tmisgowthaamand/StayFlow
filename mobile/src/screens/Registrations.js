@@ -110,6 +110,10 @@ const Registrations = () => {
 
     const openDocument = useCallback(async (filename) => {
         if (!filename) { Alert.alert('No Document', 'No registration form attached.'); return; }
+        if (filename.startsWith('http')) {
+            Linking.openURL(filename).catch(() => Alert.alert('Error', 'Could not open document.'));
+            return;
+        }
         const token = await AsyncStorage.getItem('stayflow_jwt');
         Linking.openURL(`${API_ORIGIN}/api/media/${filename}?token=${token}`).catch(() => Alert.alert('Error', 'Could not open document.'));
     }, []);
