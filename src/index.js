@@ -909,25 +909,16 @@ app.get('/api/media/:id', authenticate, async (req, res) => {
                 const mediaDoc = await Media.findOne({ $or: mediaQuery });
 
                 if (mediaDoc?.url) {
-                    console.log(`Redirecting Cloudinary media: ${safeMediaId}`);
-                    // If encrypted, fetch from Cloudinary and decrypt
-                    if (mediaDoc.encrypted && mediaDoc.encryptionIV && mediaDoc.encryptionTag) {
-                        try {
-                            const cloudinaryRes = await axios.get(mediaDoc.url, { responseType: 'arraybuffer' });
-                            const decrypted = decrypt({
-                                encrypted: Buffer.from(cloudinaryRes.data),
-                                iv: Buffer.from(mediaDoc.encryptionIV, 'hex'),
-                                tag: Buffer.from(mediaDoc.encryptionTag, 'hex')
-                            });
-                            res.setHeader('Content-Type', mediaDoc.mimeType || 'application/octet-stream');
-                            res.setHeader('Content-Disposition', `inline; filename="${mediaDoc.filename || mediaDoc.mediaId || safeMediaId}"`);
-                            return res.send(decrypted);
-                        } catch (decryptErr) {
-                            console.error(`Decryption failed for ${safeMediaId}:`, decryptErr.message);
-                            return res.status(500).send('Error decrypting media');
-                        }
+                    console.log(`Fetching Cloudinary media: ${safeMediaId}`);
+                    try {
+                        const cloudinaryRes = await axios.get(mediaDoc.url, { responseType: 'arraybuffer' });
+                        res.setHeader('Content-Type', mediaDoc.mimeType || 'application/octet-stream');
+                        res.setHeader('Content-Disposition', `inline; filename="${mediaDoc.filename || mediaDoc.mediaId || safeMediaId}"`);
+                        return res.send(cloudinaryRes.data);
+                    } catch (cloudinaryErr) {
+                        console.error(`Failed to fetch Cloudinary media for ${safeMediaId}:`, cloudinaryErr.message);
+                        return res.status(500).send('Error fetching media from storage');
                     }
-                    return res.redirect(mediaDoc.url);
                 }
 
                 if (mediaDoc?.data) {
