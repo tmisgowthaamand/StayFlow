@@ -10,11 +10,11 @@ class CloudinaryService {
         return Boolean(config.cloudinary?.cloudName && config.cloudinary?.apiKey && config.cloudinary?.apiSecret);
     }
 
-    getUploadUrl() {
+    getUploadUrl(resourceType = 'auto') {
         if (!this.isConfigured()) {
             throw new Error('Cloudinary is not configured. Set CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY and CLOUDINARY_API_SECRET.');
         }
-        return `https://api.cloudinary.com/v1_1/${config.cloudinary.cloudName}/auto/upload`;
+        return `https://api.cloudinary.com/v1_1/${config.cloudinary.cloudName}/${resourceType}/upload`;
     }
 
     signParams(params) {
@@ -58,6 +58,17 @@ class CloudinaryService {
         const timestamp = Math.floor(Date.now() / 1000);
         const folder = options.folder || 'stayflow/aadhaar';
         const publicId = options.publicId || `stayflow_${Date.now()}_${crypto.randomBytes(6).toString('hex')}`;
+        const mimeType = options.mimeType || 'application/octet-stream';
+
+        // Determine resource type based on MIME type
+        let resourceType = 'raw';
+        if (mimeType.startsWith('image/')) {
+            resourceType = 'image';
+        } else if (mimeType.startsWith('video/')) {
+            resourceType = 'video';
+        } else if (mimeType === 'application/pdf') {
+            resourceType = 'raw';
+        }
 
         const signedParams = {
             folder,
@@ -68,7 +79,7 @@ class CloudinaryService {
         const form = new FormData();
         form.append('file', fileValue, {
             filename: options.filename || publicId,
-            contentType: options.mimeType || 'application/octet-stream',
+            contentType: mimeType,
         });
         form.append('api_key', config.cloudinary.apiKey);
         form.append('timestamp', timestamp);
@@ -77,10 +88,11 @@ class CloudinaryService {
         form.append('signature', this.signParams(signedParams));
 
         try {
-            console.log('[CLOUDINARY] Uploading to:', this.getUploadUrl());
-            console.log('[CLOUDINARY] Folder:', folder, 'PublicId:', publicId);
-            
-            const response = await axios.post(this.getUploadUrl(), form, {
+            const uploadUrl = this.getUploadUrl(resourceType);
+            console.log('[CLOUDINARY] Uploading to:', uploadUrl);
+            console.log('[CLOUDINARY] Folder:', folder, 'PublicId:', publicId, 'ResourceType:', resourceType, 'MimeType:', mimeType);
+
+            const response = await axios.post(uploadUrl, form, {
                 headers: form.getHeaders(),
                 maxBodyLength: Infinity,
                 maxContentLength: Infinity,
