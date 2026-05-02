@@ -1185,18 +1185,17 @@ async function saveUploadToCloudinary(file, phone, type = 'AADHAAR') {
 
         console.log(`[UPLOAD] Processing ${type} for ${phone}: buffer size=${fileBuffer.length}, mimetype=${file.mimetype}`);
 
-        // Upload original buffer to Cloudinary (Cloudinary validates file format)
-        const ext = path.extname(file.originalname);
-        const uploadResult = await cloudinaryService.uploadBuffer(fileBuffer, {
+        // Encrypt file FIRST before uploading to Cloudinary
+        const { encrypted, iv, tag } = encrypt(fileBuffer);
+        console.log(`[UPLOAD] Encrypted size=${encrypted.length}, IV=${iv.toString('hex').substring(0, 8)}..., Tag=${tag.toString('hex').substring(0, 8)}...`);
+
+        // Upload encrypted buffer to Cloudinary as raw data (don't process as image)
+        const uploadResult = await cloudinaryService.uploadBuffer(encrypted, {
             folder: `stayflow/${type.toLowerCase()}`,
-            filename: `${type.toLowerCase()}_${phone}_${Date.now()}${ext}`,
-            mimeType: file.mimetype,
+            filename: `${type.toLowerCase()}_${phone}_${Date.now()}.bin`,
+            mimeType: 'application/octet-stream',  // Keep as binary to prevent processing
             publicId: `${type.toLowerCase()}_${phone}_${Date.now()}`
         });
-
-        // Encrypt file for local storage/backup (store IV and tag for decryption)
-        const { encrypted, iv, tag } = encrypt(fileBuffer);
-        console.log(`[UPLOAD] Encrypted backup: size=${encrypted.length}, IV=${iv.toString('hex').substring(0, 8)}..., Tag=${tag.toString('hex').substring(0, 8)}...`);
 
         console.log(`[UPLOAD] Cloudinary success: publicId=${uploadResult.publicId}, url=${uploadResult.url?.substring(0, 50)}...`);
 
