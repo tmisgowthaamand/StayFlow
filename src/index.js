@@ -477,27 +477,23 @@ app.get('/webhook', (req, res) => {
 
 // Handling incoming messages
 app.post('/webhook', async (req, res) => {
-    // P1: WhatsApp Webhook Signature Verification
+    // P1: WhatsApp Webhook Signature Verification (MANDATORY)
     const signature = req.headers['x-hub-signature-256'];
     const rawBody = req.body instanceof Buffer ? req.body.toString('utf-8') : JSON.stringify(req.body);
 
-    if (!config.whatsapp.appSecret) {
-        console.warn('⚠️  WHATSAPP_APP_SECRET not configured - signature verification DISABLED (INSECURE)');
-    } else {
-        if (!signature) {
-            console.warn('❌ WhatsApp Webhook: Missing signature header');
-            return res.sendStatus(403);
-        }
+    if (!signature) {
+        console.warn('❌ WhatsApp Webhook: Missing signature header');
+        return res.sendStatus(403);
+    }
 
-        const expectedSignature = 'sha256=' + crypto
-            .createHmac('sha256', config.whatsapp.appSecret)
-            .update(rawBody)
-            .digest('hex');
+    const expectedSignature = 'sha256=' + crypto
+        .createHmac('sha256', config.whatsapp.appSecret)
+        .update(rawBody)
+        .digest('hex');
 
-        if (signature !== expectedSignature) {
-            console.warn('❌ WhatsApp Webhook: Signature verification failed');
-            return res.sendStatus(403);
-        }
+    if (signature !== expectedSignature) {
+        console.warn('❌ WhatsApp Webhook: Signature verification failed');
+        return res.sendStatus(403);
     }
 
     const body = JSON.parse(rawBody instanceof Buffer ? rawBody.toString('utf-8') : rawBody);
@@ -562,26 +558,22 @@ app.post('/webhook/razorpay', async (req, res) => {
 
         // Verify webhook signature (Mandatory in Production)
         const signature = req.headers['x-razorpay-signature'];
-        
-        if (!config.razorpay.webhook_secret) {
-            console.warn('⚠️  RAZORPAY_WEBHOOK_SECRET not configured - signature verification DISABLED (INSECURE)');
-        } else {
-            if (!signature) {
-                console.warn('⚠️ Webhook received without signature');
-                return res.status(400).send('Signature missing');
-            }
 
-            const expectedSignature = crypto
-                .createHmac('sha256', config.razorpay.webhook_secret)
-                .update(rawBody)
-                .digest('hex');
-
-            if (signature !== expectedSignature) {
-                console.warn('❌ Webhook signature verification failed');
-                return res.status(400).send('Invalid signature');
-            }
-            console.log('✅ Webhook signature verified');
+        if (!signature) {
+            console.warn('❌ Razorpay Webhook: Missing signature header');
+            return res.status(400).send('Signature missing');
         }
+
+        const expectedSignature = crypto
+            .createHmac('sha256', config.razorpay.webhook_secret)
+            .update(rawBody)
+            .digest('hex');
+
+        if (signature !== expectedSignature) {
+            console.warn('❌ Webhook signature verification failed');
+            return res.status(400).send('Invalid signature');
+        }
+        console.log('✅ Webhook signature verified');
 
         // Process payment.captured event
         if (payload.event === 'payment_link.paid' || payload.event === 'payment.captured') {
@@ -2010,7 +2002,7 @@ let lastBulkTask = {
     endTime: null
 };
 
-app.get('/api/bulk-status', (req, res) => res.json(lastBulkTask));
+app.get('/api/bulk-status', authenticate, (req, res) => res.json(lastBulkTask));
 
 app.post('/api/trigger-notifications', authenticate, async (req, res) => {
     try {

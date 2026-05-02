@@ -15,7 +15,7 @@ const config = {
         phoneNumberId: process.env.WHATSAPP_PHONE_NUMBER_ID,
         verifyToken: process.env.WHATSAPP_VERIFY_TOKEN,
         callbackUrl: process.env.WHATSAPP_CALLBACK_URL,
-        appSecret: process.env.WHATSAPP_APP_SECRET || ''
+        appSecret: process.env.WHATSAPP_APP_SECRET
     },
     sheets: {
         id: process.env.GOOGLE_SHEET_ID,
@@ -46,7 +46,7 @@ const config = {
     razorpay: {
         key_id: process.env.RAZORPAY_KEY_ID,
         key_secret: process.env.RAZORPAY_KEY_SECRET,
-        webhook_secret: process.env.RAZORPAY_WEBHOOK_SECRET || ''
+        webhook_secret: process.env.RAZORPAY_WEBHOOK_SECRET
     },
     cloudinary: {
         cloudName: process.env.CLOUDINARY_CLOUD_NAME,
@@ -74,13 +74,13 @@ const requiredEnv = [
     'GOOGLE_PRIVATE_KEY',
     'OWNER_PHONE',
     'RAZORPAY_KEY_ID',
-    'RAZORPAY_KEY_SECRET'
+    'RAZORPAY_KEY_SECRET',
+    'WHATSAPP_APP_SECRET',
+    'RAZORPAY_WEBHOOK_SECRET'
 ];
 
 // Phase 2 & 3 Security Variables (warn if missing, but don't block startup)
 const securityEnv = [
-    'RAZORPAY_WEBHOOK_SECRET',
-    'WHATSAPP_APP_SECRET',
     'JWT_SECRET',
     'ADMIN_PASSWORD',
     'ENCRYPTION_KEY'
