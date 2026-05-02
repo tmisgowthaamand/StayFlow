@@ -343,6 +343,49 @@
             box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5);
         }
 
+        .auth-overlay {
+            position: fixed;
+            inset: 0;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            background: rgba(11, 15, 26, 0.92);
+            backdrop-filter: blur(8px);
+            z-index: 2000;
+        }
+
+        .auth-card {
+            width: min(92vw, 420px);
+            background: var(--sidebar-bg);
+            border: 1px solid var(--glass-border);
+            border-radius: 24px;
+            padding: 32px;
+            box-shadow: 0 24px 64px rgba(0, 0, 0, 0.45);
+        }
+
+        .auth-card h2 {
+            margin-bottom: 8px;
+            font-size: 1.4rem;
+        }
+
+        .auth-card p {
+            color: var(--text-dim);
+            font-size: 0.85rem;
+            margin-bottom: 20px;
+            line-height: 1.5;
+        }
+
+        .auth-error {
+            display: none;
+            margin-bottom: 14px;
+            padding: 10px 12px;
+            border-radius: 10px;
+            background: rgba(244, 63, 94, 0.12);
+            border: 1px solid rgba(244, 63, 94, 0.24);
+            color: #fda4af;
+            font-size: 0.82rem;
+        }
+
         .modal h2 {
             margin-bottom: 20px;
             font-size: 1.4rem;
@@ -372,6 +415,25 @@
 </head>
 
 <body>
+    <div class="auth-overlay" id="auth-overlay">
+        <div class="auth-card">
+            <h2>Admin Login</h2>
+            <p>Sign in to load live dashboard data from the sheet-backed backend.</p>
+            <div class="auth-error" id="auth-error"></div>
+            <form id="auth-form">
+                <div class="form-group">
+                    <label>Username</label>
+                    <input type="text" id="auth-username" autocomplete="username" required>
+                </div>
+                <div class="form-group">
+                    <label>Password</label>
+                    <input type="password" id="auth-password" autocomplete="current-password" required>
+                </div>
+                <button class="btn btn-primary" type="submit" style="width:100%; justify-content:center">Sign In</button>
+            </form>
+        </div>
+    </div>
+
     <div class="sidebar">
         <div class="logo-container">
             <div class="logo-icon"><i class="fas fa-bolt"></i></div>
@@ -553,10 +615,89 @@
     <script>
         let chartInstance = null;
         let tenantData = [];
+        const TOKEN_KEY = 'stayflow_token';
+        const authOverlay = document.getElementById('auth-overlay');
+        const authError = document.getElementById('auth-error');
+        const authForm = document.getElementById('auth-form');
+
+        function getToken() {
+            return localStorage.getItem(TOKEN_KEY);
+        }
+
+        function setToken(token) {
+            if (token) {
+                localStorage.setItem(TOKEN_KEY, token);
+            } else {
+                localStorage.removeItem(TOKEN_KEY);
+            }
+        }
+
+        function showAuthOverlay(message) {
+            authOverlay.style.display = 'flex';
+            authError.style.display = message ? 'block' : 'none';
+            authError.textContent = message || '';
+        }
+
+        function hideAuthOverlay() {
+            authOverlay.style.display = 'none';
+            authError.style.display = 'none';
+            authError.textContent = '';
+        }
+
+        async function apiFetch(url, options = {}) {
+            const headers = { ...(options.headers || {}) };
+            const token = getToken();
+            if (token) {
+                headers.Authorization = `Bearer ${token}`;
+            }
+
+            const res = await fetch(url, {
+                ...options,
+                headers
+            });
+
+            if (res.status === 401) {
+                setToken('');
+                showAuthOverlay('Session expired. Please sign in again.');
+                throw new Error('Unauthorized');
+            }
+
+            return res;
+        }
+
+        async function handleLogin(e) {
+            e.preventDefault();
+
+            const username = document.getElementById('auth-username').value.trim();
+            const password = document.getElementById('auth-password').value;
+
+            try {
+                const res = await fetch('/api/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, password })
+                });
+
+                if (!res.ok) {
+                    showAuthOverlay('Invalid username or password.');
+                    return;
+                }
+
+                const data = await res.json();
+                setToken(data.token);
+                hideAuthOverlay();
+                await fetchTenants();
+            } catch (err) {
+                showAuthOverlay('Unable to sign in. Please try again.');
+            }
+        }
 
         async function fetchTenants() {
             try {
-                const res = await fetch('/api/tenants');
+                const res = await apiFetch('/api/tenants');
+                if (!res.ok) {
+                    throw new Error(`Request failed with status ${res.status}`);
+                }
                 tenantData = await res.json();
                 renderAllData();
             } catch (e) { console.error(e); }
@@ -619,17 +760,17 @@
         }
 
         function updateStats() {
-            const paid = tenantData.filter(t => t.Status === 'PAID');
+            const paid = tenantData.filter(t => t.Status === 'PAID' || t.Status === 'VALID');
             const totalRev = paid.reduce((s, t) => s + parseFloat(t['Total Amount'] || 0), 0);
             document.getElementById('stat-tenants').innerText = tenantData.length;
             document.getElementById('stat-revenue').innerText = '₹' + totalRev.toLocaleString();
-            document.getElementById('stat-pending').innerText = tenantData.length - paid.length;
+            document.getElementById('stat-pending').innerText = tenantData.filter(t => t.Status === 'PENDING').length;
         }
 
         function renderChart() {
             const ctx = document.getElementById('revenueChart').getContext('2d');
-            const paid = tenantData.filter(t => t.Status === 'PAID').length;
-            const pend = tenantData.length - paid;
+            const paid = tenantData.filter(t => t.Status === 'PAID' || t.Status === 'VALID').length;
+            const pend = tenantData.filter(t => t.Status === 'PENDING').length;
             if (chartInstance) chartInstance.destroy();
             chartInstance = new Chart(ctx, {
                 type: 'doughnut',
@@ -658,7 +799,7 @@
             const originalText = btn.innerText;
             btn.innerText = 'Saving...';
             try {
-                const res = await fetch('/api/update-bill', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
+                const res = await apiFetch('/api/update-bill', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
                 if (res.ok) {
                     alert('✅ Bill updated in sheet!');
                     closeModal();
@@ -682,7 +823,7 @@
             const originalText = btn.innerText;
             btn.innerText = 'Sending...';
             try {
-                const res = await fetch('/api/update-and-notify', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
+                const res = await apiFetch('/api/update-and-notify', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
                 if (res.ok) {
                     alert('🚀 Success! Bill updated & WhatsApp sent!');
                     closeModal();
@@ -698,14 +839,14 @@
 
         async function notifyTenant(phone, name) {
             if (confirm(`Send rent reminder to ${name}?`)) {
-                await fetch('/api/notify-tenant', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phone, name }) });
+                await apiFetch('/api/notify-tenant', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phone, name }) });
                 alert('Notification Sent!');
             }
         }
 
         async function sendAllNotifications() {
             if (confirm('Ready to send reminders to ALL tenants?')) {
-                await fetch('/api/trigger-notifications', { method: 'POST' });
+                await apiFetch('/api/trigger-notifications', { method: 'POST' });
                 alert('All Notifications Sent!');
             }
         }
@@ -715,7 +856,16 @@
             rows.forEach(r => r.style.display = r.innerText.toLowerCase().includes(q.toLowerCase()) ? '' : 'none');
         }
 
-        window.onload = fetchTenants;
+        authForm.addEventListener('submit', handleLogin);
+
+        window.onload = () => {
+            if (getToken()) {
+                hideAuthOverlay();
+                fetchTenants();
+            } else {
+                showAuthOverlay('Please sign in to load dashboard data.');
+            }
+        };
     </script>
 </body>
 
