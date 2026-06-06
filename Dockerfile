@@ -20,8 +20,8 @@ RUN npm ci --omit=dev
 # Copy application source
 COPY . .
 
-# Build dashboard
-RUN cd dashboard && npm install && npm run build
+# Build dashboard (needs devDependencies like vite — override NODE_ENV for this step only)
+RUN cd dashboard && NODE_ENV=development npm install && npm run build
 
 # Don't run as root
 RUN groupadd -r stayflow && useradd -r -g stayflow stayflow
