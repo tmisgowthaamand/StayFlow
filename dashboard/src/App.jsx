@@ -126,7 +126,7 @@ const getFullUrl = (path) => {
 const getMediaUrl = (mediaId) => {
   if (!mediaId) return '';
   if (mediaId.startsWith('http')) return mediaId;
-  const token = localStorage.getItem('stayflow_token');
+  const token = localStorage.getItem('stayflow_token') || sessionStorage.getItem('stayflow_token');
   const baseUrl = getFullUrl(`/api/media/${mediaId}`);
   return token ? `${baseUrl}?token=${encodeURIComponent(token)}` : baseUrl;
 };
@@ -136,7 +136,8 @@ const TOKEN_STORAGE_KEY = 'stayflow_token';
 const getValidStoredToken = () => {
   if (typeof window === 'undefined') return null;
 
-  const token = localStorage.getItem(TOKEN_STORAGE_KEY);
+  // Check localStorage first (Remember Me = true), then sessionStorage
+  const token = localStorage.getItem(TOKEN_STORAGE_KEY) || sessionStorage.getItem(TOKEN_STORAGE_KEY);
   if (!token) return null;
 
   try {
@@ -147,6 +148,7 @@ const getValidStoredToken = () => {
   }
 
   localStorage.removeItem(TOKEN_STORAGE_KEY);
+  sessionStorage.removeItem(TOKEN_STORAGE_KEY);
   return null;
 };
 
@@ -174,7 +176,15 @@ const App = () => {
     try {
       const res = await axios.post('/api/login', loginForm);
       const token = res.data.token;
-      localStorage.setItem(TOKEN_STORAGE_KEY, token);
+      if (rememberMe) {
+        // Remember Me ON — persist across browser sessions
+        localStorage.setItem(TOKEN_STORAGE_KEY, token);
+        sessionStorage.removeItem(TOKEN_STORAGE_KEY);
+      } else {
+        // Remember Me OFF — clear on browser close
+        sessionStorage.setItem(TOKEN_STORAGE_KEY, token);
+        localStorage.removeItem(TOKEN_STORAGE_KEY);
+      }
       applyAuthToken(token);
       setIsAuthenticated(true);
       setLoginError('');
@@ -186,6 +196,7 @@ const App = () => {
   const handleLogout = () => {
     setIsAuthenticated(false);
     localStorage.removeItem(TOKEN_STORAGE_KEY);
+    sessionStorage.removeItem(TOKEN_STORAGE_KEY);
     applyAuthToken(null);
     setLoginForm({ username: '', password: '' });
   };
