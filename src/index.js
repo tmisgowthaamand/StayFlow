@@ -139,9 +139,10 @@ const apiLimiter = rateLimit({
 });
 
 // SECURITY FIX: Strict rate limiting for authentication
+// Development: 100/hour | Production: 5/hour
 const authLimiter = rateLimit({
     windowMs: 60 * 60 * 1000, // 1 hour
-    max: 5, // Only 5 attempts per hour
+    max: process.env.NODE_ENV === 'production' ? 5 : 100,
     standardHeaders: true,
     legacyHeaders: false,
     skipSuccessfulRequests: true, // Don't count successful logins
