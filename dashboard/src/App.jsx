@@ -165,11 +165,27 @@ applyAuthToken(initialAuthToken);
 
 const isAuthError = (error) => error.response?.status === 401;
 
+const SAVED_CREDS_KEY = 'stayflow_saved_creds';
+
 const App = () => {
   const [isAuthenticated, setIsAuthenticated] = useState(Boolean(initialAuthToken));
-  const [loginForm, setLoginForm] = useState({ username: '', password: '' });
+
+  // Load saved credentials on mount if remember me was previously checked
+  const getSavedCreds = () => {
+    try {
+      const saved = localStorage.getItem(SAVED_CREDS_KEY);
+      if (saved) return JSON.parse(saved);
+    } catch { /* ignore */ }
+    return null;
+  };
+
+  const savedCreds = getSavedCreds();
+  const [loginForm, setLoginForm] = useState({
+    username: savedCreds?.username || '',
+    password: savedCreds?.password || ''
+  });
   const [loginError, setLoginError] = useState('');
-  const [rememberMe, setRememberMe] = useState(true);
+  const [rememberMe, setRememberMe] = useState(Boolean(savedCreds));
 
   const handleLogin = async (e) => {
     e.preventDefault();
@@ -177,13 +193,18 @@ const App = () => {
       const res = await axios.post('/api/login', loginForm);
       const token = res.data.token;
       if (rememberMe) {
-        // Remember Me ON — persist across browser sessions
+        // Remember Me ON — persist token + save credentials for auto-fill
         localStorage.setItem(TOKEN_STORAGE_KEY, token);
+        localStorage.setItem(SAVED_CREDS_KEY, JSON.stringify({
+          username: loginForm.username,
+          password: loginForm.password
+        }));
         sessionStorage.removeItem(TOKEN_STORAGE_KEY);
       } else {
-        // Remember Me OFF — clear on browser close
+        // Remember Me OFF — session only, clear saved credentials
         sessionStorage.setItem(TOKEN_STORAGE_KEY, token);
         localStorage.removeItem(TOKEN_STORAGE_KEY);
+        localStorage.removeItem(SAVED_CREDS_KEY);
       }
       applyAuthToken(token);
       setIsAuthenticated(true);
@@ -198,6 +219,12 @@ const App = () => {
     localStorage.removeItem(TOKEN_STORAGE_KEY);
     sessionStorage.removeItem(TOKEN_STORAGE_KEY);
     applyAuthToken(null);
+    // If remember me was on, keep credentials for next login auto-fill
+    // If remember me was off, clear the form
+    const hasSavedCreds = Boolean(localStorage.getItem(SAVED_CREDS_KEY));
+    if (!hasSavedCreds) {
+      setLoginForm({ username: '', password: '' });
+    }
     setLoginForm({ username: '', password: '' });
   };
 
