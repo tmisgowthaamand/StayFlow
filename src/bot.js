@@ -17,6 +17,8 @@ import { generateVacateSubmittedCard } from './imageService.js';
 
 // Initialize Google Gemini AI
 let geminiModel = null;
+let geminiRateLimitedUntil = 0; // Timestamp when rate limit expires
+
 if (config.geminiApiKey) {
     const genAI = new GoogleGenerativeAI(config.geminiApiKey);
     geminiModel = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
@@ -94,6 +96,11 @@ async function createRazorpayLink(phone, name, amount, room = 'N/A') {
 async function validateInputWithAI(step, input) {
     if (!geminiModel) return { isValid: true };
 
+    // Skip if currently rate-limited
+    if (Date.now() < geminiRateLimitedUntil) {
+        return { isValid: true };
+    }
+
     const prompts = {
         'NAME': `Check if "${input}" is a valid human full name. If it's gibberish like "asdf", "123", or just one letter, it's invalid. Reply only in JSON: {"isValid": boolean, "message": "friendly correction message if invalid or empty string"}`,
         'PHONE_NUMBER': `Check if "${input}" is a valid phone number. It should be 10-12 digits. Reply only in JSON: {"isValid": boolean, "message": "friendly correction message if invalid"}`,
@@ -113,8 +120,14 @@ async function validateInputWithAI(step, input) {
         });
         return JSON.parse(result.response.text());
     } catch (err) {
-        console.error('Gemini Validation Error:', err.message);
-        return { isValid: true };
+        // Handle rate limit gracefully — back off for 60 seconds, don't log as error
+        if (err.message?.includes('429') || err.message?.includes('quota') || err.message?.includes('Too Many Requests')) {
+            geminiRateLimitedUntil = Date.now() + 60000; // 60 second cooldown
+            console.warn('[GEMINI] Rate limit hit — skipping AI validation for 60s');
+        } else {
+            console.error('Gemini Validation Error:', err.message);
+        }
+        return { isValid: true }; // Fail open for validation — don't block user
     }
 }
 
@@ -1313,7 +1326,13 @@ async function handleSmartChat(phone, body, cleanBody) {
 
 async function handleGeminiChat(phone, body, tenant) {
     if (!geminiModel) {
-        await sendMessage(phone, `I'm sorry, I couldn't understand that. 😅\n\nHere's what I can do:\n\n📋 Type *HI* - See your dashboard\n💰 Type *RENT* - View your bill\n✅ Type *PAID* - Record payment\n📜 Type *HISTORY* - Payment history\n🆘 Type *HELP* - Raise a complaint\n🚪 Type *VACATE* - Request to leave`);
+        await sendMessage(phone, `I'm here to help! 😊\n\nTry these commands:\n📋 *HI* - Dashboard\n💰 *RENT* - View bill\n✅ *PAID* - Record payment\n📜 *HISTORY* - Past payments\n🆘 *HELP* - Raise a complaint\n🚪 *VACATE* - Request to leave`);
+        return;
+    }
+
+    // Skip if currently rate-limited — send fallback message silently
+    if (Date.now() < geminiRateLimitedUntil) {
+        await sendMessage(phone, `I'm here to help! 😊\n\nTry these commands:\n📋 *HI* - Dashboard\n💰 *RENT* - View bill\n✅ *PAID* - Record payment\n📜 *HISTORY* - Past payments\n🆘 *HELP* - Raise a complaint\n🚪 *VACATE* - Request to leave`);
         return;
     }
 
@@ -1363,7 +1382,13 @@ ${tenantContext}`;
         const aiResponse = result.response.text() || "I didn't catch that! Type *HI* to see what I can do 😊";
         await sendMessage(phone, aiResponse);
     } catch (err) {
-        console.error('Gemini AI Error:', err.message);
+        // Handle rate limit gracefully — back off for 60 seconds, don't spam error logs
+        if (err.message?.includes('429') || err.message?.includes('quota') || err.message?.includes('Too Many Requests')) {
+            geminiRateLimitedUntil = Date.now() + 60000; // 60 second cooldown
+            console.warn('[GEMINI] Rate limit hit — falling back to menu for 60s');
+        } else {
+            console.error('Gemini AI Error:', err.message);
+        }
         await sendMessage(phone, `I'm here to help! 😊\n\nTry these commands:\n📋 *HI* - Dashboard\n💰 *RENT* - View bill\n✅ *PAID* - Record payment\n📜 *HISTORY* - Past payments`);
     }
 }
