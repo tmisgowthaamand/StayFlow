@@ -219,13 +219,21 @@ const App = () => {
     localStorage.removeItem(TOKEN_STORAGE_KEY);
     sessionStorage.removeItem(TOKEN_STORAGE_KEY);
     applyAuthToken(null);
-    // If remember me was on, keep credentials for next login auto-fill
-    // If remember me was off, clear the form
-    const hasSavedCreds = Boolean(localStorage.getItem(SAVED_CREDS_KEY));
-    if (!hasSavedCreds) {
+    // If Remember Me was on, restore saved credentials to form for next login
+    const saved = localStorage.getItem(SAVED_CREDS_KEY);
+    if (saved) {
+      try {
+        const creds = JSON.parse(saved);
+        setLoginForm({ username: creds.username || '', password: creds.password || '' });
+        setRememberMe(true);
+      } catch {
+        setLoginForm({ username: '', password: '' });
+        setRememberMe(false);
+      }
+    } else {
       setLoginForm({ username: '', password: '' });
+      setRememberMe(false);
     }
-    setLoginForm({ username: '', password: '' });
   };
 
   const [tenants, setTenants] = useState([]);
