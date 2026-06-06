@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, Switch, TouchableOpacity, Alert, Modal, TextInput } from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as SecureStore from 'expo-secure-store';
 import { CommonActions } from '@react-navigation/native';
 import { Colors, Spacing, Shadows, Typography, BorderRadius } from '../theme/theme';
 import Header from '../components/Header';
@@ -73,7 +73,7 @@ const GeneralSettings = () => {
 
     const handleSignOut = async () => {
         try {
-            await AsyncStorage.removeItem('userToken');
+            await SecureStore.deleteItemAsync('userToken');
             navigation.dispatch(
                 CommonActions.reset({
                     index: 0,
@@ -105,7 +105,8 @@ const GeneralSettings = () => {
 
     const handleChangePassword = async () => {
         try {
-            const storedPassword = await AsyncStorage.getItem('userPassword') || 'admin';
+            // SECURITY FIX: Use SecureStore for password storage
+            const storedPassword = await SecureStore.getItemAsync('userPassword') || 'admin';
 
             if (oldPass !== storedPassword) {
                 Alert.alert("Error", "Incorrect current password.");
@@ -117,7 +118,8 @@ const GeneralSettings = () => {
                 return;
             }
 
-            await AsyncStorage.setItem('userPassword', newPass);
+            // SECURITY FIX: Store password securely
+            await SecureStore.setItemAsync('userPassword', newPass);
 
             setPasswordModal(false);
             setOldPass("");
@@ -125,7 +127,7 @@ const GeneralSettings = () => {
             Alert.alert("Success", "Password changed successfully! Please login again.");
 
             // Remove token and go to login
-            await AsyncStorage.removeItem('userToken');
+            await SecureStore.deleteItemAsync('userToken');
             navigation.dispatch(
                 CommonActions.reset({
                     index: 0,

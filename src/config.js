@@ -37,11 +37,10 @@ const config = {
         })(),
     },
     mongoUri: process.env.MONGODB_URI || 'mongodb://localhost:27017/stayflow',
-    jwtSecret: process.env.JWT_SECRET || 'INSECURE_DEFAULT_JWT_SECRET_CHANGE_IMMEDIATELY',
-    adminPassword: process.env.ADMIN_PASSWORD || 'admin',
-    encryptionKey: process.env.ENCRYPTION_KEY || 'a'.repeat(64),
+    jwtSecret: process.env.JWT_SECRET,
+    adminPassword: process.env.ADMIN_PASSWORD,
+    encryptionKey: process.env.ENCRYPTION_KEY,
     geminiApiKey: process.env.GEMINI_API_KEY,
-    groqApiKey: process.env.GROQ_API_KEY,
     googleMapsApiKey: process.env.GOOGLE_MAPS_API_KEY,
     razorpay: {
         key_id: process.env.RAZORPAY_KEY_ID,
@@ -76,29 +75,18 @@ const requiredEnv = [
     'RAZORPAY_KEY_ID',
     'RAZORPAY_KEY_SECRET',
     'WHATSAPP_APP_SECRET',
-    'RAZORPAY_WEBHOOK_SECRET'
-];
-
-// Phase 2 & 3 Security Variables (warn if missing, but don't block startup)
-const securityEnv = [
+    'RAZORPAY_WEBHOOK_SECRET',
+    // SECURITY FIX: These are now hard-required — app must not start with insecure fallbacks
     'JWT_SECRET',
     'ADMIN_PASSWORD',
     'ENCRYPTION_KEY'
 ];
 
 const missing = requiredEnv.filter(key => !process.env[key]);
-const missingSecurity = securityEnv.filter(key => !process.env[key]);
 
 if (missing.length > 0) {
     console.error(`\n❌ FATAL: Missing Required Environment Variables:\n${missing.join('\n')}\n`);
     process.exit(1);
-}
-
-if (missingSecurity.length > 0) {
-    console.warn(`\n⚠️  WARNING: Missing Security Environment Variables:\n${missingSecurity.join('\n')}`);
-    console.warn(`\nThe application will start but security features will be degraded.`);
-    console.warn(`Add these variables immediately for production use.\n`);
-    console.warn(`See RENDER_DEPLOYMENT_FIX.md for instructions.\n`);
 }
 
 export default config;

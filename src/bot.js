@@ -549,24 +549,61 @@ async function uploadMedia(filePath) {
 
 async function saveWhatsAppAadhaarToCloudinary(image, phone) {
     const mediaId = image.id;
-    const uploadResult = await cloudinaryService.uploadWhatsAppMedia(mediaId, {
-        folder: 'stayflow/aadhaar',
-        filename: `aadhaar-${phone}-${Date.now()}`,
-        publicId: `aadhaar_${phone}_${Date.now()}`
+    
+    // 1. Download image from WhatsApp
+    console.log(`[AADHAAR ENCRYPTION] Downloading image for ${phone}`);
+    const urlResponse = await axios.get(`https://graph.facebook.com/v17.0/${mediaId}`, {
+        headers: { Authorization: `Bearer ${config.whatsapp.token}` }
     });
-
+    
+    const mediaResponse = await axios.get(urlResponse.data.url, {
+        headers: { Authorization: `Bearer ${config.whatsapp.token}` },
+        responseType: 'arraybuffer'
+    });
+    
+    const imageBuffer = Buffer.from(mediaResponse.data);
+    const originalMimeType = mediaResponse.headers['content-type'] || image.mimeType || 'image/jpeg';
+    
+    // SECURITY: Enforce strict MIME type whitelist for Aadhaar uploads
+    const ALLOWED_AADHAAR_MIMES = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'];
+    const cleanMimeType = originalMimeType.split(';')[0].trim().toLowerCase(); // strip charset params
+    if (!ALLOWED_AADHAAR_MIMES.includes(cleanMimeType)) {
+        console.warn(`[AADHAAR] Rejected upload from ${phone} — disallowed MIME type: ${cleanMimeType}`);
+        throw new Error(`File type not allowed for Aadhaar upload: ${cleanMimeType}. Allowed: JPEG, PNG, WebP, PDF.`);
+    }
+    console.log(`[AADHAAR] MIME type validated: ${cleanMimeType}`);
+    
+    // 2. ENCRYPT BEFORE UPLOAD (CRITICAL SECURITY)
+    console.log(`[AADHAAR ENCRYPTION] Encrypting ${imageBuffer.length} bytes for ${phone}`);
+    const { encrypted, iv, tag } = encrypt(imageBuffer);
+    
+    // 3. Upload encrypted buffer to Cloudinary as raw file
+    const uploadResult = await cloudinaryService.uploadBuffer(encrypted, {
+        folder: 'stayflow/aadhaar',
+        filename: `aadhaar-${phone}-${Date.now()}.enc`,
+        publicId: `aadhaar_${phone}_${Date.now()}`,
+        mimeType: 'application/octet-stream', // Treat as binary
+        resourceType: 'raw' // Important: store as raw file, not image
+    });
+    
+    console.log(`[AADHAAR ENCRYPTION] ✅ Encrypted Aadhaar uploaded: ${uploadResult.publicId}`);
+    
+    // 4. Store metadata with encryption details
     const mediaDoc = await Media.create({
         phone,
         type: 'AADHAAR',
         mediaId,
         filename: uploadResult.originalFilename || `aadhaar-${phone}`,
-        mimeType: image.mimeType || image.mimetype || 'image/jpeg',
+        mimeType: cleanMimeType, // Store validated mime type for decryption
         provider: uploadResult.provider,
         publicId: uploadResult.publicId,
         url: uploadResult.url,
         resourceType: uploadResult.resourceType,
-        format: uploadResult.format,
-        bytes: uploadResult.bytes
+        format: 'encrypted',
+        bytes: uploadResult.bytes,
+        encrypted: true,
+        encryptionIV: iv.toString('base64'),
+        encryptionTag: tag.toString('base64')
     });
 
     return mediaDoc;

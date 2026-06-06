@@ -10,9 +10,12 @@ const logSchema = new mongoose.Schema({
     action: String,
     details: mongoose.Schema.Types.Mixed,
     timestamp: { type: Date, default: Date.now }
-});
+}, { strict: true });
 // Index for tracking unique events like Razorpay Webhook IDs
 logSchema.index({ "details.id": 1 }, { unique: true, sparse: true });
+// Performance indexes
+logSchema.index({ phone: 1, action: 1, timestamp: -1 }); // Fast per-user action history
+logSchema.index({ action: 1, timestamp: -1 });            // Fast action-type queries
 
 const mediaSchema = new mongoose.Schema({
     phone: String,
@@ -21,12 +24,17 @@ const mediaSchema = new mongoose.Schema({
     url: String,
     filename: String,
     mimeType: String,
+    provider: String, // 'cloudinary', 'local', etc.
+    publicId: String, // Cloudinary public ID
+    resourceType: String, // 'image', 'raw', etc.
+    format: String, // File format
+    bytes: Number, // File size
     data: Buffer,
     encrypted: { type: Boolean, default: false },
     encryptionIV: String,
     encryptionTag: String,
     timestamp: { type: Date, default: Date.now }
-});
+}, { strict: true });
 
 const tenantSchema = new mongoose.Schema({
     name: String,
@@ -45,7 +53,12 @@ const tenantSchema = new mongoose.Schema({
     paidDate: String,
     aadhaarImage: String,
     archivedAt: { type: Date, default: Date.now }
-});
+}, { strict: true });
+
+// Performance indexes for common query patterns
+tenantSchema.index({ phone: 1, name: 1 });   // Fast phone+name lookup
+tenantSchema.index({ status: 1 });            // Fast status filtering (PAID/PENDING/VACATED)
+tenantSchema.index({ location: 1 });          // Fast per-location queries
 
 const notificationSchema = new mongoose.Schema({
     type: String, // 'invoice_sent', 'payment_received', 'issue_submitted', etc.
@@ -54,13 +67,13 @@ const notificationSchema = new mongoose.Schema({
     meta: mongoose.Schema.Types.Mixed,
     read: { type: Boolean, default: false },
     timestamp: { type: Date, default: Date.now }
-});
+}, { strict: true });
 
 const sessionSchema = new mongoose.Schema({
     phone: { type: String, unique: true },
     state: mongoose.Schema.Types.Mixed,
     updatedAt: { type: Date, default: Date.now, expires: 3600 } // TTL 1 hour
-});
+}, { strict: true });
 
 const paymentSchema = new mongoose.Schema({
     trxId: { type: String, unique: true, required: true },
@@ -72,7 +85,7 @@ const paymentSchema = new mongoose.Schema({
     date: { type: String },
     meta: mongoose.Schema.Types.Mixed,
     timestamp: { type: Date, default: Date.now }
-});
+}, { strict: true });
 
 const querySchema = new mongoose.Schema({
     queryId: { type: String, unique: true, required: true },
@@ -86,13 +99,13 @@ const querySchema = new mongoose.Schema({
     autoReplySent: { type: Boolean, default: false },
     createdAt: { type: Date, default: Date.now },
     resolvedAt: Date
-});
+}, { strict: true });
 
 const pushTokenSchema = new mongoose.Schema({
     token: { type: String, unique: true, required: true },
     platform: String,
     lastUsed: { type: Date, default: Date.now }
-});
+}, { strict: true });
 
 const Log = mongoose.model('Log', logSchema);
 const Media = mongoose.model('Media', mediaSchema);

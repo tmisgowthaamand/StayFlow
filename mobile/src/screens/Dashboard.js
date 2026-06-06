@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback, memo, useRef, useMemo } from 'react';
 import { View, ScrollView, StyleSheet, RefreshControl, Text, TouchableOpacity, Animated, Dimensions, Alert, Modal, Platform } from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as SecureStore from 'expo-secure-store';
 import { CommonActions } from '@react-navigation/native';
 import { Colors, Spacing, Shadows, Typography, BorderRadius, Gradients } from '../theme/theme';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -243,7 +243,7 @@ const Dashboard = () => {
         try {
             // Instant feedback
             setIsMenuVisible(false);
-            await AsyncStorage.removeItem('userToken');
+            await SecureStore.deleteItemAsync('userToken');
             navigation.dispatch(
                 CommonActions.reset({
                     index: 0,

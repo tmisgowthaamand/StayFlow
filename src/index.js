@@ -9,6 +9,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import multer from 'multer';
 import helmet from 'helmet';
+import mongoSanitize from 'express-mongo-sanitize';
 
 import config from './config.js';
 import { generateToken, validatePassword, verifyToken } from './auth.js';
@@ -67,7 +68,14 @@ app.use(cors({
     origin: (origin, callback) => {
         // If config.allowedOrigins is empty or has only empty strings, allow all
         const allowed = config.allowedOrigins.filter(o => o && o.trim() !== '');
-        if (!origin || allowed.length === 0 || allowed.includes(origin) || allowed.includes('*')) {
+        
+        // SECURITY FIX: If no whitelist configured, block all (fail-closed)
+        if (allowed.length === 0) {
+            console.error('⚠️ ALLOWED_ORIGINS not configured. Blocking CORS requests.');
+            return callback(new Error('CORS not configured'));
+        }
+        
+        if (!origin || allowed.includes(origin) || allowed.includes('*')) {
             callback(null, true);
         } else {
             console.warn(`CORS blocked request from origin: ${origin}`);
@@ -79,6 +87,14 @@ app.use(cors({
     allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'x-api-key']
 }));
 
+// SECURITY: NoSQL Injection Protection
+app.use(mongoSanitize({
+    replaceWith: '_',
+    onSanitize: ({ req, key }) => {
+        console.warn(`[SECURITY] Sanitized NoSQL injection attempt: ${key} in ${req.path}`);
+    }
+}));
+
 // PHASE 2 REQ 7: Rate Limiting
 const apiLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,
@@ -86,6 +102,16 @@ const apiLimiter = rateLimit({
     standardHeaders: true,
     legacyHeaders: false,
     message: { error: 'Too many requests from this IP' }
+});
+
+// SECURITY FIX: Strict rate limiting for authentication
+const authLimiter = rateLimit({
+    windowMs: 60 * 60 * 1000, // 1 hour
+    max: 5, // Only 5 attempts per hour
+    standardHeaders: true,
+    legacyHeaders: false,
+    skipSuccessfulRequests: true, // Don't count successful logins
+    message: { error: 'Too many login attempts. Try again in 1 hour.' }
 });
 
 const publicEndpointLimiter = rateLimit({
@@ -105,7 +131,8 @@ app.use('/api/verify-transaction', paymentLimiter);
 app.use('/api/mark-paid', paymentLimiter);
 app.use('/api/razorpay-webhook', express.raw({ type: 'application/json' })); // Raw body for signature verification
 app.use('/webhook', express.raw({ type: 'application/json' })); // Raw body for WhatsApp signature verification
-app.use(bodyParser.json());
+app.use(bodyParser.json({ limit: '10mb' }));
+app.use(bodyParser.urlencoded({ extended: true, limit: '10mb' }));
 
 // Ensure uploads directory exists
 const uploadsDir = path.join(__dirname, '../uploads');
@@ -160,6 +187,64 @@ app.get('/api/uploads/:filename', authenticate, (req, res) => {
         return res.status(404).json({ error: 'File not found' });
     }
     res.sendFile(filePath);
+});
+
+// SECURITY: Encrypted Aadhaar Document Access with Authorization
+app.get('/api/aadhaar/:phone', authenticate, async (req, res) => {
+    try {
+        const { phone } = req.params;
+        
+        // Authorization: Only admin or the tenant themselves can access
+        const isAdmin = req.user.role === 'admin';
+        const userPhone = req.user.phone?.toString().replace(/\D/g, '');
+        const requestedPhone = phone.toString().replace(/\D/g, '');
+        const isSelf = userPhone === requestedPhone || 
+                       (userPhone?.slice(-10) === requestedPhone.slice(-10));
+        
+        if (!isAdmin && !isSelf) {
+            console.warn(`[SECURITY] Unauthorized Aadhaar access attempt by ${req.user.username || userPhone} for ${phone}`);
+            return res.status(403).json({ error: 'Unauthorized access to sensitive document' });
+        }
+        
+        // Fetch encrypted media record
+        const media = await Media.findOne({ phone, type: 'AADHAAR', encrypted: true });
+        if (!media) {
+            return res.status(404).json({ error: 'Document not found' });
+        }
+        
+        console.log(`[AADHAAR DECRYPTION] Authorized access by ${req.user.username || 'user'} for ${phone}`);
+        
+        // Download encrypted file from Cloudinary
+        const encryptedResponse = await axios.get(media.url, { 
+            responseType: 'arraybuffer',
+            timeout: 30000
+        });
+        
+        // Decrypt using stored IV and auth tag
+        const decrypted = decrypt({
+            encrypted: Buffer.from(encryptedResponse.data),
+            iv: Buffer.from(media.encryptionIV, 'base64'),
+            tag: Buffer.from(media.encryptionTag, 'base64')
+        });
+        
+        console.log(`[AADHAAR DECRYPTION] ✅ Successfully decrypted ${decrypted.length} bytes for ${phone}`);
+        
+        // Serve decrypted image
+        res.set({
+            'Content-Type': media.mimeType || 'image/jpeg',
+            'Content-Disposition': `inline; filename="aadhaar-${phone}.jpg"`,
+            'Cache-Control': 'private, no-cache, no-store, must-revalidate',
+            'X-Content-Type-Options': 'nosniff'
+        });
+        res.send(decrypted);
+        
+    } catch (err) {
+        console.error('[AADHAAR DECRYPTION] Error:', err.message);
+        if (err.message.includes('Unsupported state or unable to authenticate data')) {
+            return res.status(500).json({ error: 'Document decryption failed - integrity check failed' });
+        }
+        res.status(500).json({ error: 'Unable to retrieve document' });
+    }
 });
 
 // 3. Serve public folder (registration, rules, etc)
@@ -547,16 +632,8 @@ app.post('/webhook/razorpay', async (req, res) => {
     try {
         const rawBody = req.body; // Buffer when using express.raw()
         const payload = JSON.parse(rawBody);
-        console.log('Razorpay Webhook Received:', JSON.stringify(payload));
 
-        // Log the webhook payload for verification later
-        await Log.create({
-            action: 'RAZORPAY_WEBHOOK',
-            details: payload,
-            timestamp: new Date()
-        });
-
-        // Verify webhook signature (Mandatory in Production)
+        // SECURITY FIX: Verify signature FIRST before logging or processing anything
         const signature = req.headers['x-razorpay-signature'];
 
         if (!signature) {
@@ -574,6 +651,14 @@ app.post('/webhook/razorpay', async (req, res) => {
             return res.status(400).send('Invalid signature');
         }
         console.log('✅ Webhook signature verified');
+
+        // Only log AFTER signature is confirmed — payload is now trusted
+        console.log('Razorpay Webhook Received:', JSON.stringify(payload));
+        await Log.create({
+            action: 'RAZORPAY_WEBHOOK',
+            details: payload,
+            timestamp: new Date()
+        });
 
         // Process payment.captured event
         if (payload.event === 'payment_link.paid' || payload.event === 'payment.captured') {
@@ -1890,11 +1975,19 @@ app.get('/api/tenants', authenticate, async (req, res) => {
     try {
         console.log('--- Fetching Tenants for Dashboard ---');
         const tenants = await sheetsService.getTenantsJSON();
-        console.log(`Response sent: ${tenants.length} tenants found.`);
-        if (tenants.length === 0) {
+
+        // ARCHITECTURE FIX: Optional location filtering for multi-tenancy support
+        // Pass ?location=Main+Branch to scope results per property
+        const { location } = req.query;
+        const filtered = location
+            ? tenants.filter(t => (t.Location || 'Main Branch').toLowerCase() === location.toLowerCase())
+            : tenants;
+
+        console.log(`Response sent: ${filtered.length} tenants found${location ? ` for location: ${location}` : ''}.`);
+        if (filtered.length === 0) {
             console.log('WARNING: Sheet returned 0 tenants. Check sheet title and headers.');
         }
-        res.json(tenants);
+        res.json(filtered);
     } catch (err) {
         console.error('API Tenants Error:', err.message);
         res.status(500).json({ error: 'Internal server error' });
@@ -2653,7 +2746,18 @@ app.post('/api/eb-bills', authenticate, async (req, res) => {
 });
 
 app.get('/api/dashboard-stats', authenticate, async (req, res) => {
-    try { res.json(await sheetsService.getDashboardStats()); }
+    try {
+        const stats = await sheetsService.getDashboardStats();
+        // ARCHITECTURE FIX: Optional location filter for multi-tenancy support
+        // Pass ?location=Main+Branch to scope stats per property
+        const { location } = req.query;
+        if (location && stats.tenants) {
+            stats.tenants = stats.tenants.filter(t =>
+                (t.Location || 'Main Branch').toLowerCase() === location.toLowerCase()
+            );
+        }
+        res.json(stats);
+    }
     catch (err) {
         console.error('Dashboard Stats Error:', err.message);
         res.status(500).json({ error: 'Internal server error' });
@@ -2745,8 +2849,8 @@ app.get('/api/health', async (req, res) => {
 
 
 
-// Login endpoint - JWT authentication
-app.post('/api/login', (req, res) => {
+// Login endpoint - JWT authentication with strict rate limiting
+app.post('/api/login', authLimiter, (req, res) => {
     const { username, password } = req.body;
     if (username !== 'admin' || !validatePassword(password)) {
         return res.status(401).json({ error: 'Invalid credentials' });

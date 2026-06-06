@@ -1,5 +1,8 @@
 FROM node:18-slim
 
+# Set production environment
+ENV NODE_ENV=production
+
 # Install only essential system dependencies
 RUN apt-get update && apt-get install -y \
     ca-certificates \

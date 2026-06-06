@@ -1,27 +1,25 @@
 import axios from 'axios';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-
-const API_BASE_URL = 'https://stayflow-tkto.onrender.com/api/';
-const API_ORIGIN = API_BASE_URL.replace(/\/api\/?$/, '');
+import * as SecureStore from 'expo-secure-store';
+import { API_BASE_URL, API_ORIGIN } from '../config';
 
 const api = axios.create({
     baseURL: API_BASE_URL,
     timeout: 30000,
 });
 
-// Request interceptor to attach JWT
+// Request interceptor to attach JWT from secure storage
 api.interceptors.request.use(async (config) => {
-    const token = await AsyncStorage.getItem('stayflow_jwt');
+    const token = await SecureStore.getItemAsync('stayflow_jwt');
     if (token) {
         config.headers.Authorization = `Bearer ${token}`;
     }
     return config;
 });
 
-// Add login function
+// Add login function with secure storage
 export const login = async (username, password) => {
     const response = await api.post('/login', { username, password });
-    await AsyncStorage.setItem('stayflow_jwt', response.data.token);
+    await SecureStore.setItemAsync('stayflow_jwt', response.data.token);
     return response.data;
 };
 

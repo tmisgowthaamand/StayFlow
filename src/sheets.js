@@ -109,55 +109,25 @@ class SheetsService {
 
         console.log('[SHEETS] Starting initialization...');
 
-        let authConfig;
-        const serviceAccountPath = join(__dirname, '../service-account.json');
-
-        if (fs.existsSync(serviceAccountPath)) {
-            console.log('Using service-account.json for authentication');
-            try {
-                const creds = JSON.parse(fs.readFileSync(serviceAccountPath, 'utf8'));
-                authConfig = {
-                    email: creds.client_email,
-                    key: creds.private_key,
-                };
-            } catch (jsonErr) {
-                console.error('Failed to parse service-account.json:', jsonErr.message);
-                throw new Error(`Corrupted service-account.json: ${jsonErr.message}`);
-            }
-        } else if (config.sheets.email && config.sheets.key) {
-            console.log('Using environment variables for Google Sheets authentication');
-            authConfig = {
-                email: config.sheets.email,
-                key: config.sheets.key,
-            };
-        } else {
-            throw new Error('Google Sheets credentials not found. Provide service-account.json or set GOOGLE_SERVICE_ACCOUNT_EMAIL and GOOGLE_PRIVATE_KEY environment variables.');
+        // SECURITY FIX: ONLY use environment variables, no file fallback
+        if (!config.sheets.email || !config.sheets.key) {
+            throw new Error('Google Sheets credentials not found. Set GOOGLE_SERVICE_ACCOUNT_EMAIL and GOOGLE_PRIVATE_KEY environment variables. Do NOT use service-account.json file.');
         }
 
-        // Extremely thorough key cleaning
-        if (authConfig.key) {
-            // Remove any potential surrounding quotes (sometimes happens in env vars)
-            authConfig.key = authConfig.key.replace(/^["']|["']$/g, '');
-
-            // Handle escaped newlines - sometimes they get double escaped as \\n
-            authConfig.key = authConfig.key.replace(/\\n/g, '\n');
-
-            // If the key is still a single line without newlines, it's definitely wrong
-            if (!authConfig.key.includes('\n')) {
-                console.warn('WARNING: Private key has no newlines. This will likely fail.');
-            }
-
-            authConfig.key = authConfig.key.trim();
-        }
+        console.log('Using environment variables for Google Sheets authentication');
+        const authConfig = {
+            email: config.sheets.email,
+            key: config.sheets.key,
+        };
 
         console.log('Google Sheets auth configured:', !!authConfig.email && !!authConfig.key);
 
         const serviceAccountAuth = new JWT({
             email: authConfig.email,
             key: authConfig.key,
+            // SECURITY FIX: Minimal scope — spreadsheets only, no drive access
             scopes: [
-                'https://www.googleapis.com/auth/spreadsheets',
-                'https://www.googleapis.com/auth/drive.file'
+                'https://www.googleapis.com/auth/spreadsheets'
             ],
         });
 
@@ -188,7 +158,7 @@ class SheetsService {
             console.error('[SHEETS] Stack:', err.stack);
             const errorMsg = `Google Sheets Init FAILED: ${err.message}`;
             if (err.message.includes('Signature') || err.message.includes('grant')) {
-                throw new Error(`Invalid JWT Connection: ${err.message}. Check service-account.json.`);
+                throw new Error(`Invalid JWT Connection: ${err.message}. Check GOOGLE_PRIVATE_KEY and GOOGLE_SERVICE_ACCOUNT_EMAIL environment variables.`);
             }
             throw new Error(errorMsg);
         }
@@ -535,7 +505,9 @@ class SheetsService {
                 'Sharing Type': tenantData.sharingType,
                 'Location': tenantData.location || 'Main Branch',
                 'Advance': tenantData.advance,
-                'Aadhaar Image': tenantData.aadhaarImage || '',
+                // SECURITY FIX: Never store Cloudinary URL in Sheets — use placeholder
+                // Actual encrypted file is stored in MongoDB Media collection
+                'Aadhaar Image': tenantData.aadhaarImage ? 'ENCRYPTED_STORED' : '',
                 'Registration Form': tenantData.registrationForm || '',
                 'Monthly Rent': tenantData.monthlyRent,
                 'EB Amount': '0',
@@ -583,7 +555,11 @@ class SheetsService {
                     status: tenant.get('Status') || '',
                     joinDate: tenant.get('Join Date') || '',
                     paidDate: tenant.get('Paid Date') || '',
-                    aadhaarImage: tenant.get('Aadhaar Image') || ''
+                    // SECURITY FIX: Sheets only holds 'ENCRYPTED_STORED' placeholder
+                    // Actual Aadhaar URL is in MongoDB Media collection — do not sync placeholder
+                    aadhaarImage: tenant.get('Aadhaar Image') === 'ENCRYPTED_STORED'
+                        ? 'ENCRYPTED_STORED'
+                        : (tenant.get('Aadhaar Image') || '')
                 },
                 { upsert: true, new: true }
             );

@@ -5,7 +5,7 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createStackNavigator, CardStyleInterpolators } from '@react-navigation/stack';
 import { StatusBar } from 'expo-status-bar';
 import { View, StyleSheet, Animated, Easing, LogBox, Platform, ActivityIndicator, Text } from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as SecureStore from 'expo-secure-store';
 import { Colors, Typography } from './src/theme/theme';
 import { LayoutDashboard, Users, Zap, FileText, Map } from 'lucide-react-native';
 
@@ -181,13 +181,13 @@ export default function App() {
     const checkLogin = async () => {
       try {
         console.log('🔍 Checking login status...');
-        const token = await AsyncStorage.getItem('userToken');
-        console.log('✅ AsyncStorage check complete');
+        const token = await SecureStore.getItemAsync('userToken');
+        console.log('✅ SecureStore check complete');
         if (token) {
           setInitialRoute('Main');
         }
       } catch (e) {
-        console.error('❌ AsyncStorage error:', e);
+        console.error('❌ SecureStore error:', e);
         setError(e.message);
       } finally {
         setIsLoading(false);
