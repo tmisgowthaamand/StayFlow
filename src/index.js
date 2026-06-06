@@ -9,7 +9,31 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import multer from 'multer';
 import helmet from 'helmet';
-import mongoSanitize from 'express-mongo-sanitize';
+
+// SECURITY: Custom NoSQL injection sanitizer — express-mongo-sanitize
+// is incompatible with Express 5 (req.query is a read-only getter).
+// This middleware strips MongoDB operators from req.body and req.params
+// without touching req.query directly.
+function sanitizeMongoOperators(obj) {
+    if (obj && typeof obj === 'object') {
+        for (const key of Object.keys(obj)) {
+            if (key.startsWith('$')) {
+                console.warn(`[SECURITY] Stripped NoSQL operator: ${key}`);
+                delete obj[key];
+            } else {
+                sanitizeMongoOperators(obj[key]);
+            }
+        }
+    }
+    return obj;
+}
+
+function mongoSanitize(req, res, next) {
+    if (req.body) sanitizeMongoOperators(req.body);
+    if (req.params) sanitizeMongoOperators(req.params);
+    // Note: req.query is read-only in Express 5 — sanitize inline at usage points
+    next();
+}
 
 import config from './config.js';
 import { generateToken, validatePassword, verifyToken } from './auth.js';
@@ -87,13 +111,23 @@ app.use(cors({
     allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'x-api-key']
 }));
 
-// SECURITY: NoSQL Injection Protection
-app.use(mongoSanitize({
-    replaceWith: '_',
-    onSanitize: ({ req, key }) => {
-        console.warn(`[SECURITY] Sanitized NoSQL injection attempt: ${key} in ${req.path}`);
+// SECURITY: NoSQL Injection Protection (Express 5 compatible)
+app.use(mongoSanitize);
+
+// SECURITY: Strip MongoDB operators from req.query values
+// (req.query is read-only in Express 5, so we check inline at usage points above)
+// This extra middleware checks for $-prefixed keys in query string objects
+app.use((req, res, next) => {
+    if (req.query) {
+        for (const [key, val] of Object.entries(req.query)) {
+            if (key.startsWith('$') || (typeof val === 'object' && val !== null)) {
+                console.warn(`[SECURITY] Suspicious query param blocked: ${key}`);
+                return res.status(400).json({ error: 'Invalid query parameters' });
+            }
+        }
     }
-}));
+    next();
+});
 
 // PHASE 2 REQ 7: Rate Limiting
 const apiLimiter = rateLimit({
@@ -317,6 +351,11 @@ app.get('/api/payment-info', async (req, res) => {
     try {
         const { phone, name } = req.query;
         if (!phone) return res.status(400).json({ error: 'Phone number is required' });
+
+        // SECURITY: Sanitize query params inline (Express 5 req.query is read-only)
+        if (typeof phone === 'object' || typeof name === 'object') {
+            return res.status(400).json({ error: 'Invalid query parameters' });
+        }
 
         // OPTIMIZATION 1: Check cache first (fastest)
         const cacheKey = `${phone}:${name || ''}`;
@@ -1475,6 +1514,11 @@ app.get('/api/tenant-info', publicEndpointLimiter, async (req, res) => {
     try {
         const { phone } = req.query;
         if (!phone) return res.status(400).json({ error: 'Phone required' });
+
+        // SECURITY: Sanitize query params inline (Express 5 req.query is read-only)
+        if (typeof phone === 'object') {
+            return res.status(400).json({ error: 'Invalid query parameters' });
+        }
 
         const tenant = await sheetsService.getTenantByPhone(phone);
         if (!tenant || tenant.get('Status') === 'VACATED') {
