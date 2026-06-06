@@ -25,6 +25,7 @@
     "express-mongo-sanitize": "^2.2.0",
     "express-rate-limit": "^8.2.1",
     "form-data": "^4.0.5",
+    "gcp-metadata": "7.0.1",
     "google-auth-library": "^10.5.0",
     "google-spreadsheet": "^5.0.2",
     "googleapis": "^171.4.0",
