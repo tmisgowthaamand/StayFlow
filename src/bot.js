@@ -859,8 +859,8 @@ async function handleIncomingMessage(phone, body, messageId = null, image = null
                 ];
 
                 const sections = [
-                    { title: '🏠 Services', rows: mainMenuRows },
-                    { title: 'ℹ️ Information', rows: infoMenuRows }
+                    { title: 'Services', rows: mainMenuRows },
+                    { title: 'Information', rows: infoMenuRows }
                 ];
 
                 // Send welcome banner if available
@@ -869,9 +869,9 @@ async function handleIncomingMessage(phone, body, messageId = null, image = null
 
                 await sendListMessage(
                     phone,
-                    `🏠 ${config.businessName}`,
+                    `${config.businessName}`,
                     welcomeBody,
-                    '📋 View Menu',
+                    'View Menu',
                     sections
                 );
 
@@ -1603,15 +1603,18 @@ async function sendMainMenuList(phone) {
     ];
 
     const sections = [
-        { title: '🏠 Services', rows: mainMenuRows },
-        { title: 'ℹ️ Information', rows: infoMenuRows }
+        { title: 'Services', rows: mainMenuRows },
+        { title: 'Information', rows: infoMenuRows }
     ];
+
+    const servicesBanner = path.join(__dirname, '../assets/Services.jpg');
+    if (fs.existsSync(servicesBanner)) await sendImage(phone, servicesBanner);
 
     await sendListMessage(
         phone,
-        `🏠 ${config.businessName}`,
+        `${config.businessName}`,
         `Need anything else? Select an option below 👇`,
-        '📋 View Menu',
+        'View Menu',
         sections
     );
 }
