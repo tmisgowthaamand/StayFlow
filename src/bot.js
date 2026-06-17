@@ -703,8 +703,12 @@ async function handleIncomingMessage(phone, body, messageId = null, image = null
                 break;
             case config.commands.PAID: {
                 const tenantForPaid = await sheetsService.getTenantByPhone(phone);
-                if (!tenantForPaid || tenantForPaid.get('Status') === 'VACATED') {
+                if (!tenantForPaid) {
                     await sendMessage(phone, "You're not registered. Type *JOIN* to start.");
+                    break;
+                }
+                if (tenantForPaid.get('Status') === 'VACATED') {
+                    await sendMessage(phone, `⚠️ Your tenancy has ended. Contact admin for re-admission.\n\n📞 https://wa.me/${config.ownerPhone}`);
                     break;
                 }
                 const paidRent = parseFloat(tenantForPaid.get('Monthly Rent') || 0);
@@ -724,8 +728,12 @@ async function handleIncomingMessage(phone, body, messageId = null, image = null
             }
             case config.commands.CASH_PAID: {
                 const tenantForCash = await sheetsService.getTenantByPhone(phone);
-                if (!tenantForCash || tenantForCash.get('Status') === 'VACATED') {
+                if (!tenantForCash) {
                     await sendMessage(phone, "You're not registered. Type *JOIN* to start.");
+                    break;
+                }
+                if (tenantForCash.get('Status') === 'VACATED') {
+                    await sendMessage(phone, `⚠️ Your tenancy has ended. Contact admin for re-admission.\n\n📞 https://wa.me/${config.ownerPhone}`);
                     break;
                 }
                 const cashRent = parseFloat(tenantForCash.get('Monthly Rent') || 0);
@@ -819,6 +827,14 @@ async function handleIncomingMessage(phone, body, messageId = null, image = null
             case 'HEY':
             case 'NAMASTE': {
                 const tenantForHi = await sheetsService.getTenantByPhone(phone);
+
+                // VACATED tenants get a distinct response — they must NOT enter the unregistered flow
+                if (tenantForHi && tenantForHi.get('Status') === 'VACATED') {
+                    const vacatedName = tenantForHi.get('Name') || 'there';
+                    await sendMessage(phone, `👋 Hi ${vacatedName},\n\nYour tenancy with *${config.businessName}* has ended and your account is marked as *VACATED*.\n\nIf you'd like to re-join or have any concerns, please contact the admin directly.\n\n📞 *Admin:* https://wa.me/${config.ownerPhone}\n\n_Do not reply to this message to re-register — contact admin for re-admission._`);
+                    return;
+                }
+
                 const isRegistered = tenantForHi && tenantForHi.get('Status') !== 'VACATED';
 
                 // Build dynamic welcome text
@@ -1767,55 +1783,100 @@ async function handleMenuHolidays(phone) {
 }
 
 // Handle Vacancy Rooms from Menu — show available rooms
+// FORMULA: availableBeds = location.totalBeds - count(active tenants in that location)
+// "Active" means status is NOT 'VACATED'. Includes PENDING, PAID, VALID, ACTIVE.
+// Admin can override per-location capacity via the Locations sheet (Total Beds column).
 async function handleMenuVacancy(phone) {
-    try {
-        const tenants = await sheetsService.getAllTenants();
-        const locations = await sheetsService.getAllLocations();
+    const regUrl = config.googleFormUrl || 'https://stay-flow-kohl.vercel.app/register.html';
 
-        // Find occupied rooms
-        const occupiedRooms = new Set();
-        tenants.forEach(t => {
-            if (t.get('Status') !== 'VACATED') {
-                occupiedRooms.add(t.get('Room'));
-            }
-        });
+    try {
+        // Fetch tenants and locations with individual error handling
+        let tenants = [];
+        let locations = [];
+        let sheetsError = false;
+
+        try {
+            [tenants, locations] = await Promise.all([
+                sheetsService.getAllTenants(),
+                sheetsService.getAllLocations()
+            ]);
+        } catch (sheetsErr) {
+            console.error('[VACANCY] Failed to fetch from Google Sheets:', sheetsErr.message);
+            sheetsError = true;
+        }
+
+        // FALLBACK: If Google Sheets is unreachable, show a safe fallback message
+        if (sheetsError || (!tenants.length && !locations.length)) {
+            await sendMessage(phone, `🛏️ *Vacancy Rooms*\n━━━━━━━━━━━━━━━━━━━━\n\n⚠️ _We're unable to load live availability right now._\n\nPlease contact admin directly to check room availability.\n\n📞 https://wa.me/${config.ownerPhone}\n\nOr fill the registration form and we'll confirm availability within a few hours.`);
+            await sendCTAButton(
+                phone,
+                `Fill the form and admin will confirm availability promptly.`,
+                'Register Now',
+                regUrl,
+                'Available Rooms'
+            );
+            return;
+        }
+
+        // FORMULA: Count occupied beds per location
+        // Active = any status except 'VACATED'
+        const activeTenants = tenants.filter(t => t.get('Status') !== 'VACATED');
 
         let vacancyMsg = `🛏️ *Available Rooms*\n━━━━━━━━━━━━━━━━━━━━\n\n`;
 
         if (locations && locations.length > 0) {
+            let totalVacantAcrossAll = 0;
+
             locations.forEach(loc => {
-                const locName = loc.name || loc.get?.('Name') || 'Location';
-                const totalBeds = parseInt(loc.totalBeds || loc.get?.('Total Beds') || 0);
-                const locTenants = tenants.filter(t => {
-                    const tLoc = t.get('Location') || 'Main Branch';
-                    const targetLoc = locName === 'Location' ? 'Main Branch' : locName;
-                    return tLoc.toLowerCase() === targetLoc.toLowerCase() && t.get('Status') !== 'VACATED';
-                });
-                const occupiedBeds = locTenants.length;
+                const locName = loc.name || 'Main Branch';
+                const totalBeds = parseInt(loc.totalBeds || 0);
+
+                // Count active tenants assigned to this location
+                const occupiedBeds = activeTenants.filter(t => {
+                    const tLoc = (t.get('Location') || 'Main Branch').trim().toLowerCase();
+                    return tLoc === locName.trim().toLowerCase();
+                }).length;
+
                 const availableBeds = Math.max(0, totalBeds - occupiedBeds);
-                vacancyMsg += `📍 *${locName}*\n   🛏️ Total Beds: ${totalBeds}\n   👤 Occupied: ${occupiedBeds}\n   🟢 Vacant: ${availableBeds}\n\n`;
+                totalVacantAcrossAll += availableBeds;
+
+                const statusIcon = availableBeds > 0 ? '🟢' : '🔴';
+                vacancyMsg += `📍 *${locName}*\n`;
+                vacancyMsg += `   🛏️ Total Beds    :  ${totalBeds}\n`;
+                vacancyMsg += `   👤 Occupied      :  ${occupiedBeds}\n`;
+                vacancyMsg += `   ${statusIcon} Vacant          :  ${availableBeds}\n\n`;
             });
+
+            // Admin override note
+            vacancyMsg += `━━━━━━━━━━━━━━━━━━━━\n`;
+            if (totalVacantAcrossAll > 0) {
+                vacancyMsg += `✅ *${totalVacantAcrossAll} bed(s) available across all locations.*\n`;
+            } else {
+                vacancyMsg += `⚠️ *No beds currently listed as vacant.*\nContact admin — availability may differ.\n`;
+            }
+            vacancyMsg += `\n_Interested? Fill the form below and we'll confirm your room._`;
         } else {
-            const totalActive = tenants.filter(t => t.get('Status') !== 'VACATED').length;
-            vacancyMsg += `📍 *${config.businessName}*\n   🏠 Active Tenants: ${totalActive}\n   🟢 Rooms maybe available — Contact admin for details\n\n`;
+            // No location data — show active tenant count as a rough guide
+            const totalActive = activeTenants.length;
+            vacancyMsg += `📍 *${config.businessName}*\n   🏠 Active Residents: ${totalActive}\n\n`;
+            vacancyMsg += `━━━━━━━━━━━━━━━━━━━━\n_Contact admin for exact room availability._`;
         }
 
-        const regUrl = config.googleFormUrl || 'https://stay-flow-kohl.vercel.app/register.html';
-        vacancyMsg += `━━━━━━━━━━━━━━━━━━━━\nFill the registration form to apply for an available bed.`;
         await sendMessage(phone, vacancyMsg);
         await sendCTAButton(
             phone,
-            'Tap below to open the registration form and fill your details.',
+            `Tap below to open the registration form and fill your details.`,
             'Register Now',
             regUrl,
             'Available Rooms'
         );
     } catch (err) {
-        console.error('Vacancy check error:', err.message);
-        const regUrl = config.googleFormUrl || 'https://stay-flow-kohl.vercel.app/register.html';
+        console.error('[VACANCY] Unexpected error:', err.message);
+        // Safe fallback on any unexpected error
+        await sendMessage(phone, `🛏️ *Vacancy Rooms*\n━━━━━━━━━━━━━━━━━━━━\n\n⚠️ _Unable to load availability right now. Please try again in a moment._\n\nOr contact admin directly.`);
         await sendCTAButton(
             phone,
-            `🛏️ *Vacancy Rooms*\n\nPlease fill the registration form and admin will confirm availability.`,
+            `Fill the registration form and admin will confirm room availability.`,
             'Register Now',
             regUrl,
             'Available Rooms'

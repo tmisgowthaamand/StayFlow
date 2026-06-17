@@ -84,6 +84,8 @@ const paymentSchema = new mongoose.Schema({
     status: { type: String, enum: ['PENDING', 'VALID', 'INVALID'], default: 'PENDING' },
     date: { type: String },
     meta: mongoose.Schema.Types.Mixed,
+    // Issue 2 fix: track if 24h admin reminder has been sent for stale PENDING CASH payments
+    cashReminderSent: { type: Boolean, default: false },
     timestamp: { type: Date, default: Date.now }
 }, { strict: true });
 

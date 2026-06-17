@@ -4,6 +4,77 @@
 
 ---
 
+## ⚠️ Known Gap Resolutions (June 2026)
+
+### 1. VACATED Users — Distinct Response
+VACATED tenants who message the bot now receive a specific "tenancy has ended" response instead of being silently treated as unregistered. They are **never** shown the "New Register" option. Re-admission requires contacting admin directly.
+
+```
+VACATED user types HI / PAID / any command
+        │
+        ▼
+"Your tenancy has ended. Contact admin for re-admission."
+        │
+        ▼
+Admin WhatsApp link provided
+        │
+        ▼
+NO register option shown — flow stops here
+```
+
+Affected commands: `HI`, `PAID`, `CASH PAID`, `MENU_REGISTER` (hidden for VACATED), all Pay flows.
+
+---
+
+### 2. PENDING CASH — 24-Hour Admin Reminder Loop
+Cash payments stuck in `PENDING` status now have a resolution loop. A cron runs every hour, checks for CASH payments pending > 24h, and:
+- Sends an alert to admin with VERIFY / REJECT commands
+- Reassures the tenant their payment is still being processed
+- Marks `cashReminderSent = true` so the reminder fires only once per payment
+
+```
+Tenant submits cash amount
+        │
+        ▼
+Status = PENDING CASH
+        │
+        ▼ (24 hours later — hourly cron checks)
+Admin receives: "⏰ Cash Payment Awaiting Confirmation"
+        │
+   ┌────┼────┐
+   │         │
+   ▼         ▼
+ VERIFY    REJECT
+   │         │
+   ▼         ▼
+Status=PAID  Status=INVALID
+Invoice      Tenant notified
+sent         to retry
+```
+
+Field added: `cashReminderSent` (Boolean) on the `Payment` MongoDB model.
+
+---
+
+### 3. Vacancy Rooms — Formula & Fallback
+
+**Exact formula:**
+```
+availableBeds = location.totalBeds - count(tenants WHERE location = X AND status != 'VACATED')
+```
+- `totalBeds` is set by admin in the **Locations** sheet (Total Beds column). This is the admin override.
+- Counted from the live Tenants sheet — statuses PENDING, PAID, VALID, ACTIVE all count as "occupied".
+- Only VACATED tenants free up a bed.
+
+**Failure handling:**
+- If Google Sheets call fails → user sees a safe fallback message ("unable to load availability") with admin contact link.
+- If both `tenants` and `locations` return empty → same fallback.
+- No case where 0 vacancies are shown when the sheet is simply unreachable.
+
+**Admin override path:** Edit the **Total Beds** column in the Locations sheet to manually control advertised capacity.
+
+---
+
 ## 📐 System Architecture
 
 ```

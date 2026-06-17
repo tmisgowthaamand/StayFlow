@@ -4,7 +4,7 @@ import path from 'path';
 import sheetsService from './sheets.js';
 import * as bot from './bot.js';
 import config from './config.js';
-import { exportAllData, Query } from './db.js';
+import { exportAllData, Query, Payment } from './db.js';
 import { fileURLToPath } from 'url';
 import { uploadBackup } from './backupStorage.js';
 
@@ -254,7 +254,59 @@ function setupCron() {
         }
     });
 
-    console.log('🕒 Automation System Active: Bills (1,3,5th), Overdue (10,11th), Backups (3AM), Sync (6h), Query Auto-Reply (30min).');
+    // 9. Cash payment timeout — remind admin if PENDING CASH not confirmed after 24 hours
+    // Runs every hour to check for stale cash payments
+    cron.schedule('0 * * * *', async () => {
+        console.log('[CRON] Checking for stale PENDING CASH payments (24h timeout)...');
+        try {
+            const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+
+            // Find all cash payments that are still PENDING after 24 hours
+            const staleCashPayments = await Payment.find({
+                mode: 'CASH',
+                status: 'PENDING',
+                timestamp: { $lte: twentyFourHoursAgo },
+                // Only send one reminder — avoid spamming
+                cashReminderSent: { $ne: true }
+            });
+
+            if (staleCashPayments.length === 0) {
+                console.log('[CRON CASH TIMEOUT] No stale cash payments found.');
+                return;
+            }
+
+            for (const payment of staleCashPayments) {
+                const { phone, name, amountPaise, trxId, date } = payment;
+                const amount = amountPaise / 100;
+
+                // Remind admin to verify or reject
+                if (config.ownerPhone) {
+                    await bot.sendMessage(
+                        config.ownerPhone,
+                        `⏰ *Cash Payment Awaiting Confirmation — 24h Alert*\n━━━━━━━━━━━━━━━━━━━━\n\n👤 *Tenant*        :  ${name}\n📞 *Phone*         :  ${phone}\n💵 *Amount*      :  ₹${amount}\n🔖 *Ref*              :  ${trxId}\n📅 *Submitted*  :  ${date}\n\n━━━━━━━━━━━━━━━━━━━━\n✅ To confirm: *VERIFY CASH ${phone}*\n❌ To reject: *REJECT ${phone}*\n\n⚠️ _This payment has been pending for over 24 hours._`
+                    );
+                }
+
+                // Reassure the tenant their payment is still being processed
+                await bot.sendMessage(
+                    phone,
+                    `⏳ *Cash Payment Update*\n━━━━━━━━━━━━━━━━━━━━\n\nHi ${name},\n\nYour cash payment of *₹${amount}* (Ref: ${trxId}) submitted on ${date} is still awaiting admin confirmation.\n\n_We've reminded the admin. You will receive your invoice once confirmed._\n\nFor urgent queries, contact admin directly.`
+                );
+
+                // Mark reminder as sent so we don't spam
+                payment.cashReminderSent = true;
+                await payment.save();
+
+                await new Promise(r => setTimeout(r, 1000));
+            }
+
+            console.log(`[CRON CASH TIMEOUT] Sent 24h reminders for ${staleCashPayments.length} stale cash payment(s).`);
+        } catch (err) {
+            console.error('Cron Error (Cash Timeout):', err.message);
+        }
+    });
+
+    console.log('🕒 Automation System Active: Bills (1,3,5th), Overdue (10,11th), Backups (3AM), Sync (6h), Query Auto-Reply (30min), Cash Timeout (hourly).');
 }
 
 export default setupCron;
