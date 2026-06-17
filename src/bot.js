@@ -681,7 +681,8 @@ async function handleIncomingMessage(phone, body, messageId = null, image = null
 
         switch (cleanBody) {
             case config.commands.JOIN:
-                const joinBanner = path.join(__dirname, '../assets/JOIN.png');
+                let joinBanner = path.join(__dirname, '../assets/JOIN.jpg');
+                if (!fs.existsSync(joinBanner)) joinBanner = path.join(__dirname, '../assets/JOIN.png');
                 if (fs.existsSync(joinBanner)) await sendImage(phone, joinBanner);
                 const formUrl = config.googleFormUrl || 'https://forms.gle/YOUR_FORM_ID';
                 await sendMessage(phone, `Welcome to ${config.businessName}! 👋\n\nTo join, please fill out this quick registration form:\n\n👉 ${formUrl}\n\nOnce submitted, you will receive a confirmation here!`);
@@ -886,7 +887,8 @@ async function handleIncomingMessage(phone, body, messageId = null, image = null
             // New Register (from list)
             case 'MENU_REGISTER':
             case '📝 NEW REGISTER': {
-                const regBanner = path.join(__dirname, '../assets/JOIN.png');
+                let regBanner = path.join(__dirname, '../assets/JOIN.jpg');
+                if (!fs.existsSync(regBanner)) regBanner = path.join(__dirname, '../assets/JOIN.png');
                 const regUrl = config.googleFormUrl || 'https://forms.gle/YOUR_FORM_ID';
                 const regCaption = `📝 *New Registration*\n━━━━━━━━━━━━━━━━━━━━\n\nJoin *${config.businessName}* by filling out the registration form.\n\nClick the button below to register 👇`;
                 if (fs.existsSync(regBanner)) await sendImage(phone, regBanner, regCaption);
@@ -1252,7 +1254,12 @@ async function handleSmartChat(phone, body, cleanBody) {
             if (status !== 'PAID') {
                 msg += `\n\n👉 Type *PAID* to record your payment`;
             }
-            await sendMessage(phone, msg);
+            const currentBillBanner = path.join(__dirname, '../assets/current Bill.png');
+            if (fs.existsSync(currentBillBanner)) {
+                await sendImage(phone, currentBillBanner, msg);
+            } else {
+                await sendMessage(phone, msg);
+            }
             return;
         }
 
@@ -1897,7 +1904,13 @@ async function handleStatus(phone) {
     if (!tenant) return;
     const status = tenant.get('Status');
     const emoji = status === 'PAID' ? '✅' : '⏳';
-    await sendMessage(phone, `${emoji} Your current payment status is: *${status}*`);
+    const statusBanner = path.join(__dirname, '../assets/Status.png');
+    const msg = `${emoji} Your current payment status is: *${status}*`;
+    if (fs.existsSync(statusBanner)) {
+        await sendImage(phone, statusBanner, msg);
+    } else {
+        await sendMessage(phone, msg);
+    }
 }
 
 async function handleAdvance(phone) {
@@ -2054,7 +2067,13 @@ async function handleAdminTotal(ownerPhone) {
     const tenants = await sheetsService.getAllTenants();
     const active = tenants.filter(t => t.get('Status') !== 'VACATED');
     const paid = active.filter(t => t.get('Status') === 'PAID').length;
-    await sendMessage(ownerPhone, `📊 *Tenant Stats*\nTotal Active: ${active.length}\nPaid: ${paid}\nPending: ${active.length - paid}`);
+    const totalBanner = path.join(__dirname, '../assets/Total.png');
+    const msg = `📊 *Tenant Stats*\nTotal Active: ${active.length}\nPaid: ${paid}\nPending: ${active.length - paid}`;
+    if (fs.existsSync(totalBanner)) {
+        await sendImage(ownerPhone, totalBanner, msg);
+    } else {
+        await sendMessage(ownerPhone, msg);
+    }
 }
 
 async function handleAdminList(ownerPhone, status) {
