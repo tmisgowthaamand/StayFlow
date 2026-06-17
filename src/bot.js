@@ -681,7 +681,7 @@ async function handleIncomingMessage(phone, body, messageId = null, image = null
 
         switch (cleanBody) {
             case config.commands.JOIN:
-                let joinBanner = path.join(__dirname, '../assets/JOIN.jpg');
+                let joinBanner = path.join(__dirname, '../assets/New Register.jpg');
                 if (!fs.existsSync(joinBanner)) joinBanner = path.join(__dirname, '../assets/JOIN.png');
                 if (fs.existsSync(joinBanner)) await sendImage(phone, joinBanner);
                 const formUrl = config.googleFormUrl || 'https://forms.gle/YOUR_FORM_ID';
@@ -887,7 +887,7 @@ async function handleIncomingMessage(phone, body, messageId = null, image = null
             // New Register (from list)
             case 'MENU_REGISTER':
             case 'NEW REGISTER': {
-                let regBanner = path.join(__dirname, '../assets/JOIN.jpg');
+                let regBanner = path.join(__dirname, '../assets/New Register.jpg');
                 if (!fs.existsSync(regBanner)) regBanner = path.join(__dirname, '../assets/JOIN.png');
                 const regUrl = config.googleFormUrl || 'https://forms.gle/YOUR_FORM_ID';
                 const regCaption = `📝 *New Registration*\n━━━━━━━━━━━━━━━━━━━━\n\nJoin *${config.businessName}* by filling out the registration form.\n\nClick the button below to register 👇`;
@@ -906,7 +906,7 @@ async function handleIncomingMessage(phone, body, messageId = null, image = null
             // Vacate (from list — registered users)
             case 'MENU_VACATE':
             case 'VACATE': {
-                const vacateBanner = path.join(__dirname, '../assets/Vacate.png');
+                const vacateBanner = path.join(__dirname, '../assets/Vacate Room.png');
                 const vBaseUrl = config.whatsapp.callbackUrl ? config.whatsapp.callbackUrl.replace('/webhook', '') : 'https://stayflow-tkto.onrender.com';
                 const vacateUrl = `${vBaseUrl}/vacate?phone=${encodeURIComponent(phone)}`;
                 const vacateCaption = `🚪 *Vacate Room*\n━━━━━━━━━━━━━━━━━━━━\n\nFill the vacate request form to initiate your checkout process.\n\n⚠️ 30 days notice required.\n📄 PDF will be sent to you & admin on WhatsApp.`;
@@ -925,7 +925,7 @@ async function handleIncomingMessage(phone, body, messageId = null, image = null
             // Rent (from list)
             case 'MENU_RENT':
             case 'RENT': {
-                const rentBanner = path.join(__dirname, '../assets/Rent.png');
+                const rentBanner = path.join(__dirname, '../assets/rent.png');
                 if (fs.existsSync(rentBanner)) await sendImage(phone, rentBanner, `🏠 *Rent Details*\n━━━━━━━━━━━━━━━━━━━━\nView your monthly rent & bill breakdown`);
                 await handleMenuRent(phone);
                 await sendMainMenuList(phone);
@@ -935,7 +935,7 @@ async function handleIncomingMessage(phone, body, messageId = null, image = null
             // Pay (from list)
             case 'MENU_PAY':
             case 'PAY BILLS': {
-                const payBanner = path.join(__dirname, '../assets/Payment Banner.png');
+                const payBanner = path.join(__dirname, '../assets/Pay Bills.png');
                 if (fs.existsSync(payBanner)) await sendImage(phone, payBanner, `💳 *Pay Bills*\n━━━━━━━━━━━━━━━━━━━━\nPay via Razorpay • UPI • Cash`);
                 const tenantPay = await sheetsService.getTenantByPhone(phone);
                 if (!tenantPay || tenantPay.get('Status') === 'VACATED') {
@@ -987,7 +987,7 @@ async function handleIncomingMessage(phone, body, messageId = null, image = null
             // EB Bill (from list)
             case 'MENU_EB_BILL':
             case 'EB BILL': {
-                const ebBanner = path.join(__dirname, '../assets/EB Banner.png');
+                const ebBanner = path.join(__dirname, '../assets/EB Bills.png');
                 if (fs.existsSync(ebBanner)) await sendImage(phone, ebBanner, `⚡ *Electricity Bill*\n━━━━━━━━━━━━━━━━━━━━\nView your EB charges & unit rate`);
                 await handleMenuEBBill(phone);
                 await sendMainMenuList(phone);
@@ -1026,7 +1026,7 @@ async function handleIncomingMessage(phone, body, messageId = null, image = null
             // Holiday List (from list)
             case 'MENU_HOLIDAYS':
             case 'HOLIDAY LIST': {
-                const holidayBanner = path.join(__dirname, '../assets/Holidays.png');
+                const holidayBanner = path.join(__dirname, '../assets/Holiday List.png');
                 if (fs.existsSync(holidayBanner)) await sendImage(phone, holidayBanner, await getHolidayCaption());
                 else await handleMenuHolidays(phone);
                 await sendMainMenuList(phone);
@@ -1047,7 +1047,7 @@ async function handleIncomingMessage(phone, body, messageId = null, image = null
             // Vacancy Rooms (from list)
             case 'MENU_VACANCY':
             case 'VACANCY ROOMS': {
-                const vacancyBanner = path.join(__dirname, '../assets/Vacancy.png');
+                const vacancyBanner = path.join(__dirname, '../assets/vacancy Rooms.png');
                 if (fs.existsSync(vacancyBanner)) await sendImage(phone, vacancyBanner, `🛏️ *Vacancy Rooms*\n━━━━━━━━━━━━━━━━━━━━\nCheck available rooms & sharing types`);
                 await handleMenuVacancy(phone);
                 await sendMainMenuList(phone);
@@ -1057,7 +1057,7 @@ async function handleIncomingMessage(phone, body, messageId = null, image = null
             // Refer a Friend (from list)
             case 'MENU_REFER':
             case 'REFER A FRIEND': {
-                const referBanner = path.join(__dirname, '../assets/Refer.png');
+                const referBanner = path.join(__dirname, '../assets/referral.png');
                 if (fs.existsSync(referBanner)) await sendImage(phone, referBanner, `👥 *Refer a Friend*\n━━━━━━━━━━━━━━━━━━━━\nInvite friends & earn rewards`);
                 await handleMenuRefer(phone);
                 await sendMainMenuList(phone);
