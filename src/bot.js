@@ -844,7 +844,7 @@ async function handleIncomingMessage(phone, body, messageId = null, image = null
                     mainMenuRows.push({ id: 'menu_register', title: '📝 New Register', description: 'Register as a new tenant' });
                 }
                 mainMenuRows.push(
-                    { id: 'menu_rent', title: '🏠 Rent', description: 'View rent details & bill' },
+                    { id: 'menu_rent', title: 'Rent', description: 'View rent details & bill' },
                     { id: 'menu_pay', title: '💳 Pay Bills', description: 'Pay via Razorpay or Cash' },
                     { id: 'menu_eb_bill', title: '⚡ EB Bill', description: 'View electricity bill' },
                     { id: 'menu_statements', title: '📜 Statements', description: 'Monthly payment statements' },
@@ -924,7 +924,7 @@ async function handleIncomingMessage(phone, body, messageId = null, image = null
 
             // Rent (from list)
             case 'MENU_RENT':
-            case '🏠 RENT': {
+            case 'RENT': {
                 const rentBanner = path.join(__dirname, '../assets/Rent.png');
                 if (fs.existsSync(rentBanner)) await sendImage(phone, rentBanner, `🏠 *Rent Details*\n━━━━━━━━━━━━━━━━━━━━\nView your monthly rent & bill breakdown`);
                 await handleMenuRent(phone);
