@@ -839,23 +839,23 @@ async function handleIncomingMessage(phone, body, messageId = null, image = null
                 // Build menu rows — dynamically swap "New Register" ↔ "Vacate" based on registration
                 const mainMenuRows = [];
                 if (isRegistered) {
-                    mainMenuRows.push({ id: 'menu_vacate', title: '🚪 Vacate', description: 'Request to vacate your room' });
+                    mainMenuRows.push({ id: 'menu_vacate', title: 'Vacate', description: 'Request to vacate your room' });
                 } else {
-                    mainMenuRows.push({ id: 'menu_register', title: '📝 New Register', description: 'Register as a new tenant' });
+                    mainMenuRows.push({ id: 'menu_register', title: 'New Register', description: 'Register as a new tenant' });
                 }
                 mainMenuRows.push(
                     { id: 'menu_rent', title: 'Rent', description: 'View rent details & bill' },
-                    { id: 'menu_pay', title: '💳 Pay Bills', description: 'Pay via Razorpay or Cash' },
-                    { id: 'menu_eb_bill', title: '⚡ EB Bill', description: 'View electricity bill' },
-                    { id: 'menu_statements', title: '📜 Statements', description: 'Monthly payment statements' },
-                    { id: 'menu_queries', title: '❓ Queries', description: 'Submit a query or complaint' }
+                    { id: 'menu_pay', title: 'Pay Bills', description: 'Pay via Razorpay or Cash' },
+                    { id: 'menu_eb_bill', title: 'EB Bill', description: 'View electricity bill' },
+                    { id: 'menu_statements', title: 'Statements', description: 'Monthly payment statements' },
+                    { id: 'menu_queries', title: 'Queries', description: 'Submit a query or complaint' }
                 );
 
                 const infoMenuRows = [
-                    { id: 'menu_holidays', title: '🎉 Holiday List', description: 'View upcoming holidays' },
-                    { id: 'menu_rules', title: '📋 Rules', description: 'PG house rules & regulations' },
-                    { id: 'menu_vacancy', title: '🛏️ Vacancy Rooms', description: 'Check available rooms' },
-                    { id: 'menu_refer', title: '👥 Refer a Friend', description: 'Refer someone & earn rewards' }
+                    { id: 'menu_holidays', title: 'Holiday List', description: 'View upcoming holidays' },
+                    { id: 'menu_rules', title: 'Rules', description: 'PG house rules & regulations' },
+                    { id: 'menu_vacancy', title: 'Vacancy Rooms', description: 'Check available rooms' },
+                    { id: 'menu_refer', title: 'Refer a Friend', description: 'Refer someone & earn rewards' }
                 ];
 
                 const sections = [
@@ -886,7 +886,7 @@ async function handleIncomingMessage(phone, body, messageId = null, image = null
             // ==================== LIST MENU SELECTIONS ====================
             // New Register (from list)
             case 'MENU_REGISTER':
-            case '📝 NEW REGISTER': {
+            case 'NEW REGISTER': {
                 let regBanner = path.join(__dirname, '../assets/JOIN.jpg');
                 if (!fs.existsSync(regBanner)) regBanner = path.join(__dirname, '../assets/JOIN.png');
                 const regUrl = config.googleFormUrl || 'https://forms.gle/YOUR_FORM_ID';
@@ -905,7 +905,7 @@ async function handleIncomingMessage(phone, body, messageId = null, image = null
 
             // Vacate (from list — registered users)
             case 'MENU_VACATE':
-            case '🚪 VACATE': {
+            case 'VACATE': {
                 const vacateBanner = path.join(__dirname, '../assets/Vacate.png');
                 const vBaseUrl = config.whatsapp.callbackUrl ? config.whatsapp.callbackUrl.replace('/webhook', '') : 'https://stayflow-tkto.onrender.com';
                 const vacateUrl = `${vBaseUrl}/vacate?phone=${encodeURIComponent(phone)}`;
@@ -934,7 +934,7 @@ async function handleIncomingMessage(phone, body, messageId = null, image = null
 
             // Pay (from list)
             case 'MENU_PAY':
-            case '💳 PAY BILLS': {
+            case 'PAY BILLS': {
                 const payBanner = path.join(__dirname, '../assets/Payment Banner.png');
                 if (fs.existsSync(payBanner)) await sendImage(phone, payBanner, `💳 *Pay Bills*\n━━━━━━━━━━━━━━━━━━━━\nPay via Razorpay • UPI • Cash`);
                 const tenantPay = await sheetsService.getTenantByPhone(phone);
@@ -986,7 +986,7 @@ async function handleIncomingMessage(phone, body, messageId = null, image = null
 
             // EB Bill (from list)
             case 'MENU_EB_BILL':
-            case '⚡ EB BILL': {
+            case 'EB BILL': {
                 const ebBanner = path.join(__dirname, '../assets/EB Banner.png');
                 if (fs.existsSync(ebBanner)) await sendImage(phone, ebBanner, `⚡ *Electricity Bill*\n━━━━━━━━━━━━━━━━━━━━\nView your EB charges & unit rate`);
                 await handleMenuEBBill(phone);
@@ -996,7 +996,7 @@ async function handleIncomingMessage(phone, body, messageId = null, image = null
 
             // Statements (from list)
             case 'MENU_STATEMENTS':
-            case '📜 STATEMENTS': {
+            case 'STATEMENTS': {
                 const stmtBanner = path.join(__dirname, '../assets/Statements.png');
                 if (fs.existsSync(stmtBanner)) await sendImage(phone, stmtBanner, `📜 *Payment Statements*\n━━━━━━━━━━━━━━━━━━━━\nMonthly payment history & records`);
                 await handleMenuStatements(phone);
@@ -1006,7 +1006,7 @@ async function handleIncomingMessage(phone, body, messageId = null, image = null
 
             // Queries (from list)
             case 'MENU_QUERIES':
-            case '❓ QUERIES': {
+            case 'QUERIES': {
                 const queryBanner = path.join(__dirname, '../assets/Queries.png');
                 const baseUrl = config.whatsapp.callbackUrl ? config.whatsapp.callbackUrl.replace('/webhook', '') : 'https://stayflow-tkto.onrender.com';
                 const queriesUrl = `${baseUrl}/queries.html?phone=${encodeURIComponent(phone)}`;
@@ -1025,7 +1025,7 @@ async function handleIncomingMessage(phone, body, messageId = null, image = null
 
             // Holiday List (from list)
             case 'MENU_HOLIDAYS':
-            case '🎉 HOLIDAY LIST': {
+            case 'HOLIDAY LIST': {
                 const holidayBanner = path.join(__dirname, '../assets/Holidays.png');
                 if (fs.existsSync(holidayBanner)) await sendImage(phone, holidayBanner, await getHolidayCaption());
                 else await handleMenuHolidays(phone);
@@ -1035,7 +1035,7 @@ async function handleIncomingMessage(phone, body, messageId = null, image = null
 
             // Rules (from list)
             case 'MENU_RULES':
-            case '📋 RULES': {
+            case 'RULES': {
                 const rulesBanner = path.join(__dirname, '../assets/Rules.png');
                 const rulesMenuMsg = `🏢 *PG House Rules & Regulations*\n━━━━━━━━━━━━━━━━━━━━\n\n⚖️ *DO's:*\n1. Keep your room and shared areas clean and hygienic.\n2. Maintain silence after 10:00 PM for everyone's comfort.\n3. Pay rent by the 5th and EB bills by the 10th of each month.\n4. Inform the admin 30 days before vacating.\n5. Cooperate with police verification and security checks.\n\n🚫 *DON'Ts:*\n1. Strictly NO smoking, alcohol, or illegal substances.\n2. No overnight visitors allowed without prior permission.\n3. Do not use heavy appliances (Heaters/AC/Iron) without approval.\n4. No loud music, parties, or disturbances in rooms.\n5. Do not damage PG property or furniture.\n\n📜 *Note:* Rules are for the safety and comfort of all residents. Violations may lead to penalties or eviction.\n━━━━━━━━━━━━━━━━━━━━`;
                 if (fs.existsSync(rulesBanner)) await sendImage(phone, rulesBanner, rulesMenuMsg);
@@ -1046,7 +1046,7 @@ async function handleIncomingMessage(phone, body, messageId = null, image = null
 
             // Vacancy Rooms (from list)
             case 'MENU_VACANCY':
-            case '🛏️ VACANCY ROOMS': {
+            case 'VACANCY ROOMS': {
                 const vacancyBanner = path.join(__dirname, '../assets/Vacancy.png');
                 if (fs.existsSync(vacancyBanner)) await sendImage(phone, vacancyBanner, `🛏️ *Vacancy Rooms*\n━━━━━━━━━━━━━━━━━━━━\nCheck available rooms & sharing types`);
                 await handleMenuVacancy(phone);
@@ -1056,7 +1056,7 @@ async function handleIncomingMessage(phone, body, messageId = null, image = null
 
             // Refer a Friend (from list)
             case 'MENU_REFER':
-            case '👥 REFER A FRIEND': {
+            case 'REFER A FRIEND': {
                 const referBanner = path.join(__dirname, '../assets/Refer.png');
                 if (fs.existsSync(referBanner)) await sendImage(phone, referBanner, `👥 *Refer a Friend*\n━━━━━━━━━━━━━━━━━━━━\nInvite friends & earn rewards`);
                 await handleMenuRefer(phone);
